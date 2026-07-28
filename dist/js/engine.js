@@ -279,6 +279,10 @@ export class ProceduralPlayer {
       strength: options.strength ?? options.metadata?.strength,
       ballSecurity: options.ballSecurity ?? options.metadata?.ballSecurity,
       shootingHand: this.shootingHand,
+      jerseyNumber: options.jerseyNumber ?? options.metadata?.jerseyNumber,
+      appearanceId: options.appearanceId ?? options.metadata?.appearanceId ?? "classic",
+      hairStyle: options.hairStyle ?? options.metadata?.hairStyle ?? "crop",
+      headShape: options.headShape ?? options.metadata?.headShape ?? "round",
     };
     this.colors = {
       jersey: options.jerseyColor ?? options.primary ?? (this.team === "home" ? 0x32e6c4 : 0xff5a76),
@@ -308,7 +312,10 @@ export class ProceduralPlayer {
     canvas.width = 128;
     canvas.height = 160;
     const ctx = canvas.getContext("2d");
-    const number = ([...this.id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 90) + 1;
+    const fallbackNumber = ([...this.id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 90) + 1;
+    const number = Number.isFinite(Number(this.metadata.jerseyNumber))
+      ? Math.max(0, Math.min(99, Math.round(Number(this.metadata.jerseyNumber))))
+      : fallbackNumber;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -389,12 +396,28 @@ export class ProceduralPlayer {
     this.hips.add(neck);
     const head = this._mesh(new T.SphereGeometry(0.205, 18, 14), skin);
     head.position.y = 1.25;
-    head.scale.set(0.94, 1.08, 0.92);
+    const headShape = this.metadata.headShape;
+    head.scale.set(headShape === "wide" ? 1.03 : 0.94, headShape === "long" ? 1.16 : 1.08, 0.92);
     this.hips.add(head);
-    const hairCap = this._mesh(new T.SphereGeometry(0.207, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hair);
-    hairCap.position.y = 1.27;
-    hairCap.scale.set(0.96, 1.04, 0.94);
+    const hairStyle = this.metadata.hairStyle;
+    const hairGeometry = hairStyle === "highTop"
+      ? new T.BoxGeometry(0.31, 0.24, 0.3)
+      : hairStyle === "braids"
+        ? new T.CapsuleGeometry(0.19, 0.1, 3, 9)
+        : new T.SphereGeometry(0.207, 16, 10, 0, Math.PI * 2, 0, hairStyle === "fade" ? Math.PI * 0.36 : Math.PI * 0.48);
+    const hairCap = this._mesh(hairGeometry, hair);
+    hairCap.position.y = hairStyle === "highTop" ? 1.43 : hairStyle === "braids" ? 1.34 : 1.27;
+    hairCap.scale.set(hairStyle === "highTop" ? 0.94 : 0.96, hairStyle === "braids" ? 0.78 : 1.04, 0.94);
     this.hips.add(hairCap);
+    if (hairStyle === "braids") {
+      for (const side of [-1, 1]) {
+        const braid = this._mesh(new T.CapsuleGeometry(0.025, 0.22, 2, 5), hair);
+        braid.position.set(side * 0.145, 1.2, -0.1);
+        braid.rotation.z = side * 0.12;
+        this.hips.add(braid);
+        this.detailMeshes.push(braid);
+      }
+    }
 
     const faceDark = this._material(0x17191c, 0.82);
     for (const side of [-1, 1]) {
@@ -1029,6 +1052,9 @@ export class NovaCourtEngine {
     const rimGlow = new T.PointLight(0xff8d4f, 2.2, 8, 2);
     rimGlow.position.set(0, 4.1, -6.4);
     this.scene.add(rimGlow);
+    const courtFill = new T.DirectionalLight(0x8edfff, 0.24);
+    courtFill.position.set(-7.5, 5.8, 8.5);
+    this.scene.add(courtFill);
   }
 
   _buildArena() {
@@ -1694,6 +1720,7 @@ export class NovaCourtEngine {
     const rawDt = Math.min(0.05, Math.max(0, (now - this._lastFrame) / 1000));
     this._lastFrame = now;
     if (!this.paused) {
+      this.presentationUpdate?.(rawDt);
       if (this.replayFlow.frozen) {
         // Replay time belongs to the render loop while gameplay simulation,
         // shot clocks, AI-owned actors, and control output remain frozen.
@@ -3576,6 +3603,20 @@ export class NovaCourtEngine {
         controlled: p.controlled, stamina: p.stamina,
         position: p.root.position.toArray(),
       })),
+      renderInfo: this.getRenderMetrics(),
+    };
+  }
+
+  getRenderMetrics() {
+    return {
+      calls: this.renderer?.info?.render?.calls || 0,
+      triangles: this.renderer?.info?.render?.triangles || 0,
+      geometries: this.renderer?.info?.memory?.geometries || 0,
+      textures: this.renderer?.info?.memory?.textures || 0,
+      sceneId: this.mode,
+      phase: this.paused ? "paused" : "live",
+      players: this.players.length,
+      externalAssetBytes: 0,
     };
   }
 

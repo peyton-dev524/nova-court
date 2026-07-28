@@ -3,14 +3,18 @@ import assert from "node:assert/strict";
 
 import {
   ATTRIBUTE_GROUPS,
+  AVATAR_APPEARANCES,
   COSMETIC_PALETTES,
   POSITION_PRESETS,
   PROFILE_STORAGE_KEY,
+  PROFILE_SCHEMA_VERSION,
+  WIN_CREDIT_BONUS,
   awardMatch,
   calculateOverall,
   createDefaultProfile,
   equipCosmetic,
   getEnginePlayerConfig,
+  getAvailableTitles,
   getProfileSummary,
   getUpgradeCost,
   levelFromXp,
@@ -19,6 +23,8 @@ import {
   purchaseCosmetic,
   saveProfile,
   selectPosition,
+  selectTitle,
+  updatePlayerIdentity,
   upgradeAttribute,
 } from "../js/player-progression.js";
 
@@ -50,7 +56,7 @@ test("normalization migrates a legacy single build and clamps corrupt values", (
     xp: 480,
     cosmetics: { owned: ["missing", "novaPulse", "novaPulse"], equipped: "missing" },
   });
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, PROFILE_SCHEMA_VERSION);
   assert.equal(migrated.credits, 0);
   assert.equal(migrated.builds.SG.attributes.threePoint, POSITION_PRESETS.SG.caps.threePoint);
   assert.equal(migrated.builds.SG.wins, 4);
@@ -104,6 +110,8 @@ test("match rewards are idempotent and update only the selected build", () => {
   const result = awardMatch(profile, { matchId: "run-17", won: true, mode: "street", difficulty: "pro" });
   assert.equal(result.ok, true);
   assert.ok(result.credits > 0);
+  assert.equal(result.winCredits, WIN_CREDIT_BONUS);
+  assert.equal(result.credits, result.baseCredits + 10);
   assert.equal(result.profile.builds.PG.games, 1);
   assert.equal(result.profile.builds.PG.wins, 1);
   assert.equal(result.profile.builds.C.games, 0);
@@ -111,6 +119,61 @@ test("match rewards are idempotent and update only the selected build", () => {
   const duplicate = awardMatch(result.profile, { matchId: "run-17", won: true, mode: "street", difficulty: "pro" });
   assert.equal(duplicate.reason, "already-rewarded");
   assert.equal(duplicate.profile.credits, result.profile.credits);
+});
+
+test("loss rewards preserve the existing base pay without a win component", () => {
+  const profile = createDefaultProfile();
+  const result = awardMatch(profile, { matchId: "loss-1", won: false, mode: "street", difficulty: "pro" });
+  assert.equal(result.ok, true);
+  assert.equal(result.winCredits, 0);
+  assert.equal(result.credits, result.baseCredits);
+  assert.equal(result.profile.builds.PG.wins, 0);
+});
+
+test("fresh profiles require a normalized player name and save customization", () => {
+  const profile = createDefaultProfile();
+  assert.equal(getProfileSummary(profile).needsOnboarding, true);
+  assert.equal(updatePlayerIdentity(profile, { displayName: "   " }).reason, "invalid-display-name");
+  const updated = updatePlayerIdentity(profile, {
+    displayName: "  Nova🏀   Kid  ",
+    jerseyNumber: 123,
+    appearanceId: "braided",
+  });
+  assert.equal(updated.ok, true);
+  assert.equal(updated.profile.identity.displayName, "Nova Kid");
+  assert.equal(updated.profile.identity.jerseyNumber, 99);
+  assert.equal(updated.profile.identity.appearanceId, "braided");
+  assert.equal(getProfileSummary(updated.profile).needsOnboarding, false);
+  const config = getEnginePlayerConfig(updated.profile);
+  assert.equal(config.name, "Nova Kid");
+  assert.equal(config.jerseyNumber, 99);
+  assert.equal(config.hairStyle, "braids");
+  assert.equal(AVATAR_APPEARANCES.some((item) => item.id === config.appearanceId), true);
+});
+
+test("legacy saves migrate to an established identity without prompting again", () => {
+  const migrated = normalizeProfile({ version: 2, selectedPosition: "PG", builds: createDefaultProfile().builds });
+  assert.equal(migrated.identity.created, true);
+  assert.equal(migrated.identity.displayName, "Ace Nova");
+  assert.equal(getProfileSummary(migrated).needsOnboarding, false);
+});
+
+test("overall titles unlock every five OVR, Legend at 99, and privileged titles need flags", () => {
+  const profile = createDefaultProfile();
+  const available = getAvailableTitles(profile);
+  assert.equal(available.some((title) => title.id === "dev"), false);
+  assert.equal(available.some((title) => title.id === "owner"), false);
+  assert.equal(available.some((title) => title.id === "ovr-60"), true);
+  assert.equal(selectTitle(profile, "dev").reason, "title-locked");
+
+  profile.entitlements.tester = true;
+  assert.equal(getAvailableTitles(profile).some((title) => title.id === "tester"), true);
+  assert.equal(selectTitle(profile, "tester").ok, true);
+
+  for (const key of Object.keys(profile.builds.PG.attributes)) profile.builds.PG.attributes[key] = 999;
+  const maxTitles = getAvailableTitles(profile);
+  assert.equal(maxTitles.some((title) => title.id === "legend"), true);
+  assert.equal(selectTitle(profile, "legend").ok, true);
 });
 
 test("levels rise from play XP and stop at 99", () => {
