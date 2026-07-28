@@ -110,7 +110,7 @@ test("a perfect release is not guaranteed through meaningful coverage", () => {
 });
 
 
-test("the white meter window is the only perfect timing window", () => {
+test("the green meter window is the only perfect timing window", () => {
   assert.equal(isShotMeterPerfect(0.72), true);
   assert.equal(isShotMeterPerfect(0.684), true);
   assert.equal(isShotMeterPerfect(0.756), true);

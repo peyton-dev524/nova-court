@@ -15,6 +15,7 @@ export const DEFAULT_BINDINGS = Object.freeze({
   pass: ["KeyE", "KeyJ"],
   defend: ["Space", "KeyL"],
   steal: ["KeyE", "KeyI"],
+  dunk: ["KeyI"],
   sprint: ["ShiftLeft", "ShiftRight"],
   modifier: ["KeyQ", "ControlLeft", "ControlRight"],
   camera: ["KeyC"],
@@ -26,6 +27,7 @@ const GAMEPAD_BUTTONS = Object.freeze({
   shoot: 2,    // X / Square
   pass: 0,     // A / Cross
   steal: 0,    // A / Cross (defensive context)
+  dunk: 2,     // X / Square (offensive rim context)
   defend: 2,   // X / Square (defensive context)
   sprint: 7,   // RT / R2
   modifier: 6, // LT / L2
@@ -35,7 +37,7 @@ const GAMEPAD_BUTTONS = Object.freeze({
 });
 
 const ACTIONS = Object.freeze([
-  "shoot", "pass", "defend", "steal", "sprint", "modifier",
+  "shoot", "pass", "defend", "steal", "dunk", "sprint", "modifier",
   "camera", "pause", "restart",
 ]);
 

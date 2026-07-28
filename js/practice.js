@@ -153,6 +153,8 @@ export class PracticeMode {
       name: "Open Gym",
       description: "Unlimited solo reps with automatic ball return and streak tracking.",
       timed: false,
+      outOfBounds: false,
+      madeShotReplays: false,
     };
   }
 

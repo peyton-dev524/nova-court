@@ -1,4 +1,4 @@
-import { CourtControls } from "./controls.js?v=3.0";
+import { CourtControls } from "./controls.js?v=3.1";
 import {
   createNightPark,
   getReplayFrameWindow,
@@ -23,7 +23,7 @@ import {
   blendHandleTargets,
   sampleActionProgress,
   sampleShotFormTiming,
-} from "./animation-continuity.js?v=1.0";
+} from "./animation-continuity.js?v=1.1";
 import {
   createReplayFlow,
   REPLAY_FLOW_EVENTS,
@@ -55,6 +55,14 @@ import {
   shotValueForRuntime,
 } from "./court-runtime.js";
 import { installFullCourtVisuals } from "./full-court-visuals.js?v=1.2";
+import {
+  CONTEXTUAL_I_ACTIONS,
+  FreeThrowFlow,
+  planLayupBank,
+  resolveContextualIAction,
+  shouldEnforceOutOfBounds,
+  shouldQueueMadeShotReplay,
+} from "./finishing-mechanics.js?v=1.0";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -658,6 +666,13 @@ export class ProceduralPlayer {
       let kneeTarget = Math.max(0, -legSwing * phase) * lerp(0.52, 0.72, this.sprintBlend)
         + landingSquash * 2.2;
       let spread = phase * 0.16 * this.defenseBlend;
+      if (shootPose) {
+        const shootingFoot = i === (this.shootingHand > 0 ? 1 : 0);
+        hipTarget += (shootingFoot ? -0.08 : 0.035)
+          * shootPose.stanceSet
+          * (1 - shootPose.landingRecovery);
+        spread += phase * 0.07 * shootPose.stanceSet;
+      }
       if (dunkPose) {
         const poseLeg = i === 0 ? dunkPose.legs.left : dunkPose.legs.right;
         hipTarget = poseLeg.hipPitch;
@@ -886,6 +901,7 @@ export class NovaCourtEngine {
     this.shotClock = 24;
     this.shotCharge = 0;
     this.chargingShot = false;
+    this.shotInputAction = "shoot";
     this.shotIdeal = SHOT_METER_IDEAL;
     this.shotPerfectHalfWidth = SHOT_METER_PERFECT_HALF_WIDTH;
     this.lastShotQuality = 0;
@@ -893,6 +909,7 @@ export class NovaCourtEngine {
     this.queuedRelease = null;
     this.shotContext = "jumper";
     this.activeDunk = null;
+    this.freeThrowFlow = new FreeThrowFlow();
     this.lastScorer = null;
     this._scoredOnFlight = false;
     this.deadBallCooldown = 0;
@@ -901,6 +918,7 @@ export class NovaCourtEngine {
     this.netPulse = 0;
     this.scoreRingPulse = 0;
     this.shotTrailTimer = 0;
+    this.perfectTrailIndex = 0;
     this.highlightPending = 0;
     this.replayBuffer = [];
     this.replay = null;
@@ -1465,12 +1483,16 @@ export class NovaCourtEngine {
       pickupCooldown: 0,
       rimContacts: 0,
       backboardContacts: 0,
+      maxBackboardContacts: Infinity,
+      rimContactCooldown: 0,
       perfectRelease: false,
       guaranteedMake: false,
       plannedMade: false,
       plannedRimResult: null,
       shotResult: null,
       bankShot: false,
+      bankResolved: false,
+      freeThrow: false,
       lastTouchedTeamId: null,
       lastTouchedPlayerId: null,
     };
@@ -1605,6 +1627,43 @@ export class NovaCourtEngine {
     return true;
   }
 
+  startFreeThrows({ shooterId, teamId, attempts = 1 } = {}) {
+    const shooter = this.players.find((player) => player.id === shooterId)
+      || this.players.find((player) => player.team === teamId)
+      || this.controlledPlayer;
+    if (!shooter) return false;
+    this.chargingShot = false;
+    this.queuedRelease = null;
+    this.activeDunk = null;
+    this.shotCharge = 0;
+    this.shotInputAction = "shoot";
+    const flow = this.freeThrowFlow.start({
+      shooterId: shooter.id,
+      teamId: teamId || shooter.team,
+      attempts,
+    });
+    const basket = this._basketForTeam(shooter.team);
+    const lineDistance = 4.18;
+    shooter.root.position.set(
+      basket.x,
+      0,
+      basket.z - basket.attackSign * lineDistance,
+    );
+    shooter.velocity.set(0, 0, 0);
+    shooter.desiredVelocity.set(0, 0, 0);
+    this.ball.pickupCooldown = 0;
+    this.givePossession(shooter, true);
+    this.setControlledPlayer(shooter);
+    this.shotClock = Infinity;
+    this.events.emit("freethrow", {
+      phase: "ready",
+      shooter,
+      attempts: flow.state.attemptsRemaining,
+      prompt: "HOLD SPACE · RELEASE IN GREEN",
+    });
+    return true;
+  }
+
   releaseBall(position, velocity, state = "loose") {
     const owner = this.ball.owner;
     if (owner) owner.hasBall = false;
@@ -1621,6 +1680,8 @@ export class NovaCourtEngine {
       this.ball.plannedRimResult = null;
       this.ball.shotResult = null;
       this.ball.bankShot = false;
+      this.ball.bankResolved = false;
+      this.ball.freeThrow = false;
       this.ball.canScore = false;
     }
     this.ball.position.copy(position);
@@ -1848,11 +1909,32 @@ export class NovaCourtEngine {
               : input.y < -0.32 ? "betweenLegs" : "hesi");
       this.performDribbleMove(player, move);
     }
-    if (this.controls.wasPressed("shoot") && player.hasBall) this.beginShot(player);
-    if (this.chargingShot && this.controls.isDown("shoot")) this.holdShot(dt);
-    if (this.chargingShot && this.controls.wasReleased("shoot")) this.releaseShot(player);
+    const basket = this._basketForTeam(player.team);
+    const contextualI = resolveContextualIAction({
+      hasBall: player.hasBall,
+      isOffense: player.team === this.possessionTeam,
+      distanceToRim: Math.hypot(
+        basket.x - player.root.position.x,
+        basket.z - player.root.position.z,
+      ),
+      stamina: player.stamina,
+      actionLocked: player.actionLock > 0,
+    });
+    if (this.controls.wasPressed("dunk")
+        && contextualI.action === CONTEXTUAL_I_ACTIONS.DUNK
+        && !this.chargingShot) {
+      this.beginShot(player, "dunk", "dunk");
+      this.events.emit("contextualaction", { player, ...contextualI });
+    }
+    if (this.controls.wasPressed("shoot") && player.hasBall && !this.chargingShot) {
+      this.beginShot(player, this.freeThrowFlow.active ? "free_throw" : null, "shoot");
+    }
+    const chargeAction = this.shotInputAction || "shoot";
+    if (this.chargingShot && this.controls.isDown(chargeAction)) this.holdShot(dt);
+    if (this.chargingShot && this.controls.wasReleased(chargeAction)) this.releaseShot(player);
     if (this.controls.wasPressed("pass") && player.hasBall) this.pass(player);
-    if (this.controls.wasPressed("steal") && !player.hasBall) this.attemptSteal(player);
+    if (this.controls.wasPressed("steal")
+        && contextualI.action === CONTEXTUAL_I_ACTIONS.STEAL) this.attemptSteal(player);
     if (this.controls.wasPressed("defend") && !player.hasBall) this.attemptBlock(player);
     if (this.controls.wasPressed("camera")) this.cycleCamera();
     if (this.controls.wasPressed("restart")) this.events.emit("restartrequest", { mode: this.mode });
@@ -1918,7 +2000,7 @@ export class NovaCourtEngine {
     const previousX = player.root.position.x;
     const previousZ = player.root.position.z;
     player.root.position.addScaledVector(player.velocity, dt);
-    if (player.hasBall && this.deadBallCooldown <= 0) {
+    if (player.hasBall && this.deadBallCooldown <= 0 && shouldEnforceOutOfBounds(this.mode)) {
       const resolution = resolveOutOfBounds({
         position: { x: player.root.position.x, z: player.root.position.z },
         previousPosition: { x: previousX, z: previousZ },
@@ -2117,7 +2199,7 @@ export class NovaCourtEngine {
     return this._startDribbleMove(player, type, false);
   }
 
-  _dunkSelectionContext(player) {
+  _dunkSelectionContext(player, contextual = false) {
     const defenders = this.players.filter((candidate) => candidate.team !== player.team);
     const basket = this._basketForTeam(player.team);
     let nearest = null;
@@ -2129,10 +2211,19 @@ export class NovaCourtEngine {
         nearestDistance = distance;
       }
     }
+    const basketDirection = new this.T.Vector3(
+      basket.x - player.root.position.x,
+      0,
+      basket.z - player.root.position.z,
+    );
+    if (basketDirection.lengthSq() > 1e-6) basketDirection.normalize();
+    const approachVelocity = contextual && player.velocity.length() < 1.8
+      ? basketDirection.multiplyScalar(2.15)
+      : player.velocity;
     return {
       playerPosition: { x: player.root.position.x, z: player.root.position.z },
       rimPosition: { x: basket.x, z: basket.z },
-      velocity: { x: player.velocity.x, z: player.velocity.z },
+      velocity: { x: approachVelocity.x, z: approachVelocity.z },
       stamina: player.stamina,
       defenderContest: nearest ? clamp((1.65 - nearestDistance) / 1.35, 0, 1) : 0,
       traffic: defenders.filter((defender) =>
@@ -2147,7 +2238,9 @@ export class NovaCourtEngine {
   }
 
   _beginDunkChoreography(player, quality = 0.82, override = {}) {
-    const selection = selectDunkChoreography(this._dunkSelectionContext(player));
+    const selection = selectDunkChoreography(
+      this._dunkSelectionContext(player, override.contextualDunk === true),
+    );
     if (!selection.eligible) {
       this.events.emit("dunkstyle", {
         player,
@@ -2301,13 +2394,14 @@ export class NovaCourtEngine {
     };
   }
 
-
-  beginShot(player = this.controlledPlayer) {
+  beginShot(player = this.controlledPlayer, forcedContext = null, inputAction = "shoot") {
     if (!player?.hasBall || this.chargingShot || player.actionLock > 0) return false;
     this.chargingShot = true;
     this.shotCharge = 0;
+    this.shotInputAction = inputAction;
     this.queuedRelease = null;
-    this.shotContext = this._shotContext(player);
+    this.shotContext = forcedContext || this._shotContext(player);
+    if (this.shotContext === "free_throw") this.freeThrowFlow.beginCharge();
     player.queuedDribbleMove = null;
     player.dribbleTransition = null;
     player.dribbleMove = null;
@@ -2320,13 +2414,17 @@ export class NovaCourtEngine {
     this._facePlayerToBasket(player);
     player.setState(PLAYER_STATES.SHOOT, true);
     player.desiredVelocity.multiplyScalar(0.18);
-    if (this.shotContext === "jumper") {
+    if (this.shotContext === "jumper" || this.shotContext === "free_throw") {
       player.jumpVelocity = 4.5;
       player.grounded = false;
       player.actionLock = 0.58;
     }
     this.aimRing.material.opacity = 0.75;
-    this.events.emit("shotstart", { player, context: this.shotContext });
+    this.events.emit("shotstart", {
+      player,
+      context: this.shotContext,
+      inputAction: this.shotInputAction,
+    });
     return true;
   }
 
@@ -2352,6 +2450,7 @@ export class NovaCourtEngine {
       ? this._getShotPercentage(player, quality, perfectRelease, previewPosition)
       : null;
     this.events.emit("shotmeter", {
+      context: this.shotContext,
       charge: this.shotCharge,
       quality,
       perfectRelease,
@@ -2392,7 +2491,10 @@ export class NovaCourtEngine {
     if (context === "dunk" && !override.choreographyRelease) {
       const timingQuality = override.quality
         ?? (1 - clamp(Math.abs(this.shotCharge - this.shotIdeal) / 0.45, 0, 1));
-      return this._beginDunkChoreography(player, timingQuality, override);
+      return this._beginDunkChoreography(player, timingQuality, {
+        ...override,
+        contextualDunk: this.shotInputAction === "dunk",
+      });
     }
     const meterQuality = 1 - clamp(Math.abs(this.shotCharge - this.shotIdeal) / 0.45, 0, 1);
     if (context === "jumper" && !override.immediate && !override.atApex &&
@@ -2429,9 +2531,59 @@ export class NovaCourtEngine {
       : player.shootingHand;
     const start = player.worldHandPosition(new this.T.Vector3(), releaseHand);
     const shotModel = this._getShotPercentage(player, quality, perfectRelease, start);
+    const layupPlan = context === "layup"
+      ? planLayupBank({
+        shooterPosition: player.root.position,
+        rimPosition: this._basketForTeam(player.team),
+        backboardZ: this._basketForTeam(player.team).backboardZ,
+        attackSign: this._basketForTeam(player.team).attackSign,
+        contested: shotModel.coverageResult.coverage > 0.08,
+      })
+      : null;
+    const ratings = player.metadata?.ratings || player.metadata || {};
+    const freeThrowResult = context === "free_throw"
+      ? this.freeThrowFlow.release({
+        charge: this.shotCharge,
+        rating: ratings.freeThrow ?? ratings.shooting ?? 0.7,
+        outcomeValue: Math.random(),
+      })
+      : null;
+    const freeThrowPercentage = context === "free_throw"
+      ? {
+        makeProbability: freeThrowResult?.makeProbability ?? 0,
+        makePercent: 0,
+        guaranteed: freeThrowResult?.guaranteed === true,
+        coverage: 0,
+        releaseQuality: freeThrowResult?.timingQuality ?? quality,
+        coverageLabel: "wide_open",
+        rangeLabel: "free_throw",
+        hud: {
+          makePercent: perfectRelease ? "100%" : `${Math.round(clamp(0.18 + (ratings.freeThrow ?? ratings.shooting ?? 0.7) * 0.5 + quality * 0.25, 0.18, 0.88) * 100)}%`,
+          coverageLabel: "FREE THROW",
+          coveragePercent: "0% COVERED",
+          releaseLabel: perfectRelease ? "PERFECT" : "TIMED",
+          rangeLabel: "FREE THROW",
+        },
+      }
+      : null;
+    if (freeThrowPercentage) {
+      freeThrowPercentage.makePercent = Math.round(freeThrowPercentage.makeProbability * 100);
+    }
+    const forcedFinishPercentage = (context === "layup" || (context === "dunk" && perfectRelease))
+      ? {
+        ...shotModel.percentage,
+        makeProbability: 1,
+        makePercent: 100,
+        guaranteed: true,
+      }
+      : null;
     const shotResult = resolveShotAttempt({
-      percentageResult: shotModel.percentage,
-      outcomeValue: context === "layup" || context === "dunk" ? 0 : Math.random(),
+      percentageResult: freeThrowPercentage || forcedFinishPercentage || shotModel.percentage,
+      outcomeValue: context === "layup" || context === "dunk"
+        ? 0
+        : freeThrowResult
+          ? (freeThrowResult.made ? 0 : 1)
+          : Math.random(),
       rimValue: context === "layup" ? 0.05 : Math.random(),
       bankIntent: context === "layup" ? 1 : 0,
       bankAngleQuality: context === "layup" ? 1 : 0.7,
@@ -2440,12 +2592,13 @@ export class NovaCourtEngine {
     const target = new this.T.Vector3(basket.x, basket.y + 0.05, basket.z);
     const aim = this.controls.aim;
     const missSide = aim.x < -0.05 ? -1 : aim.x > 0.05 ? 1 : (Math.random() < 0.5 ? -1 : 1);
-    if (shotResult.rim.result === RIM_RESULTS.BANK) {
-      target.set(
-        clamp(player.root.position.x * 0.16, -0.34, 0.34),
-        basket.y + (context === "layup" ? 0.34 : 0.48),
-        basket.backboardZ + basket.attackSign * 0.02,
-      );
+    if (layupPlan || shotResult.rim.result === RIM_RESULTS.BANK) {
+      const bankTarget = layupPlan?.target || {
+        x: clamp(player.root.position.x * 0.16, -0.34, 0.34),
+        y: basket.y + 0.48,
+        z: basket.backboardZ + basket.attackSign * 0.02,
+      };
+      target.set(bankTarget.x, bankTarget.y, bankTarget.z);
     } else if (shotResult.rim.result === RIM_RESULTS.RIM_OUT) {
       target.x = missSide * rand(0.3, 0.39);
       target.z += rand(-0.08, 0.08);
@@ -2501,15 +2654,19 @@ export class NovaCourtEngine {
     this.ball.shotQuality = quality;
     this.ball.rimContacts = 0;
     this.ball.backboardContacts = 0;
+    this.ball.maxBackboardContacts = layupPlan?.maxBackboardContacts ?? Infinity;
+    this.ball.rimContactCooldown = 0;
     this.ball.perfectRelease = perfectRelease;
     this.ball.guaranteedMake = shotResult.guaranteed;
     this.ball.plannedMade = shotResult.made;
-    this.ball.plannedRimResult = shotResult.rim.result;
+    this.ball.plannedRimResult = layupPlan ? RIM_RESULTS.BANK : shotResult.rim.result;
     this.ball.shotResult = shotResult;
-    this.ball.bankShot = shotResult.rim.result === RIM_RESULTS.BANK;
+    this.ball.bankShot = Boolean(layupPlan) || shotResult.rim.result === RIM_RESULTS.BANK;
+    this.ball.bankResolved = false;
+    this.ball.freeThrow = context === "free_throw";
     this.shotTrailTimer = 0;
     this.ball.canScore = shotResult.made && !this.ball.bankShot;
-    this.ball.points = this._shotPoints(player.root.position, player.team);
+    this.ball.points = context === "free_throw" ? 1 : this._shotPoints(player.root.position, player.team);
     this._scoredOnFlight = false;
     this.lastShotQuality = quality;
     this.controls.rumble(perfectRelease ? 0.82 : quality > 0.9 ? 0.7 : 0.28, perfectRelease ? 155 : quality > 0.9 ? 130 : 65);
@@ -2523,10 +2680,11 @@ export class NovaCourtEngine {
       coverage: shotModel.coverageResult.coverage,
       coveragePercent: shotModel.coverageResult.percent,
       coverageLabel: shotModel.coverageResult.displayLabel,
-      rimResult: shotResult.rim.result,
+      rimResult: layupPlan ? RIM_RESULTS.BANK : shotResult.rim.result,
       hud: shotResult.hud,
     });
     this.shotCharge = 0;
+    this.shotInputAction = "shoot";
     return true;
   }
 
@@ -2777,6 +2935,40 @@ export class NovaCourtEngine {
     const hand = defender.root.position.clone().add(new this.T.Vector3(0, 1.88, 0));
     const distance = hand.distanceTo(this.ball.position);
     if (distance > 1.02) return false;
+    const shooter = this.ball.shotBy;
+    const activeBasket = shooter ? this._basketForTeam(shooter.team) : null;
+    const shooterRimDistance = shooter && activeBasket
+      ? Math.hypot(
+        shooter.root.position.x - activeBasket.x,
+        shooter.root.position.z - activeBasket.z,
+      )
+      : Infinity;
+    const bodyDistance = shooter
+      ? defender.root.position.distanceTo(shooter.root.position)
+      : Infinity;
+    if (shooter && shooterRimDistance <= 2.15 && bodyDistance < 0.72) {
+      defender.blockConnected = true;
+      this.teamFouls[defender.team] = (this.teamFouls[defender.team] || 0) + 1;
+      this.deadBallCooldown = 0.72;
+      this.events.emit("foul", {
+        foulType: "shooting",
+        shooting: true,
+        nearBasket: true,
+        committingTeamId: defender.team,
+        committingPlayerId: defender.id,
+        offendedTeamId: shooter.team,
+        offendedPlayerId: shooter.id,
+        freeThrows: 1,
+        teamFouls: this.teamFouls[defender.team],
+        commands: [{
+          type: "START_FREE_THROWS",
+          teamId: shooter.team,
+          shooterId: shooter.id,
+          attempts: 1,
+        }],
+      });
+      return true;
+    }
     const away = this.ball.velocity.clone().reflect(defender.facing.clone().normalize()).multiplyScalar(0.62);
     this.ball.velocity.copy(away);
     this.ball.velocity.y = Math.min(this.ball.velocity.y, 1.0);
@@ -2801,6 +2993,7 @@ export class NovaCourtEngine {
 
   _updateBall(dt) {
     const ball = this.ball;
+    ball.rimContactCooldown = Math.max(0, ball.rimContactCooldown - dt);
     ball.previousPosition.copy(ball.position);
     if (ball.owner) {
       this._updatePossessedBall(dt);
@@ -2810,6 +3003,7 @@ export class NovaCourtEngine {
     ball.velocity.y -= 9.81 * dt;
     ball.position.addScaledVector(ball.velocity, dt);
     this._checkActiveBlocks();
+    if (ball.owner) return;
     const activeBasket = this._activeBasket();
     // A user green at the apex is a gameplay promise: preserve blocks, but
     // remove integration/rim-edge variance from an otherwise perfect release.
@@ -2832,7 +3026,7 @@ export class NovaCourtEngine {
       this.shotTrailTimer -= dt;
       if (this.shotTrailTimer <= 0) {
         this.shotTrailTimer = 0.045;
-        this._burst(ball.position, 1, 0x7fffe0, 0.42);
+        this._emitPerfectTrail(ball.position);
       }
     }
 
@@ -2849,7 +3043,7 @@ export class NovaCourtEngine {
         ball.state = "loose";
       }
     }
-    if (this.deadBallCooldown <= 0) {
+    if (this.deadBallCooldown <= 0 && shouldEnforceOutOfBounds(this.mode)) {
       const resolution = resolveOutOfBounds({
         position: { x: ball.position.x, z: ball.position.z },
         previousPosition: { x: ball.previousPosition.x, z: ball.previousPosition.z },
@@ -2871,6 +3065,21 @@ export class NovaCourtEngine {
         this.deadBallCooldown = 0.72;
         this.events.emit("outofbounds", { ...resolution.event, consequence: resolution.consequence });
         return;
+      }
+    } else if (!shouldEnforceOutOfBounds(this.mode)) {
+      const xLimit = this.courtRuntime.width / 2 - COURT.ballRadius;
+      const zLimit = this.courtRuntime.length / 2 - COURT.ballRadius;
+      if (Math.abs(ball.position.x) > xLimit) {
+        ball.position.x = clamp(ball.position.x, -xLimit, xLimit);
+        ball.velocity.x *= -0.38;
+        ball.state = "loose";
+        ball.canScore = false;
+      }
+      if (Math.abs(ball.position.z) > zLimit) {
+        ball.position.z = clamp(ball.position.z, -zLimit, zLimit);
+        ball.velocity.z *= -0.38;
+        ball.state = "loose";
+        ball.canScore = false;
       }
     }
     this._tryPickupOrRebound();
@@ -2938,7 +3147,11 @@ export class NovaCourtEngine {
     const crossedFront = basket.attackSign < 0
       ? b.previousPosition.z > frontZ && b.position.z <= frontZ
       : b.previousPosition.z < frontZ && b.position.z >= frontZ;
-    if (crossedFront && Math.abs(b.position.x) < 0.98 && b.position.y > 2.94 && b.position.y < 4.10) {
+    if (crossedFront
+        && b.backboardContacts < b.maxBackboardContacts
+        && Math.abs(b.position.x) < 0.98
+        && b.position.y > 2.94
+        && b.position.y < 4.10) {
       b.position.z = frontZ;
       b.velocity.z = -basket.attackSign * Math.abs(b.velocity.z) * 0.68;
       b.velocity.x *= 0.91;
@@ -2947,8 +3160,9 @@ export class NovaCourtEngine {
       b.backboardContacts += 1;
       if (b.bankShot) {
         if (b.plannedMade) {
-        b.canScore = b.plannedMade;
-          const bankTime = 0.22;
+          b.canScore = true;
+          b.bankResolved = true;
+          const bankTime = b.maxBackboardContacts === 1 ? 0.2 : 0.22;
           b.velocity.set(
             (basket.x - b.position.x) / bankTime,
             (basket.y + 0.04 - b.position.y + 0.5 * 9.81 * bankTime * bankTime) / bankTime,
@@ -2964,6 +3178,7 @@ export class NovaCourtEngine {
 
   _collideRim() {
     const b = this.ball;
+    if (b.rimContactCooldown > 0) return;
     const basket = this._activeBasket();
     const yDelta = b.position.y - basket.y;
     if (Math.abs(yDelta) > COURT.ballRadius + 0.05) return;
@@ -2983,6 +3198,7 @@ export class NovaCourtEngine {
         b.angularVelocity.x += rand(-2, 2);
         this.cameraShake = Math.max(this.cameraShake, 0.075);
         b.rimContacts += 1;
+        b.rimContactCooldown = 0.055;
         this.events.emit("rim", { position: b.position.clone(), speed: b.velocity.length() });
         if (b.plannedMade && b.plannedRimResult === RIM_RESULTS.SOFT_RIM_IN) {
           const settleTime = 0.16;
@@ -2993,6 +3209,12 @@ export class NovaCourtEngine {
           b.canScore = false;
           b.velocity.x += nx * 0.82;
           b.velocity.z += nz * 0.82;
+        }
+        if (b.rimContacts >= 3 && !b.plannedMade) {
+          b.canScore = false;
+          b.velocity.x += nx * 1.15;
+          b.velocity.z += nz * 1.15;
+          b.velocity.y = Math.max(0.48, Math.abs(b.velocity.y) * 0.52);
         }
       }
     }
@@ -3025,6 +3247,7 @@ export class NovaCourtEngine {
       this.scoreRing.position.set(basket.x, basket.y - 0.02, basket.z);
       this.scoreRing.material.color.setHex(swish ? 0x76ffe1 : 0xffc45c);
       this._burst(new this.T.Vector3(basket.x, basket.y - 0.1, basket.z), swish ? 28 : 18, swish ? 0x68ffd4 : 0xffc45c, 1.7);
+      const wasFreeThrow = b.freeThrow;
       this.events.emit("score", {
         player: scorer, team, points: b.points, score: { ...this.score },
         quality: b.shotQuality, swish,
@@ -3035,11 +3258,23 @@ export class NovaCourtEngine {
         coverage: b.shotResult?.event?.coverage ?? 0,
         rimResult: b.plannedRimResult,
       });
+      if (wasFreeThrow) {
+        const resolved = this.freeThrowFlow.resolve(true);
+        this.events.emit("freethrow", {
+          phase: "resolved",
+          made: true,
+          perfectRelease: b.perfectRelease,
+          attemptsRemaining: resolved?.attemptsRemaining ?? 0,
+        });
+        b.freeThrow = false;
+      }
       if (scorer) {
         scorer.setState(PLAYER_STATES.CELEBRATE, true);
         scorer.actionLock = 0.55;
       }
-      if (b.shotQuality > 0.88) this.highlightPending = 2.5;
+      if (b.shotQuality > 0.88 && !wasFreeThrow && shouldQueueMadeShotReplay(this.mode)) {
+        this.highlightPending = 2.5;
+      }
     }
   }
 
@@ -3072,6 +3307,7 @@ export class NovaCourtEngine {
     }
     if (!eligible.length) return;
     const wasShot = ["shot", "blocked"].includes(b.state);
+    const wasFreeThrow = b.freeThrow;
     const ranking = rankReboundCandidates(eligible, {
       landingPoint: { x: b.position.x, z: b.position.z },
       rim: { x: this._activeBasket().x, z: this._activeBasket().z },
@@ -3082,6 +3318,16 @@ export class NovaCourtEngine {
     const best = this.players.find((player) => player.id === winner?.playerId) || this.players.find((player) => player.id === eligible[0].id);
     if (!best) return;
     this.givePossession(best);
+    if (wasFreeThrow) {
+      const resolved = this.freeThrowFlow.resolve(false);
+      b.freeThrow = false;
+      this.shotClock = 24;
+      this.events.emit("freethrow", {
+        phase: "resolved",
+        made: false,
+        attemptsRemaining: resolved?.attemptsRemaining ?? 0,
+      });
+    }
     if (wasShot) {
       best.jumpVelocity = highBall ? 1.35 : best.jumpVelocity;
       if (highBall) best.grounded = false;
@@ -3111,6 +3357,20 @@ export class NovaCourtEngine {
       particle.velocity.set(rand(-1.6, 1.6), rand(0.6, 2.7), rand(-1.6, 1.6)).multiplyScalar(energy);
       if (++emitted >= count) break;
     }
+  }
+
+  _emitPerfectTrail(position) {
+    const particle = this.particles.find((candidate) => candidate.life <= 0);
+    if (!particle) return false;
+    particle.life = 0.2;
+    particle.maxLife = particle.life;
+    particle.mesh.visible = true;
+    particle.mesh.material.color.setHex(this.perfectTrailIndex++ % 2 ? 0x5affb8 : 0x52e9ff);
+    particle.mesh.material.opacity = 0.92;
+    particle.mesh.position.copy(position);
+    particle.mesh.scale.set(1.7, 0.72, 1.7);
+    particle.velocity.copy(this.ball.velocity).normalize().multiplyScalar(-0.28);
+    return true;
   }
 
   _updateVFX(dt) {
@@ -3305,6 +3565,7 @@ export class NovaCourtEngine {
   }
 
   queueHighlight(duration = 2.25) {
+    if (!shouldQueueMadeShotReplay(this.mode)) return false;
     if (this.replayBuffer.length < 25) return false;
     const alreadyFrozen = this.replayFlow.frozen;
     if (!alreadyFrozen) this.replayControlsWereEnabled = this.controls.enabled;
@@ -3564,6 +3825,7 @@ export class NovaCourtEngine {
       physicsDroppedTime: this.physicsDroppedTime,
       shotCharge: this.shotCharge,
       shotQuality: this.lastShotQuality,
+      freeThrow: this.freeThrowFlow.getState(),
       cameraMode: this.cameraMode,
       ball: {
         state: this.ball.state,
@@ -3584,6 +3846,8 @@ export class NovaCourtEngine {
     this.queuedRelease = null;
     this.activeDunk = null;
     this.shotCharge = 0;
+    this.shotInputAction = "shoot";
+    this.freeThrowFlow.reset();
     this.shotClock = this.mode === "open_gym" ? Infinity : 24;
     this.elapsed = 0;
     this.fixedAccumulator = 0;
@@ -3603,6 +3867,10 @@ export class NovaCourtEngine {
       });
     }
     this._scoredOnFlight = false;
+    this.ball.freeThrow = false;
+    this.ball.bankResolved = false;
+    this.ball.maxBackboardContacts = Infinity;
+    this.ball.rimContactCooldown = 0;
     this.deadBallCooldown = 0;
     this.netPulse = 0;
     this.scoreRingPulse = 0;
