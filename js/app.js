@@ -95,6 +95,16 @@ const compat = document.createElement("link");
 compat.rel = "stylesheet";
 compat.href = "./js/compat.css?v=7.0";
 document.head.append(compat);
+for (const href of [
+  "./js/ui-menu-polish.css?v=1.0",
+  "./js/ui-hud-polish.css?v=1.0",
+  "./js/ui-profile-polish.css?v=1.0",
+]) {
+  const stylesheet = document.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = href;
+  document.head.append(stylesheet);
+}
 
 function setHidden(node, hidden) {
   if (!node) return;
