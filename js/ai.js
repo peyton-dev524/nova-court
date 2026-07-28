@@ -67,6 +67,24 @@ export const DIFFICULTY_PRESETS = Object.freeze({
     reboundAggression: 0.7,
     errorRate: 0.16,
   }),
+  starter: Object.freeze({
+    reactionSeconds: 0.23,
+    decisionSeconds: 0.28,
+    moveSpeed: 0.9,
+    defensiveCushion: 1.95,
+    helpDistance: 3.8,
+    contestRange: 1.9,
+    contestUrgency: 0.77,
+    stealRate: 0.09,
+    blockRate: 0.24,
+    shotConfidence: 0.75,
+    shotDiscipline: 0.68,
+    passingVision: 0.74,
+    driveBias: 0.48,
+    cutFrequency: 0.15,
+    reboundAggression: 0.78,
+    errorRate: 0.11,
+  }),
   pro: Object.freeze({
     reactionSeconds: 0.16,
     decisionSeconds: 0.22,
@@ -102,6 +120,24 @@ export const DIFFICULTY_PRESETS = Object.freeze({
     cutFrequency: 0.24,
     reboundAggression: 0.97,
     errorRate: 0.035,
+  }),
+  legend: Object.freeze({
+    reactionSeconds: 0.045,
+    decisionSeconds: 0.1,
+    moveSpeed: 1,
+    defensiveCushion: 1.05,
+    helpDistance: 5.4,
+    contestRange: 2.55,
+    contestUrgency: 1,
+    stealRate: 0.18,
+    blockRate: 0.49,
+    shotConfidence: 0.89,
+    shotDiscipline: 0.95,
+    passingVision: 0.98,
+    driveBias: 0.62,
+    cutFrequency: 0.28,
+    reboundAggression: 1,
+    errorRate: 0.018,
   }),
 });
 
@@ -279,9 +315,11 @@ export class BasketballAIDirector {
     for (const player of players) {
       if (!this.#isControlled(player)) continue;
       const memory = this.#memoryFor(player);
+      memory.lastDelta = dt;
       memory.stateSeconds += dt;
       memory.decisionCooldown -= dt;
       memory.actionCooldown -= dt;
+      memory.handleCooldown -= dt;
       memory.stealCooldown -= dt;
       if (possessionChanged) {
         memory.decisionCooldown = Math.min(memory.decisionCooldown, this.tuning.reactionSeconds);
@@ -295,7 +333,7 @@ export class BasketballAIDirector {
 
       let intent;
       if (phase !== "live") {
-        intent = this.#deadBallIntent(player, snapshot, court, memory);
+        intent = this.#deadBallIntent(player, snapshot, players, court, memory);
       } else if (snapshot.ball?.airborne && !snapshot.ball?.isShotResolved) {
         intent = this.#reboundIntent(player, snapshot, players, court, memory);
       } else if (snapshot.ball?.isLoose || (!holder && snapshot.ball)) {
@@ -326,6 +364,7 @@ export class BasketballAIDirector {
         stateSeconds: 0,
         decisionCooldown: this.random() * this.tuning.reactionSeconds,
         actionCooldown: 0,
+        handleCooldown: 0,
         stealCooldown: 0,
         matchupId: player.matchupId ?? null,
         cutCommitment: 0,
@@ -334,6 +373,8 @@ export class BasketballAIDirector {
         possessionSeconds: 0,
         sidePreference: this.random() < 0.5 ? -1 : 1,
         lastDecision: "spawn",
+        lastDribbleMove: null,
+        cornerSeconds: 0,
       };
       this.memory.set(player.id, memory);
     }
@@ -371,7 +412,7 @@ export class BasketballAIDirector {
     return intent;
   }
 
-  #deadBallIntent(player, snapshot, court, memory) {
+  #deadBallIntent(player, snapshot, players, court, memory) {
     const basket = attackBasketFor(player.teamId, snapshot, court);
     const checkSpot = snapshot.checkSpot || { x: 0, z: basket.z * -0.32 };
     const isOffense = player.teamId === snapshot.offenseTeamId;
@@ -380,9 +421,18 @@ export class BasketballAIDirector {
       ? checkSpot
       : { x: offset, z: checkSpot.z + (isOffense ? -1.8 : 1.15) * Math.sign(basket.z || 1) };
     this.#setState(memory, AI_STATES.CHECK_WAIT, "take check position");
-    const action = player.hasBall && distance(player, checkSpot) < 0.7
-      ? { type: "checkReady" }
-      : null;
+    let action = null;
+    if (player.hasBall && snapshot.phase === "inbound") {
+      const receiver = players
+        .filter((candidate) => candidate.teamId === player.teamId && candidate.id !== player.id)
+        .sort((a, b) => distance(player, a) - distance(player, b))[0];
+      if (receiver && memory.actionCooldown <= 0) {
+        memory.actionCooldown = 0.8;
+        action = { type: "pass", targetPlayerId: receiver.id, passType: "inbound" };
+      }
+    } else if (player.hasBall && distance(player, checkSpot) < 0.7) {
+      action = { type: "checkReady" };
+    }
     return this.#intent(player, memory, clampToCourt(target, court), 0.58, checkSpot, action);
   }
 
@@ -462,6 +512,33 @@ export class BasketballAIDirector {
       && hoopDistance < court.threePointRadius + 0.7
       && nearestDefender.distance > 1.55
       && shotQuality > shotThreshold - 0.04;
+    const nearSideline = Math.abs(positionOf(player).x) > court.halfWidth - 1.05;
+    const nearBaseline = Math.abs(positionOf(player).z) > court.halfLength - 1.05;
+    memory.cornerSeconds = nearSideline && nearBaseline
+      ? memory.cornerSeconds + memory.lastDelta
+      : 0;
+
+    if (memory.cornerSeconds > 0.35) {
+      const escapeTarget = clampToCourt({
+        x: positionOf(player).x * 0.45,
+        z: positionOf(player).z * 0.62,
+      }, court, 1.1);
+      const escapePass = this.#bestPass(player, teammates, defenders, basket, snapshot);
+      if (escapePass && memory.actionCooldown <= 0 && escapePass.score > 0.34) {
+        memory.actionCooldown = 0.65;
+        memory.driveCommitment = 0;
+        this.#setState(memory, AI_STATES.BALL_HANDLER, "escape corner with outlet pass");
+        return this.#intent(player, memory, escapeTarget, 0.92, escapePass.player, {
+          type: "pass",
+          targetPlayerId: escapePass.player.id,
+          leadTarget: escapePass.leadTarget,
+          passType: "outlet",
+          score: escapePass.score,
+        }, { cornerEscape: true });
+      }
+      this.#setState(memory, AI_STATES.DRIVE, "escape corner toward middle");
+      return this.#intent(player, memory, escapeTarget, 0.96, basket, null, { cornerEscape: true });
+    }
 
     if (memory.decisionCooldown <= 0) {
       memory.decisionCooldown = this.tuning.decisionSeconds
@@ -487,8 +564,12 @@ export class BasketballAIDirector {
       if ((forcedShot || atRim || openShot || pullUpWindow) && memory.actionCooldown <= 0) {
         memory.actionCooldown = atRim ? 0.72 : 1.05;
         memory.driveCommitment = 0;
+        const dunkWindow = hoopDistance < 1.7
+          && nearestDefender.distance > 1.15
+          && player.canDunk !== false
+          && (player.stamina ?? 1) > 0.35;
         const shotType = atRim
-          ? (player.canDunk !== false && (player.stamina ?? 1) > 0.35 ? "dunk" : "layup")
+          ? (dunkWindow ? "dunk" : "layup")
           : hoopDistance > court.threePointRadius ? "jumpShot3" : "jumpShot2";
         const decisionQuality = clamp(
           shotQuality + (forcedShot ? -0.08 : 0) + (openShot ? 0.04 : 0),
@@ -513,12 +594,17 @@ export class BasketballAIDirector {
         });
       }
 
-      if (pressure > 0.58 && memory.actionCooldown <= 0) {
+      if (pressure > 0.58 && memory.actionCooldown <= 0 && memory.handleCooldown <= 0) {
         memory.actionCooldown = 0.5;
+        memory.handleCooldown = 0.82;
         memory.probeCount += 1;
         memory.sidePreference *= -1;
         const separationMoves = ["snatchBack", "doubleCross", "spin", "behindBack", "shamgod"];
-        const move = laneScore > 0.64 ? "shamgod" : separationMoves[memory.probeCount % separationMoves.length];
+        let move = laneScore > 0.64 ? "shamgod" : separationMoves[memory.probeCount % separationMoves.length];
+        if (move === memory.lastDribbleMove) {
+          move = separationMoves[(memory.probeCount + 1) % separationMoves.length];
+        }
+        memory.lastDribbleMove = move;
         const away = nearestDefender.player
           ? normalized(subtract(positionOf(player), positionOf(nearestDefender.player)))
           : { x: memory.sidePreference, z: 0 };
@@ -550,8 +636,8 @@ export class BasketballAIDirector {
         clampToCourt(driveTarget, court, 0.25),
         this.tuning.moveSpeed,
         basket,
-        nearestDefender.distance < 1.75 && memory.actionCooldown <= 0
-          ? { type: "dribbleMove", move: laneScore > 0.62 ? "shamgod" : laneScore > 0.42 ? "hesi" : "doubleCross" }
+        nearestDefender.distance < 1.75 && memory.actionCooldown <= 0 && memory.handleCooldown <= 0
+          ? this.#queueHandle(memory, laneScore > 0.62 ? "shamgod" : laneScore > 0.42 ? "hesi" : "doubleCross")
           : null,
         { laneScore, driveChance },
       );
@@ -564,10 +650,28 @@ export class BasketballAIDirector {
       court,
     );
     this.#setState(memory, AI_STATES.CREATE_SHOT, "size up and shift defense");
-    return this.#intent(player, memory, target, 0.74, basket, {
-      type: "dribbleMove",
-      move: ["inOut", "crossover", "doubleCross", "snatchBack"][memory.probeCount % 4],
-    }, { shotQuality, laneScore, pressure });
+    const sizeUpMoves = ["inOut", "crossover", "doubleCross", "snatchBack"];
+    const action = memory.handleCooldown <= 0
+      ? this.#queueHandle(memory, sizeUpMoves[memory.probeCount % sizeUpMoves.length])
+      : null;
+    return this.#intent(player, memory, target, 0.74, basket, action, {
+      shotQuality,
+      laneScore,
+      pressure,
+      handleCooldown: Math.max(0, memory.handleCooldown),
+    });
+  }
+
+  #queueHandle(memory, requestedMove) {
+    let move = requestedMove;
+    if (move === memory.lastDribbleMove) {
+      const alternatives = ["hesi", "crossover", "inOut", "behindBack"];
+      move = alternatives.find((candidate) => candidate !== move) || "hesi";
+    }
+    memory.lastDribbleMove = move;
+    memory.handleCooldown = 0.72 + this.random() * 0.35;
+    memory.actionCooldown = Math.max(memory.actionCooldown, 0.38);
+    return { type: "dribbleMove", move };
   }
 
   #offBallIntent(player, snapshot, players, holder, court, memory, teamGroups) {

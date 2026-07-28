@@ -10,6 +10,7 @@
 export const TEAM_FORMAT_IDS = Object.freeze({
   DUOS: "half_court_2v2",
   TRIOS: "half_court_3v3",
+  QUADS: "half_court_4v4",
   FULL_FIVE: "full_court_5v5",
 });
 
@@ -28,14 +29,14 @@ export const COURT_SPECS = Object.freeze({
   }),
   full: Object.freeze({
     kind: "full",
-    width: 15,
-    length: 28,
-    halfWidth: 7.5,
-    halfLength: 14,
+    width: 18,
+    length: 32,
+    halfWidth: 9,
+    halfLength: 16,
     threePointRadius: 6.75,
     baskets: Object.freeze({
-      home: Object.freeze({ x: 0, y: 3.05, z: -12.68, backboardZ: -13.14, attackSign: -1 }),
-      away: Object.freeze({ x: 0, y: 3.05, z: 12.68, backboardZ: 13.14, attackSign: 1 }),
+      home: Object.freeze({ x: 0, y: 3.05, z: -14.68, backboardZ: -15.14, attackSign: -1 }),
+      away: Object.freeze({ x: 0, y: 3.05, z: 14.68, backboardZ: 15.14, attackSign: 1 }),
     }),
   }),
 });
@@ -74,26 +75,28 @@ const HALF_SPAWNS = Object.freeze({
     Object.freeze({ x: 0, z: 3.7 }),
     Object.freeze({ x: -4.35, z: 0.75 }),
     Object.freeze({ x: 3.15, z: -1.25 }),
+    Object.freeze({ x: -2.15, z: -2.8 }),
   ]),
   away: Object.freeze([
     Object.freeze({ x: 0.45, z: 1.2 }),
     Object.freeze({ x: -3.35, z: -0.2 }),
     Object.freeze({ x: 2.65, z: -1.95 }),
+    Object.freeze({ x: 2.05, z: -3.45 }),
   ]),
 });
 
 const FULL_SPAWNS = Object.freeze({
   home: Object.freeze([
-    Object.freeze({ x: 0, z: 8.6 }),
-    Object.freeze({ x: -4.7, z: 6.4 }),
-    Object.freeze({ x: 4.15, z: 4.2 }),
+    Object.freeze({ x: 0, z: 10.4 }),
+    Object.freeze({ x: -5.7, z: 7.8 }),
+    Object.freeze({ x: 5.15, z: 5.2 }),
     Object.freeze({ x: -2.55, z: 0.7 }),
     Object.freeze({ x: 2.4, z: -2.2 }),
   ]),
   away: Object.freeze([
-    Object.freeze({ x: 0.4, z: 6.7 }),
-    Object.freeze({ x: -4.1, z: 4.5 }),
-    Object.freeze({ x: 4.35, z: 2.9 }),
+    Object.freeze({ x: 0.4, z: 8.5 }),
+    Object.freeze({ x: -5.1, z: 5.8 }),
+    Object.freeze({ x: 5.35, z: 3.9 }),
     Object.freeze({ x: -2.3, z: -0.15 }),
     Object.freeze({ x: 2.3, z: -2.9 }),
   ]),
@@ -112,7 +115,7 @@ export const TEAM_FORMATS = Object.freeze({
     winBy: 2,
     scoreCap: 19,
     gameDuration: 240,
-    shotClock: 16,
+    shotClock: 21,
     requiresClear: true,
   }),
   [TEAM_FORMAT_IDS.TRIOS]: Object.freeze({
@@ -127,7 +130,22 @@ export const TEAM_FORMATS = Object.freeze({
     winBy: 2,
     scoreCap: 21,
     gameDuration: 300,
-    shotClock: 16,
+    shotClock: 21,
+    requiresClear: true,
+  }),
+  [TEAM_FORMAT_IDS.QUADS]: Object.freeze({
+    id: TEAM_FORMAT_IDS.QUADS,
+    key: "quads",
+    label: "NOVA FOURS",
+    shortLabel: "4V4",
+    description: "Four-on-four half-court basketball with complete team spacing.",
+    playersPerTeam: 4,
+    court: COURT_SPECS.half,
+    targetScore: 19,
+    winBy: 2,
+    scoreCap: 25,
+    gameDuration: 330,
+    shotClock: 21,
     requiresClear: true,
   }),
   [TEAM_FORMAT_IDS.FULL_FIVE]: Object.freeze({
@@ -142,7 +160,7 @@ export const TEAM_FORMATS = Object.freeze({
     winBy: 1,
     scoreCap: 30,
     gameDuration: 360,
-    shotClock: 24,
+    shotClock: 21,
     requiresClear: false,
   }),
 });
@@ -156,6 +174,7 @@ export function getTeamFormat(formatOrId = TEAM_FORMAT_IDS.TRIOS) {
 
 export function getFormatForModeKey(modeKey) {
   if (modeKey === "duos") return TEAM_FORMATS[TEAM_FORMAT_IDS.DUOS];
+  if (modeKey === "quads") return TEAM_FORMATS[TEAM_FORMAT_IDS.QUADS];
   if (modeKey === "fives") return TEAM_FORMATS[TEAM_FORMAT_IDS.FULL_FIVE];
   if (modeKey === "team") return TEAM_FORMATS[TEAM_FORMAT_IDS.TRIOS];
   return null;
@@ -201,13 +220,27 @@ export function createTeamRoster(formatOrId, { controlledTeam = "home" } = {}) {
 
 export function restartSpotForTeam(formatOrId, teamId, reason = "inbound") {
   const format = getTeamFormat(formatOrId);
-  if (format.court.kind === "half") return { x: 0, y: 0, z: 3.7 };
+  const boundary = String(reason || "inbound").toLowerCase();
+  if (format.court.kind === "half") {
+    if (boundary.includes("sideline") || boundary === "left" || boundary === "right") {
+      const sign = boundary === "left" ? -1 : 1;
+      return { x: sign * (format.court.halfWidth + 0.32), y: 0, z: 1.5 };
+    }
+    return { x: 0, y: 0, z: format.court.halfLength + 0.32 };
+  }
   const basket = defenseBasketForTeam(format, teamId);
-  const inward = -basket.attackSign;
+  if (boundary.includes("sideline") || boundary === "left" || boundary === "right") {
+    const sign = boundary === "left" ? -1 : 1;
+    return {
+      x: sign * (format.court.halfWidth + 0.32),
+      y: 0,
+      z: Math.max(-format.court.halfLength + 2, Math.min(format.court.halfLength - 2, basket.z * 0.35)),
+    };
+  }
   return {
-    x: reason === "sideline" ? format.court.halfWidth - 0.7 : 0,
+    x: 0,
     y: 0,
-    z: basket.z + inward * 1.65,
+    z: Math.sign(basket.z || 1) * (format.court.halfLength + 0.32),
   };
 }
 

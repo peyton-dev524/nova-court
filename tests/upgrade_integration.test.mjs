@@ -35,8 +35,16 @@ test("resolved three-on-three out of bounds is accepted by the live mode", () =>
   });
   const response = mode.handleEvent(resolved.event);
   assert.equal(response.accepted, true);
-  assert.equal(mode.phase, MODE_PHASES.CHECK);
+  assert.equal(mode.phase, MODE_PHASES.INBOUND);
   assert.equal(mode.getState().possessionTeamId, "away");
+  assert.ok(response.commands.some((command) =>
+    command.type === "BEGIN_INBOUND" && command.offenseTeamId === "away"));
+  mode.handleEvent("PASS_COMPLETE", {
+    teamId: "away",
+    fromPlayerId: "away-shade",
+    toPlayerId: "away-rift",
+  });
+  assert.equal(mode.phase, MODE_PHASES.LIVE);
 });
 
 test("engine source wires perfect greens, animated replay, park, swish, and bounded 60 Hz simulation", async () => {

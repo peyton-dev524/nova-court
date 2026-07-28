@@ -2153,6 +2153,10 @@ select {
   background: linear-gradient(to top, rgba(3, 7, 10, 0.98), rgba(60, 26, 92, 0.55)), var(--ink-2);
 }
 
+.mode-card[data-mode="quads"] {
+  background: linear-gradient(to top, rgba(3, 7, 10, 0.98), rgba(86, 48, 132, 0.58)), var(--ink-2);
+}
+
 .mode-card[data-mode="practice"] {
   background: linear-gradient(to top, rgba(3, 7, 10, 0.98), rgba(15, 86, 67, 0.52)), var(--ink-2);
 }

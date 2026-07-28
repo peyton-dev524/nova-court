@@ -11,8 +11,10 @@ export class HalfCourtDuosMode extends HalfCourtThreeOnThreeMode {
       targetScore: 13,
       winBy: 2,
       scoreCap: 19,
-      shotClock: 16,
+      shotClock: 21,
       gameDuration: 240,
+      playersPerTeam: 2,
+      title: "Nova Duos",
       ...config,
     });
     this.id = TEAM_FORMAT_IDS.DUOS;

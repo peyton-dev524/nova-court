@@ -13,10 +13,12 @@ import {
   restartSpotForTeam,
 } from "../js/team-formats.js";
 
-test("team formats expose 2v2, 3v3 and full-court 5v5", () => {
+test("team formats expose 2v2, 3v3, 4v4 and full-court 5v5", () => {
   assert.equal(TEAM_FORMATS[TEAM_FORMAT_IDS.DUOS].playersPerTeam, 2);
   assert.equal(TEAM_FORMATS[TEAM_FORMAT_IDS.TRIOS].playersPerTeam, 3);
+  assert.equal(TEAM_FORMATS[TEAM_FORMAT_IDS.QUADS].playersPerTeam, 4);
   assert.equal(TEAM_FORMATS[TEAM_FORMAT_IDS.FULL_FIVE].playersPerTeam, 5);
+  assert.equal(getFormatForModeKey("quads").shortLabel, "4V4");
   assert.equal(getFormatForModeKey("fives").court.kind, "full");
 });
 
@@ -44,8 +46,8 @@ test("original roster includes every basketball position in 5v5", () => {
 });
 
 test("full court bounds and restart spots are direction aware", () => {
-  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 13.9 }), false);
-  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 14.2 }), true);
+  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 15.9 }), false);
+  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 16.2 }), true);
   const homeRestart = restartSpotForTeam(TEAM_FORMAT_IDS.FULL_FIVE, "home");
   const awayRestart = restartSpotForTeam(TEAM_FORMAT_IDS.FULL_FIVE, "away");
   assert.ok(homeRestart.z > 0);
@@ -53,7 +55,7 @@ test("full court bounds and restart spots are direction aware", () => {
 });
 
 test("half-court formats retain shared attack hoop and clear rule", () => {
-  for (const id of [TEAM_FORMAT_IDS.DUOS, TEAM_FORMAT_IDS.TRIOS]) {
+  for (const id of [TEAM_FORMAT_IDS.DUOS, TEAM_FORMAT_IDS.TRIOS, TEAM_FORMAT_IDS.QUADS]) {
     assert.equal(attackBasketForTeam(id, "home").z, attackBasketForTeam(id, "away").z);
     assert.equal(TEAM_FORMATS[id].requiresClear, true);
   }
