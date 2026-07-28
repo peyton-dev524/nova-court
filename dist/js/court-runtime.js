@@ -62,3 +62,28 @@ export function getAttackBasketForMode(modeKey, teamId) {
   return format ? attackBasketForTeam(format.id, teamId) : COURT_SPECS.half.baskets.home;
 }
 
+export function getTeamCameraContract(modeKey) {
+  const format = getFormatForModeKey(modeKey);
+  if (!format) {
+    return {
+      mode: "follow",
+      minFov: 38,
+      maxFov: 43,
+      trackingDamping: 4.2,
+      preservesManualCycle: true,
+    };
+  }
+  const fullCourt = format.court.kind === "full";
+  return {
+    mode: "broadcast",
+    minFov: fullCourt ? 48 : format.playersPerTeam >= 4 ? 43 : 40,
+    maxFov: fullCourt ? 52 : format.playersPerTeam >= 4 ? 47 : 44,
+    trackingDamping: fullCourt ? 3.6 : 4.2,
+    targetDamping: 6.4,
+    lateralOffset: fullCourt ? format.court.halfWidth + 2.45 : format.court.halfWidth + 0.72,
+    tracksTransitionDirection: true,
+    includesActiveBasket: true,
+    preservesManualCycle: true,
+  };
+}
+

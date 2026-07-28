@@ -53,6 +53,9 @@ export class FullCourtFiveOnFiveMode {
     this.shotClock = this.shotClockDuration;
     this.gameClock = this.gameDuration;
     this.inboundTimer = this.inboundDelay;
+    this.inboundRequiresPass = false;
+    this.inboundReason = "opening_inbound";
+    this.inboundBoundary = "baseline";
     this.overtime = false;
     this.finalMinuteAnnounced = false;
     this.lastPass = null;
@@ -87,8 +90,8 @@ export class FullCourtFiveOnFiveMode {
     }
     this.elapsed += dt;
     if (this.phase === FULL_COURT_PHASES.INBOUND) {
-      this.inboundTimer = Math.max(0, this.inboundTimer - dt);
-      if (this.inboundTimer === 0) {
+      if (!this.inboundRequiresPass) this.inboundTimer = Math.max(0, this.inboundTimer - dt);
+      if (!this.inboundRequiresPass && this.inboundTimer === 0) {
         this.phase = FULL_COURT_PHASES.LIVE;
         this.shotClock = this.shotClockDuration;
         this.#emit("SET_BALL_LIVE", {
@@ -132,6 +135,31 @@ export class FullCourtFiveOnFiveMode {
         }
         break;
       case "PASS_COMPLETE":
+        if (this.phase === FULL_COURT_PHASES.INBOUND && this.inboundRequiresPass
+          && event.teamId === this.possessionTeamId) {
+          const fromPlayerId = event.fromPlayerId ?? event.playerId;
+          const toPlayerId = event.toPlayerId ?? event.targetPlayerId;
+          if (!fromPlayerId || !toPlayerId || fromPlayerId === toPlayerId) break;
+          this.lastPass = {
+            fromPlayerId,
+            toPlayerId,
+            gameTime: this.gameClock,
+            possessionNumber: this.possessionNumber,
+          };
+          this.inboundRequiresPass = false;
+          this.inboundReason = null;
+          this.inboundBoundary = null;
+          this.phase = FULL_COURT_PHASES.LIVE;
+          this.shotClock = this.shotClockDuration;
+          this.#emit("SET_BALL_LIVE", {
+            offenseTeamId: this.possessionTeamId,
+            possessionNumber: this.possessionNumber,
+            receiverPlayerId: toPlayerId,
+            reason: "inbound_pass",
+          });
+          accepted = true;
+          break;
+        }
         if (this.phase === FULL_COURT_PHASES.LIVE && event.teamId === this.possessionTeamId) {
           this.lastPass = {
             fromPlayerId: event.fromPlayerId ?? event.playerId,
@@ -273,19 +301,32 @@ export class FullCourtFiveOnFiveMode {
     this.possessionNumber += 1;
     this.shotClock = this.shotClockDuration;
     this.inboundTimer = this.inboundDelay;
+    this.inboundRequiresPass = reason === "foul" || reason === "out_of_bounds";
+    this.inboundReason = reason;
+    this.inboundBoundary = boundary || "baseline";
     this.lastPass = null;
     this.phase = FULL_COURT_PHASES.INBOUND;
     this.#emitInbound(reason, boundary);
   }
 
   #emitInbound(reason, boundary = "baseline") {
-    this.#emit("SET_POSSESSION", {
+    const restartPosition = restartSpotForTeam(this.id, this.possessionTeamId, boundary || "inbound");
+    const position = this.inboundRequiresPass
+      ? restartPosition
+      : {
+          x: restartPosition.x,
+          y: restartPosition.y,
+          z: Math.sign(restartPosition.z || 1) * (getTeamFormat(this.id).court.halfLength - 0.7),
+        };
+    this.#emit(this.inboundRequiresPass ? "BEGIN_INBOUND" : "SET_POSSESSION", {
       teamId: this.possessionTeamId,
+      offenseTeamId: this.possessionTeamId,
       reason,
       boundary,
-      position: restartSpotForTeam(this.id, this.possessionTeamId, boundary === "sideline" ? "sideline" : "inbound"),
+      position,
       possessionNumber: this.possessionNumber,
       fullCourt: true,
+      requiresPass: this.inboundRequiresPass,
     });
   }
 
@@ -313,6 +354,9 @@ export class FullCourtFiveOnFiveMode {
       shotClock: this.shotClock,
       gameClock: this.gameClock,
       overtime: this.overtime,
+      inboundRequiresPass: this.inboundRequiresPass,
+      inboundReason: this.inboundReason,
+      inboundBoundary: this.inboundBoundary,
       targetScore: this.targetScore,
     };
   }
@@ -324,7 +368,7 @@ export class FullCourtFiveOnFiveMode {
       clockText: this.overtime ? "OT" : formatClock(this.gameClock),
       shotClockText: String(Math.ceil(this.shotClock)),
       statusText: this.phase === FULL_COURT_PHASES.INBOUND
-        ? `${this.possessionTeamId} inbound`
+        ? `${this.possessionTeamId} inbound${this.inboundRequiresPass ? " — pass to resume" : ""}`
         : this.overtime ? "NEXT SCORE WINS" : `${this.possessionTeamId} possession`,
     };
   }
@@ -351,7 +395,9 @@ export class FullCourtFiveOnFiveMode {
       shotClock: this.shotClock,
       gameClock: this.gameClock,
       possessionId: this.possessionNumber,
-      phase: this.phase === FULL_COURT_PHASES.INBOUND ? "check" : this.phase,
+      phase: this.phase === FULL_COURT_PHASES.INBOUND
+        ? (this.inboundRequiresPass ? "inbound" : "check")
+        : this.phase,
       style: "team_full_court",
     };
   }

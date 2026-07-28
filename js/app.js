@@ -3,9 +3,17 @@ import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
 import { createHalfCourtDuosMode } from "./half-court-duos-mode.js";
+import { createHalfCourtQuadsMode } from "./half-court-quads-mode.js";
 import { createFullCourtFiveOnFiveMode } from "./full-court-mode.js";
 import { createCourtRuntime } from "./court-runtime.js";
-import { createTeamRoster, getFormatForModeKey, isTeamModeKey, TEAM_FORMAT_IDS } from "./team-formats.js";
+import {
+  createTeamRoster,
+  getFormatForModeKey,
+  isTeamModeKey,
+  restartSpotForTeam,
+  TEAM_FORMAT_IDS,
+} from "./team-formats.js";
+import { allowsRestart, cameraPresetForTeamMode } from "./team-mode-ui.js";
 import { createAnnouncerRuntime } from "./announcer-runtime.js?v=2.0";
 import { createAudioController } from "./audio.js?v=2.0";
 import { createUIController } from "./ui.js";
@@ -35,6 +43,7 @@ const MODE_MAP = Object.freeze({
   duos: TEAM_FORMAT_IDS.DUOS,
   threePoint: MODE_IDS.THREE_POINT_CONTEST,
   team: MODE_IDS.HALF_COURT_3V3,
+  quads: TEAM_FORMAT_IDS.QUADS,
   fives: TEAM_FORMAT_IDS.FULL_FIVE,
   practice: PRACTICE_MODE_ID,
 });
@@ -44,6 +53,7 @@ const MODE_META = Object.freeze({
   duos: { label: "NOVA DUOS", home: "NOVA", away: "ECLIPSE", objective: "FIRST TO 13" },
   threePoint: { label: "ARC RUN", home: "SCORE", away: "TARGET", objective: "60 SECONDS" },
   team: { label: "NIGHT THREES", home: "NOVA", away: "ECLIPSE", objective: "FIRST TO 15" },
+  quads: { label: "NOVA FOURS", home: "NOVA", away: "ECLIPSE", objective: "FIRST TO 19" },
   fives: { label: "NOVA FIVE", home: "NOVA", away: "ECLIPSE", objective: "6 MINUTES" },
   practice: { label: "OPEN GYM", home: "MAKES", away: "ATTEMPTS", objective: "NO CLOCK" },
 });
@@ -350,6 +360,14 @@ function configForMode(modeKey) {
     const targetScore = targetChoice === "quick" ? 9 : targetChoice === "extended" ? 17 : 13;
     return { difficulty: currentDifficulty, targetScore, gameDuration: targetChoice === "quick" ? 180 : 240 };
   }
+  if (modeKey === "quads") {
+    const targetScore = targetChoice === "quick" ? 13 : targetChoice === "extended" ? 23 : 19;
+    return {
+      difficulty: currentDifficulty,
+      targetScore,
+      gameDuration: targetChoice === "quick" ? 210 : targetChoice === "extended" ? 420 : 330,
+    };
+  }
   if (modeKey === "fives") {
     const targetScore = targetChoice === "quick" ? 15 : targetChoice === "extended" ? 25 : 21;
     return { difficulty: currentDifficulty, targetScore, gameDuration: targetChoice === "quick" ? 240 : targetChoice === "extended" ? 480 : 360 };
@@ -362,6 +380,7 @@ function createModeController(modeKey) {
   const config = configForMode(modeKey);
   if (modeKey === "practice") return createPracticeMode(config);
   if (modeKey === "duos") return createHalfCourtDuosMode(config);
+  if (modeKey === "quads") return createHalfCourtQuadsMode(config);
   if (modeKey === "fives") return createFullCourtFiveOnFiveMode(config);
   return createGameMode(MODE_MAP[modeKey], config);
 }
@@ -379,12 +398,14 @@ function startMode(modeKey = selectedModeKey) {
   currentDifficulty = $("#difficulty-select")?.value || "pro";
   const token = runToken;
   createEngine(currentModeKey);
-  engine.setCameraMode(["threePoint", "duos", "team"].includes(currentModeKey) ? "broadcast" : "follow");
+  engine.setCameraMode(currentModeKey === "threePoint"
+    ? "broadcast"
+    : cameraPresetForTeamMode(currentModeKey).mode);
   mode = createModeController(currentModeKey);
   const opening = mode.start({ teamIds: ["home", "away"], userTeamId: "home" });
   processCommands(opening?.commands, token);
   ai = createAIDirector({
-    difficulty: currentDifficulty === "legend" ? "allStar" : currentDifficulty,
+    difficulty: currentDifficulty,
     teamIds: currentModeKey === "threePoint" || currentModeKey === "practice" ? [] : null,
     debug: new URLSearchParams(location.search).has("aiDebug"),
   });
@@ -395,6 +416,8 @@ function startMode(modeKey = selectedModeKey) {
   $("#game-clock").textContent = meta.objective;
   setHidden($("#three-point-progress"), currentModeKey !== "threePoint");
   setHidden($("#teammate-hints"), !isTeamModeKey(currentModeKey));
+  setHidden($("#restart-game"), !allowsRestart(currentModeKey));
+  setHidden($("#rematch"), !allowsRestart(currentModeKey));
   if (currentModeKey === "threePoint") buildRackProgress();
   if (isTeamModeKey(currentModeKey)) {
     $("#teammate-hints").innerHTML = "<span>J / E <b>PASS + SWITCH</b></span><span>I <b>STEAL</b></span><span>C <b>CAMERA</b></span>";
@@ -437,6 +460,20 @@ function processCommands(commands = [], token = runToken) {
   for (const command of commands || []) {
     if (token !== runToken) return;
     switch (command.type) {
+      case "BEGIN_INBOUND": {
+        const teamId = command.offenseTeamId || command.teamId || "home";
+        const format = getFormatForModeKey(currentModeKey);
+        const spot = command.position || (format
+          ? restartSpotForTeam(format.id, teamId, command.boundary || "inbound")
+          : null);
+        const inbounder = setPossession(teamId, spot, false);
+        if (inbounder) inbounder.metadata.inbounder = true;
+        engine.shotClock = Infinity;
+        engine.setPaused(false);
+        engine.controls.setEnabled(true);
+        feedback(`${String(teamId).toUpperCase()} INBOUND · PASS TO RESUME`, "warning", 1200);
+        break;
+      }
       case "BEGIN_CHECK":
       case "SET_POSSESSION": {
         const teamId = command.offenseTeamId || command.teamId || "home";
@@ -457,6 +494,8 @@ function processCommands(commands = [], token = runToken) {
         handleModeEvent("CHECK_COMPLETE", { offenseTeamId: command.offenseTeamId });
         break;
       case "SET_BALL_LIVE":
+        for (const player of engine.players) player.metadata.inbounder = false;
+        engine.shotClock = mode?.getState?.().shotClock ?? 21;
         engine.controls.setEnabled(true);
         feedback("BALL LIVE", "good", 650);
         break;
@@ -532,16 +571,17 @@ function placeAtRack(rack) {
 }
 
 function setPossession(teamId, restartPosition = null, live = false) {
-  if (!engine) return;
+  if (!engine) return null;
+  for (const player of engine.players) player.metadata.inbounder = false;
   if (live && engine.ball.owner?.team === teamId) {
     engine.possessionTeam = teamId;
-    return;
+    return engine.ball.owner;
   }
   const candidates = engine.players.filter((player) => player.team === teamId);
   const owner = live
     ? [...candidates].sort((a, b) => a.root.position.distanceToSquared(engine.ball.position) - b.root.position.distanceToSquared(engine.ball.position))[0]
     : candidates.find((player) => player.controlled) || candidates[0];
-  if (!owner) return;
+  if (!owner) return null;
   if (currentModeKey !== "threePoint" && !live) {
     if (restartPosition) {
       owner.root.position.set(Number(restartPosition.x) || 0, Number(restartPosition.y) || 0, Number(restartPosition.z) || 0);
@@ -553,6 +593,7 @@ function setPossession(teamId, restartPosition = null, live = false) {
   }
   engine.ball.pickupCooldown = 0;
   engine.givePossession(owner, true);
+  return owner;
 }
 
 function markRackBall(made) {
@@ -801,7 +842,10 @@ function bindEngineEvents() {
       app.dataset.state = gameActive ? "playing" : app.dataset.state;
     }
   });
-  engine.on("restartrequest", () => startMode(currentModeKey));
+  engine.on("restartrequest", () => {
+    if (allowsRestart(currentModeKey)) startMode(currentModeKey);
+    else feedback("RESTART IS AVAILABLE IN 1V1", "warning", 850);
+  });
   engine.on("highlightqueued", (event) => {
     app.dataset.replay = "queued";
     app.dataset.replayFrozen = "true";
@@ -995,7 +1039,11 @@ function resumeGame() {
   hideOverlay("pause-screen");
   mode.resume();
   engine.setPaused(false);
-  engine.controls.setEnabled(mode.phase === MODE_PHASES.LIVE && !engine.isReplayFrozen());
+  engine.controls.setEnabled(
+    ([MODE_PHASES.LIVE, MODE_PHASES.INBOUND].includes(mode.phase)
+      || mode.getState?.().inboundRequiresPass)
+      && !engine.isReplayFrozen(),
+  );
   app.dataset.state = engine.isReplayFrozen() ? "replay" : "playing";
 }
 
@@ -1009,7 +1057,7 @@ function tick(now) {
       processCommands(response.commands, runToken);
       applyAI(dt);
       if (mode.phase === MODE_PHASES.LIVE) engine.controls.setEnabled(true);
-      if (["duos", "team"].includes(currentModeKey) && mode.needsClear && engine.ball.owner) {
+      if (["duos", "team", "quads"].includes(currentModeKey) && mode.needsClear && engine.ball.owner) {
         const p = engine.ball.owner.root.position;
         if (Math.hypot(p.x, p.z - COURT.basketZ) > 6.2) handleModeEvent("CLEAR_COMPLETE", { teamId: engine.ball.owner.team });
       }

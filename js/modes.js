@@ -19,12 +19,14 @@ export const MODE_IDS = Object.freeze({
   STREET_1V1: "street_1v1",
   THREE_POINT_CONTEST: "three_point_contest",
   HALF_COURT_3V3: "half_court_3v3",
+  HALF_COURT_4V4: "half_court_4v4",
 });
 
 export const MODE_PHASES = Object.freeze({
   READY: "ready",
   COUNTDOWN: "countdown",
   CHECK: "check",
+  INBOUND: "inbound",
   LIVE: "live",
   PAUSED: "paused",
   FINISHED: "finished",
@@ -53,6 +55,14 @@ export const MODE_CATALOG = Object.freeze([
     shortName: "3v3",
     description: "Half-court team play with passing, clears, assists, and a shot clock.",
     players: "3 vs 3",
+    icon: "team",
+  }),
+  Object.freeze({
+    id: MODE_IDS.HALF_COURT_4V4,
+    name: "Nova Fours",
+    shortName: "4v4",
+    description: "Four-out half-court team play with pass-gated dead-ball inbounds.",
+    players: "4 vs 4",
     icon: "team",
   }),
 ]);
@@ -169,6 +179,7 @@ class BaseMode {
   pause() {
     if (this.phase === MODE_PHASES.LIVE
       || this.phase === MODE_PHASES.CHECK
+      || this.phase === MODE_PHASES.INBOUND
       || this.phase === MODE_PHASES.COUNTDOWN) {
       this.previousPhase = this.phase;
       this.phase = MODE_PHASES.PAUSED;
@@ -291,7 +302,7 @@ export class StreetOneOnOneMode extends BaseMode {
     this.targetScore = asPositiveNumber(config.targetScore, 11);
     this.winBy = asPositiveNumber(config.winBy, 2);
     this.scoreCap = asPositiveNumber(config.scoreCap, 15);
-    this.shotClockDuration = asPositiveNumber(config.shotClock, 12);
+    this.shotClockDuration = asPositiveNumber(config.shotClock, 21);
     this.checkDelay = asPositiveNumber(config.checkDelay, 0.75);
     this.initialOffenseTeamId = config.initialOffenseTeamId ?? this.teamIds[0];
   }
@@ -728,10 +739,12 @@ export class ThreePointContestMode extends BaseMode {
 export class HalfCourtThreeOnThreeMode extends BaseMode {
   constructor(config = {}) {
     super(MODE_IDS.HALF_COURT_3V3, config);
+    this.playersPerTeam = Math.max(2, Math.floor(asPositiveNumber(config.playersPerTeam, 3)));
+    this.modeTitle = config.title || "Pulse 3s";
     this.targetScore = asPositiveNumber(config.targetScore, 15);
     this.winBy = asPositiveNumber(config.winBy, 2);
     this.scoreCap = asPositiveNumber(config.scoreCap, 21);
-    this.shotClockDuration = asPositiveNumber(config.shotClock, 18);
+    this.shotClockDuration = asPositiveNumber(config.shotClock, 21);
     this.gameDuration = asPositiveNumber(config.gameDuration, 300);
     this.checkDelay = asPositiveNumber(config.checkDelay, 0.65);
     this.initialOffenseTeamId = config.initialOffenseTeamId ?? this.teamIds[0];
@@ -748,6 +761,8 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
     this.possessionNumber = 1;
     this.passChain = [];
     this.lastPass = null;
+    this.inboundReason = null;
+    this.inboundBoundary = null;
     this.setPhase(MODE_PHASES.CHECK);
     this.emit("BEGIN_CHECK", {
       offenseTeamId: this.possessionTeamId,
@@ -784,10 +799,34 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
         });
         return true;
       case "PASS_COMPLETE":
-        if (this.phase !== MODE_PHASES.LIVE || event.teamId !== this.possessionTeamId) return false;
+        if (event.teamId !== this.possessionTeamId) return false;
+        if (this.phase === MODE_PHASES.INBOUND) {
+          const fromPlayerId = event.fromPlayerId ?? event.playerId;
+          const toPlayerId = event.toPlayerId ?? event.targetPlayerId;
+          if (!fromPlayerId || !toPlayerId || fromPlayerId === toPlayerId) return false;
+          this.lastPass = {
+            fromPlayerId,
+            toPlayerId,
+            gameTime: this.gameClock,
+            possessionNumber: this.possessionNumber,
+          };
+          this.passChain.push(this.lastPass);
+          this.inboundReason = null;
+          this.inboundBoundary = null;
+          this.shotClock = this.shotClockDuration;
+          this.setPhase(MODE_PHASES.LIVE);
+          this.emit("SET_BALL_LIVE", {
+            offenseTeamId: this.possessionTeamId,
+            possessionNumber: this.possessionNumber,
+            receiverPlayerId: toPlayerId,
+            reason: "inbound_pass",
+          });
+          return true;
+        }
+        if (this.phase !== MODE_PHASES.LIVE) return false;
         this.lastPass = {
-          fromPlayerId: event.fromPlayerId,
-          toPlayerId: event.toPlayerId,
+          fromPlayerId: event.fromPlayerId ?? event.playerId,
+          toPlayerId: event.toPlayerId ?? event.targetPlayerId,
           gameTime: this.gameClock,
           possessionNumber: this.possessionNumber,
         };
@@ -854,12 +893,12 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
         if (this.phase !== MODE_PHASES.LIVE) return false;
         const awarded = event.awardedTeamId
           ?? otherTeam(event.lastTouchedTeamId ?? this.possessionTeamId, this.teamIds);
-        this.#beginCheck(awarded, "out_of_bounds");
+        this.#beginInbound(awarded, "out_of_bounds", event.boundary);
         return true;
       }
       case "FOUL":
         if (this.phase !== MODE_PHASES.LIVE) return false;
-        this.#beginCheck(event.offendedTeamId ?? this.possessionTeamId, "foul");
+        this.#beginInbound(event.offendedTeamId ?? this.possessionTeamId, "foul", event.boundary);
         return true;
       case "SHOT_CLOCK_EXPIRED":
         if (this.phase !== MODE_PHASES.LIVE) return false;
@@ -910,6 +949,20 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
     });
   }
 
+  #beginInbound(teamId, reason, boundary = "baseline") {
+    this.#setLivePossession(teamId, reason, false);
+    this.inboundReason = reason;
+    this.inboundBoundary = boundary || "baseline";
+    this.setPhase(MODE_PHASES.INBOUND);
+    this.emit("BEGIN_INBOUND", {
+      offenseTeamId: teamId,
+      reason,
+      boundary: this.inboundBoundary,
+      possessionNumber: this.possessionNumber,
+      requiresPass: true,
+    });
+  }
+
   #changePossession(reason) {
     this.#beginCheck(otherTeam(this.possessionTeamId, this.teamIds), reason);
   }
@@ -938,6 +991,8 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
       needsClear: this.needsClear,
       overtime: this.overtime,
       passChainLength: this.passChain?.length || 0,
+      inboundReason: this.inboundReason,
+      inboundBoundary: this.inboundBoundary,
       targetScore: this.targetScore,
     };
   }
@@ -945,11 +1000,13 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
   getUIState() {
     return {
       ...this.getState(),
-      title: "Pulse 3s",
+      title: this.modeTitle,
       clockText: this.overtime ? "OT" : formatClock(this.gameClock),
       shotClockText: String(Math.ceil(this.shotClock)),
       scoreText: this.teamIds.map((id) => `${id}: ${this.scores[id] || 0}`).join("  "),
-      statusText: this.phase === MODE_PHASES.CHECK
+      statusText: this.phase === MODE_PHASES.INBOUND
+        ? `${this.possessionTeamId} inbound — pass to resume`
+        : this.phase === MODE_PHASES.CHECK
         ? `${this.possessionTeamId} ball — check`
         : this.needsClear
           ? "CLEAR THE ARC"
@@ -963,7 +1020,7 @@ export class HalfCourtThreeOnThreeMode extends BaseMode {
   getRules() {
     return {
       id: this.id,
-      playersPerTeam: 3,
+      playersPerTeam: this.playersPerTeam,
       targetScore: this.targetScore,
       winBy: this.winBy,
       cap: this.scoreCap,
@@ -1007,6 +1064,18 @@ export function createGameMode(id, config = {}) {
     case "3v3":
     case "half_court":
       return new HalfCourtThreeOnThreeMode(config);
+    case MODE_IDS.HALF_COURT_4V4:
+    case "4v4": {
+      const mode = new HalfCourtThreeOnThreeMode({
+        targetScore: 19,
+        scoreCap: 25,
+        playersPerTeam: 4,
+        title: "Nova Fours",
+        ...config,
+      });
+      mode.id = MODE_IDS.HALF_COURT_4V4;
+      return mode;
+    }
     default:
       throw new RangeError(`Unknown Nova Court mode: ${id}`);
   }

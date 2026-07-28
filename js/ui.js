@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const COLOR_BLIND_MODES = new Set(["default", "deuteranopia", "protanopia", "tritanopia"]);
-const DIFFICULTIES = new Set(["rookie", "pro", "legend"]);
+const DIFFICULTIES = new Set(["rookie", "starter", "pro", "allStar", "legend"]);
 
 export function clamp(value, min = 0, max = 1) {
   const number = Number(value);

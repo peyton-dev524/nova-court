@@ -45,6 +45,7 @@ export const MUSIC_TRACKS = Object.freeze({
   street: "./assets/audio/music/street.mp3",
   threePoint: "./assets/audio/music/threePoint.mp3",
   team: "./assets/audio/music/team.mp3",
+  quads: "./assets/audio/music/team.mp3",
   duos: "./assets/audio/music/duos.mp3",
   fives: "./assets/audio/music/fives.mp3",
   practice: "./assets/audio/music/practice.mp3",

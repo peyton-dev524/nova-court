@@ -1813,6 +1813,14 @@ export class NovaCourtEngine {
   }
 
   _updateControlledPlayer(player, dt) {
+    if (player.metadata.inbounder) {
+      player.desiredVelocity.set(0, 0, 0);
+      if (this.controls.wasPressed("pass") && player.hasBall) this.pass(player);
+      if (this.controls.wasPressed("camera")) this.cycleCamera();
+      if (this.controls.wasPressed("restart")) this.events.emit("restartrequest", { mode: this.mode });
+      this.events.emit("stamina", { player, value: player.stamina });
+      return;
+    }
     const input = this.controls.move;
     const sprinting = this.controls.isDown("sprint") && player.stamina > 0.04;
     const maxSpeed = player.speed * (sprinting ? 1.34 : 1);
@@ -1918,7 +1926,7 @@ export class NovaCourtEngine {
     const previousX = player.root.position.x;
     const previousZ = player.root.position.z;
     player.root.position.addScaledVector(player.velocity, dt);
-    if (player.hasBall && this.deadBallCooldown <= 0) {
+    if (player.hasBall && !player.metadata.inbounder && this.deadBallCooldown <= 0) {
       const resolution = resolveOutOfBounds({
         position: { x: player.root.position.x, z: player.root.position.z },
         previousPosition: { x: previousX, z: previousZ },
@@ -1936,10 +1944,15 @@ export class NovaCourtEngine {
         this.events.emit("outofbounds", { ...resolution.event, consequence: resolution.consequence });
       }
     }
-    const edge = player.radius + 0.13;
-    const clampedPosition = clampPlayerToRuntime(this.courtRuntime, player.root.position, edge);
-    player.root.position.x = clampedPosition.x;
-    player.root.position.z = clampedPosition.z;
+    if (player.metadata.inbounder) {
+      player.velocity.set(0, 0, 0);
+      player.desiredVelocity.set(0, 0, 0);
+    } else {
+      const edge = player.radius + 0.13;
+      const clampedPosition = clampPlayerToRuntime(this.courtRuntime, player.root.position, edge);
+      player.root.position.x = clampedPosition.x;
+      player.root.position.z = clampedPosition.z;
+    }
     if (player.facing.lengthSq() > 0.01) {
       const targetRotation = Math.atan2(player.facing.x, player.facing.z);
       let diff = targetRotation - player.root.rotation.y;
@@ -3195,17 +3208,24 @@ export class NovaCourtEngine {
     if (this.cameraMode === "broadcast") {
       const actionX = clamp((focus.x + player.x) * 0.16, -1.2, 1.2);
       if (this.courtRuntime.kind === "full") {
-        desired.set(6.85 + actionX * 0.18, 6.7, clamp(focus.z, -8.8, 8.8));
-        target.set(clamp(focus.x * 0.2, -1.5, 1.5), isShot ? 2 : 1.3, clamp(focus.z, -11.5, 11.5));
-        desiredFov = 48;
+        const trackZ = clamp(focus.z * 0.72 + player.z * 0.28,
+          -this.courtRuntime.halfLength + 4,
+          this.courtRuntime.halfLength - 4);
+        desired.set(this.courtRuntime.halfWidth + 2.45 + actionX * 0.18, 8.15, trackZ);
+        target.set(
+          clamp(focus.x * 0.18, -1.8, 1.8),
+          isShot ? 2.2 : 1.35,
+          clamp(focus.z, -this.courtRuntime.halfLength + 1.1, this.courtRuntime.halfLength - 1.1),
+        );
+        desiredFov = 50;
       } else {
-        desired.set(7.12 + actionX * 0.32, 5.65, 1.35);
+        desired.set(this.courtRuntime.halfWidth + 0.72 + actionX * 0.28, 6.15, 1.55);
         target.set(
           clamp(focus.x * 0.22, -1.45, 1.45),
           isShot ? 1.85 : 1.24,
           clamp(focus.z * 0.24 - 2.45, -4.25, 0.35),
         );
-        desiredFov = 41.5;
+        desiredFov = this.players.length >= 8 ? 45 : this.players.length >= 6 ? 43 : 41.5;
       }
     } else if (this.cameraMode === "cinematic") {
       const orbit = this.elapsed * 0.075;

@@ -164,9 +164,9 @@ function buildBasket(T, parent, basket, teamId) {
   return { group, rim, board, nets };
 }
 
-function buildEndMarkings(T, parent, lineMaterial, basket) {
+function buildEndMarkings(T, parent, lineMaterial, basket, runtime) {
   const sign = Math.sign(basket.z) || 1;
-  const baseline = sign * 13.82;
+  const baseline = sign * (runtime.halfLength - 0.18);
   const freeThrowZ = basket.z - sign * 2.75;
   addLine(T, parent, lineMaterial, [
     [-2.45, baseline],
@@ -181,8 +181,8 @@ function buildEndMarkings(T, parent, lineMaterial, basket) {
   addCircle(T, parent, lineMaterial, 6.75, basket.x, basket.z, start, end, 92);
   for (const side of [-1, 1]) {
     addLine(T, parent, lineMaterial, [
-      [side * 6.72, basket.z - sign * 0.82],
-      [side * 6.72, baseline],
+      [side * Math.min(runtime.halfWidth - 0.28, 6.72), basket.z - sign * 0.82],
+      [side * Math.min(runtime.halfWidth - 0.28, 6.72), baseline],
     ]);
   }
 }
@@ -216,8 +216,8 @@ export function installFullCourtVisuals(engine, runtime) {
   ], true);
   addLine(T, root, lineMaterial, [[-runtime.halfWidth + 0.16, 0], [runtime.halfWidth - 0.16, 0]]);
   addCircle(T, root, lineMaterial, 1.8, 0, 0);
-  buildEndMarkings(T, root, lineMaterial, runtime.baskets.home);
-  buildEndMarkings(T, root, lineMaterial, runtime.baskets.away);
+  buildEndMarkings(T, root, lineMaterial, runtime.baskets.home, runtime);
+  buildEndMarkings(T, root, lineMaterial, runtime.baskets.away, runtime);
   const baskets = {
     home: buildBasket(T, root, runtime.baskets.home, "home"),
     away: buildBasket(T, root, runtime.baskets.away, "away"),
