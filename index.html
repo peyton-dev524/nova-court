@@ -196,11 +196,12 @@
       </div>
 
       <div id="shot-meter" class="shot-meter" aria-hidden="true">
-        <span class="shot-meter__label">RELEASE</span>
-        <div class="shot-meter__track">
-          <i class="shot-meter__window"></i>
-          <b id="shot-meter-fill"></b>
-        </div>
+        <span class="shot-meter__label">RELEASE IN GREEN</span>
+        <svg class="shot-meter__track" viewBox="0 0 190 112" aria-label="Curved shot timing meter">
+          <path class="shot-meter__rail" pathLength="1" d="M 18 96 A 77 77 0 0 1 172 96"></path>
+          <path id="shot-meter-fill" class="shot-meter__fill" pathLength="1" d="M 18 96 A 77 77 0 0 1 172 96"></path>
+          <path class="shot-meter__window" pathLength="1" d="M 18 96 A 77 77 0 0 1 172 96"></path>
+        </svg>
         <div id="shot-readout" class="shot-readout" aria-live="polite">
           <strong id="shot-chance">--%</strong>
           <span id="shot-coverage">READING DEFENSE</span>
@@ -210,6 +211,7 @@
       <div id="control-hints" class="control-hints">
         <span><kbd>WASD</kbd> MOVE</span>
         <span><kbd>SPACE</kbd> SHOOT</span>
+        <span><kbd>I</kbd> DUNK / STEAL</span>
         <span><kbd>E</kbd> PASS</span>
         <span><kbd>SHIFT</kbd> SPRINT</span>
       </div>
@@ -254,14 +256,14 @@
         </header>
         <div class="controls-grid">
           <article><span>MOVE</span><strong><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></strong><p>Use the left stick on gamepad. Sprint with Shift / RT.</p></article>
-          <article><span>SHOOT</span><strong><kbd>SPACE</kbd></strong><p>Hold to rise and release while the meter tip is inside the white window. Shooters automatically square to the basket; contests can still make a perfect release miss.</p></article>
+          <article><span>SHOOT</span><strong><kbd>SPACE</kbd></strong><p>Hold to rise and release while the curved meter tip is inside the green window. A green release is perfect.</p></article>
           <article><span>HANDLE</span><strong><kbd>Q</kbd> + MOVE</strong><p>Basic: hesi, crossover, between-the-legs, behind-back, or double-tap in-and-out. Hold Shift for spin, double-cross, snatch-back, and push-cross.</p></article>
           <article><span>PASS</span><strong><kbd>E</kbd></strong><p>Hit the open teammate and instantly switch control to the receiver.</p></article>
           <article><span>DEFEND</span><strong><kbd>SPACE</kbd> / <kbd>I</kbd></strong><p>Contest or block with Space. Reach with I or E; steals knock the ball live and mistimed reaches can stun you.</p></article>
-          <article><span>FINISH</span><strong><kbd>SPACE</kbd> NEAR RIM</strong><p>Sprint into the lane for a context layup or open-lane dunk.</p></article>
+          <article><span>FINISH</span><strong><kbd>I</kbd> NEAR RIM</strong><p>Hold I in the dunk zone and release in green for a perfect power finish. I remains steal on defense.</p></article>
           <article><span>CAMERA</span><strong><kbd>C</kbd></strong><p>Cycle follow, broadcast, and cinematic views at any time.</p></article>
         </div>
-        <p class="assist-note">Gamepad: left stick move · right stick aim · A pass/steal · X shoot/block · RT sprint · LT protect · Start pause</p>
+        <p class="assist-note">Gamepad: left stick move · right stick aim · A pass/steal · X shoot/context dunk/block · RT sprint · LT protect · Start pause</p>
       </div>
     </section>
 
@@ -298,6 +300,6 @@
 
   <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/app.js?v=6.1"></script>
+  <script type="module" src="./js/app.js?v=6.2"></script>
 </body>
 </html>

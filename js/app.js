@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.4";
+import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.5";
 import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -482,6 +482,13 @@ function processCommands(commands = [], token = runToken) {
           feedback("NEXT REP", "accent", 500);
         }, Math.max(0, command.delay || 0));
         break;
+      case "START_FREE_THROWS":
+        engine.startFreeThrows({
+          shooterId: command.shooterId,
+          teamId: command.teamId,
+          attempts: command.attempts || 1,
+        });
+        break;
       case "PRACTICE_SHOT_RESOLVED":
         feedback(command.made ? "CASH · KEEP IT GOING" : "RESET · NEXT REP", command.made ? "good" : "neutral", 700);
         break;
@@ -608,11 +615,21 @@ function bindEngineEvents() {
       teamId: event.player?.team,
     });
   });
-  engine.on("shotstart", () => {
+  engine.on("shotstart", (event) => {
     audio.playSfx("shoot", 0.45);
     const meter = $("#shot-meter");
     meter?.classList.remove("is-result");
     meter?.classList.add("is-active");
+    meter?.setAttribute("aria-hidden", "false");
+    meter?.setAttribute("data-context", event.context || "jumper");
+    const label = $(".shot-meter__label", meter);
+    if (label) {
+      label.textContent = event.context === "dunk"
+        ? "DUNK · RELEASE IN GREEN"
+        : event.context === "free_throw"
+          ? "FREE THROW · RELEASE IN GREEN"
+          : "RELEASE IN GREEN";
+    }
   });
   engine.on("shotmeter", (event) => {
     const meter = $("#shot-meter");
@@ -621,13 +638,21 @@ function bindEngineEvents() {
     meter?.style.setProperty("--shot-value", clamp(event.charge));
     meter?.style.setProperty("--shot-window-start", `${clamp(event.perfectWindowStart ?? 0.684) * 100}%`);
     meter?.style.setProperty("--shot-window-width", `${clamp(event.perfectWindowWidth ?? 0.072) * 100}%`);
+    const meterFill = $("#shot-meter-fill");
+    const meterWindow = $(".shot-meter__window", meter);
+    if (meterFill) meterFill.style.strokeDasharray = `${clamp(event.charge)} 1`;
+    if (meterWindow) {
+      meterWindow.style.strokeDasharray = `${clamp(event.perfectWindowWidth ?? 0.072)} 1`;
+      meterWindow.style.strokeDashoffset = `${-clamp(event.perfectWindowStart ?? 0.684)}`;
+    }
     meter?.setAttribute("data-quality", event.perfectRelease ? "perfect" : event.quality > 0.7 ? "good" : "early");
+    meter?.setAttribute("data-context", event.context || "jumper");
     meter?.setAttribute("data-tone", makePercent >= 100 ? "guaranteed" : coveredPercent >= 70 ? "smothered" : "live");
     const chance = $("#shot-chance");
     const coverage = $("#shot-coverage");
     if (chance) chance.textContent = `${makePercent}%`;
     if (coverage) coverage.textContent = `${event.coverageLabel || "WIDE OPEN"} ? ${coveredPercent}% COVERED`;
-    ui.setShotMeter(event.charge, event.perfectRelease ? "perfect" : "charging", event.perfectRelease ? "PERFECT" : "RELEASE IN WHITE");
+    ui.setShotMeter(event.charge, event.perfectRelease ? "perfect" : "charging", event.perfectRelease ? "PERFECT" : "RELEASE IN GREEN");
   });
   engine.on("shotqueued", (event) => {
     if (!event.player?.isAI) feedback("RISE · RELEASE AT THE APEX", "accent", 520);
@@ -654,6 +679,7 @@ function bindEngineEvents() {
     };
     meter?.classList.remove("is-active");
     meter?.classList.add("is-result");
+    meter?.setAttribute("aria-hidden", "false");
     meter?.setAttribute("data-quality", event.perfectRelease ? "perfect" : event.quality > 0.7 ? "good" : "early");
     meter?.setAttribute("data-tone", event.guaranteed ? "guaranteed" : coveragePercent >= 70 ? "smothered" : "live");
     const chance = $("#shot-chance");
@@ -697,7 +723,11 @@ function bindEngineEvents() {
       awayScore: state.scores?.away,
     });
     pendingShot = null;
-    setTimeout(() => $("#shot-meter")?.classList.remove("is-result"), 1100);
+    setTimeout(() => {
+      const meterNode = $("#shot-meter");
+      meterNode?.classList.remove("is-result");
+      meterNode?.setAttribute("aria-hidden", "true");
+    }, 1100);
   });
   engine.on("rim", () => audio.playSfx("rim"));
   engine.on("backboard", () => audio.playSfx("backboard"));
@@ -720,6 +750,15 @@ function bindEngineEvents() {
   });
   engine.on("ballloose", () => {
     feedback("LIVE BALL ? GO GET IT", "warning", 760);
+  });
+  engine.on("contextualaction", (event) => {
+    if (event.action === "dunk") feedback("DUNK METER · RELEASE IN GREEN", "accent", 720);
+  });
+  engine.on("freethrow", (event) => {
+    if (event.phase === "ready") feedback("ONE FREE THROW · GREEN GUARANTEES IT", "accent", 1100);
+    if (event.phase === "resolved") {
+      feedback(event.made ? "FREE THROW GOOD" : "FREE THROW MISSED", event.made ? "good" : "warning", 900);
+    }
   });
   engine.on("anklebreak", (event) => {
     audio.playSfx("dribble", 1);
@@ -761,6 +800,11 @@ function bindEngineEvents() {
   });
   engine.on("foul", (event) => {
     audio.playSfx("whistle");
+    if (event.shooting && event.nearBasket && event.commands?.length) {
+      processCommands(event.commands, runToken);
+      feedback("SHOOTING FOUL · ONE FREE THROW", "warning", 1150);
+      return;
+    }
     handleModeEvent("FOUL", {
       offendedTeamId: event.offendedTeamId,
       committingTeamId: event.committingTeamId,

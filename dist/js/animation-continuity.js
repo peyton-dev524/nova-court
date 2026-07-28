@@ -98,6 +98,8 @@ export function sampleShotFormTiming(options = {}) {
   const followThrough = released ? smoothstep(0, 0.18, releaseElapsed) : 0;
   const wristSnap = released ? smoothstep(0.02, 0.22, releaseElapsed) : 0;
   const guideRelease = released ? smoothstep(0.04, 0.26, releaseElapsed) : 0;
+  const stanceSet = smoothstep(0.02, 0.16, shotElapsed);
+  const landingRecovery = released ? smoothstep(0.2, 0.48, releaseElapsed) : 0;
   return {
     gather,
     dip,
@@ -108,6 +110,8 @@ export function sampleShotFormTiming(options = {}) {
     followThrough,
     wristSnap,
     guideRelease,
+    stanceSet,
+    landingRecovery,
     kneeBend: (1 - setPoint) * 0.52 + dip * 0.12 + (released ? 0.06 : 0),
   };
 }
