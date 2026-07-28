@@ -20,7 +20,7 @@ export const ANNOUNCER_EVENTS = Object.freeze({
   CAMERA: "camera",
 });
 
-const CALLS = Object.freeze({
+export const ANNOUNCER_CALLS = Object.freeze({
   tip: Object.freeze([
     "The lights are up. Let the run begin.",
     "NOVA COURT is live. Protect the ball.",
@@ -144,7 +144,7 @@ export class AnnouncerDirector {
   announce(eventType, payload = {}) {
     if (!this.enabled) return null;
     const type = String(eventType || "").toLowerCase();
-    const lines = CALLS[type];
+    const lines = ANNOUNCER_CALLS[type];
     if (!lines?.length) return null;
     const now = Number(payload.now ?? this.clock());
     const last = this.lastCallAt.get(type) ?? -Infinity;
@@ -159,6 +159,7 @@ export class AnnouncerDirector {
     }
     return {
       id: `call-${this.sequence}`,
+      clip: `${type}-${index + 1}`,
       type,
       text,
       priority: ["dunk", "block", "ankle_break", "overtime", "game_over"].includes(type) ? "high" : "normal",

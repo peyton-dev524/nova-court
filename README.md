@@ -60,7 +60,7 @@ Progress is device/browser-local rather than account-synced. Clearing site data 
 
 ## Settings and accessibility
 
-Music, effects, and announcer/crowd presentation are original Web Audio synthesis and independently mixed. Settings include master mute, sound captions, reduced motion, camera-shake strength, high contrast, color-vision palettes, quality scaling, keyboard focus states, screen-reader announcements, and scalable desktop layouts. Browsers unlock audio only after user interaction.
+Each mode has its own original ElevenLabs-generated instrumental loop, while basketball, interface, and crowd effects remain procedural Web Audio. Thirty synchronized ElevenLabs announcer and arena-PA clips replace browser speech synthesis when local assets are available; browser speech remains a graceful development fallback. All audio is decoded into one Web Audio graph, so music/effects volume, master mute, compression, and sound captions remain consistent. Settings also include reduced motion, camera-shake strength, high contrast, color-vision palettes, quality scaling, keyboard focus states, screen-reader announcements, and scalable desktop layouts. Browsers unlock audio only after user interaction.
 
 ## Architecture
 
@@ -71,7 +71,7 @@ Music, effects, and announcer/crowd presentation are original Web Audio synthesi
 - `js/team-formats.js`, `js/half-court-duos-mode.js`, `js/full-court-mode.js`, and `js/court-runtime.js` — rosters, team rules, possession, clocks, full-court direction, and two-basket runtime data.
 - `js/player-progression.js` — five builds, applied ratings, rewards, upgrades, cosmetics, normalization, and persistence.
 - `js/full-court-visuals.js` and `js/park-visuals.js` — original code-native arena, full court, park, crowd, lighting, and signage.
-- `js/announcer-runtime.js`, `js/audio.js`, and `js/ui.js` — original synthesized announcer motifs, music/SFX, captions, menus, HUD, settings, and accessibility.
+- `js/announcer-runtime.js`, `js/audio.js`, `assets/audio/`, and `js/ui.js` — synchronized recorded announcer/PA calls, per-mode music, procedural SFX, captions, menus, HUD, settings, and accessibility.
 - `tests/` — deterministic gameplay, rules, integration, persistence, animation, replay, performance, and interface tests.
 
 ## Performance
@@ -88,7 +88,7 @@ Final browser QA results are recorded in the completion handoff after exercising
 
 - Players and motion are intentionally stylized and procedural; they are not scanned humans or commercial motion capture.
 - Physics is purpose-built for responsive basketball and deterministic testing, not a general rigid-body solver.
-- The announcer uses original synthesized cues/captions rather than recorded speech.
+- Announcer and music media add about 5 MB to the first-use asset budget; clips and mode tracks are cached lazily after audio unlock.
 - Progress is local-only and has no account/cloud sync or online multiplayer.
 - Desktop keyboard/gamepad is the target; touch-only play is not fully supported.
 - Browser gamepad labels vary by controller and OS, and final performance depends on the local GPU/browser.

@@ -1,8 +1,10 @@
 /**
- * Original procedural audio for NOVA COURT.
+ * NOVA COURT audio controller.
  *
- * Every sound is synthesized at runtime with Web Audio. No samples, music
- * recordings, likenesses, or external copyrighted assets are included.
+ * Basketball and interface effects remain procedural Web Audio. Original
+ * ElevenLabs-generated instrumental loops and announcer clips are decoded into
+ * the same graph so mute, volume, compression, and accessibility behavior stay
+ * unified.
  */
 
 export function clamp01(value) {
@@ -39,6 +41,17 @@ const CAPTIONS = Object.freeze({
   crowd: "crowd reaction",
 });
 
+export const MUSIC_TRACKS = Object.freeze({
+  street: "./assets/audio/music/street.mp3",
+  threePoint: "./assets/audio/music/threePoint.mp3",
+  team: "./assets/audio/music/team.mp3",
+  duos: "./assets/audio/music/duos.mp3",
+  fives: "./assets/audio/music/fives.mp3",
+  practice: "./assets/audio/music/practice.mp3",
+});
+
+const VOICE_CLIP_PATTERN = /^(tip|score|swish|three|dunk|block|steal|rebound|ankle_break|overtime|final_minute|game_over|camera)-\d+$/;
+
 function safeStorageRead(storage) {
   try {
     return JSON.parse(storage?.getItem("nova-court-audio") || "{}");
@@ -53,6 +66,7 @@ export class NovaAudioController {
     this.master = null;
     this.musicBus = null;
     this.sfxBus = null;
+    this.voiceBus = null;
     this.compressor = null;
     this.storage = options.storage || (typeof window !== "undefined" ? window.localStorage : null);
     const stored = safeStorageRead(this.storage);
@@ -64,6 +78,14 @@ export class NovaAudioController {
     this.musicTimer = 0;
     this.musicStep = 0;
     this.musicScheduledUntil = 0;
+    this.musicMode = MUSIC_TRACKS[options.musicMode] ? options.musicMode : "street";
+    this.musicBuffers = new Map();
+    this.musicSource = null;
+    this.musicTrackGain = null;
+    this.musicTransitionToken = 0;
+    this.voiceBuffers = new Map();
+    this.activeVoiceSource = null;
+    this.voiceRequestToken = 0;
     this.activeSources = new Set();
     this.destroyed = false;
   }
@@ -78,6 +100,7 @@ export class NovaAudioController {
       this.master = this.context.createGain();
       this.musicBus = this.context.createGain();
       this.sfxBus = this.context.createGain();
+      this.voiceBus = this.context.createGain();
       this.compressor = this.context.createDynamicsCompressor();
       this.compressor.threshold.value = -14;
       this.compressor.knee.value = 14;
@@ -86,6 +109,7 @@ export class NovaAudioController {
       this.compressor.release.value = 0.22;
       this.musicBus.connect(this.master);
       this.sfxBus.connect(this.master);
+      this.voiceBus.connect(this.master);
       this.master.connect(this.compressor);
       this.compressor.connect(this.context.destination);
       this.updateGains(true);
@@ -108,6 +132,7 @@ export class NovaAudioController {
     change(this.master.gain, this.muted ? 0 : 0.82);
     change(this.musicBus.gain, this.musicVolume);
     change(this.sfxBus.gain, this.sfxVolume);
+    change(this.voiceBus.gain, Math.min(1, this.sfxVolume * 0.92));
   }
 
   persist() {
@@ -154,10 +179,38 @@ export class NovaAudioController {
     this.captions = Boolean(value);
   }
 
+  setMusicMode(mode) {
+    const nextMode = MUSIC_TRACKS[mode] ? mode : "street";
+    if (this.musicMode === nextMode) return this.musicMode;
+    this.musicMode = nextMode;
+    if (this.musicPlaying) {
+      this.switchRecordedMusic().catch(() => this.startProceduralMusic());
+    }
+    return this.musicMode;
+  }
+
   track(source) {
     this.activeSources.add(source);
     source.addEventListener("ended", () => this.activeSources.delete(source), { once: true });
     return source;
+  }
+
+  async loadAudioBuffer(path, cache) {
+    if (cache.has(path)) return cache.get(path);
+    const pending = (async () => {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Audio asset failed to load: ${path}`);
+      return this.context.decodeAudioData(await response.arrayBuffer());
+    })();
+    cache.set(path, pending);
+    try {
+      const buffer = await pending;
+      cache.set(path, buffer);
+      return buffer;
+    } catch (error) {
+      cache.delete(path);
+      throw error;
+    }
   }
 
   tone({
@@ -297,6 +350,53 @@ export class NovaAudioController {
     return true;
   }
 
+  playVoice(clip, { interrupt = false, intensity = 1 } = {}) {
+    if (!VOICE_CLIP_PATTERN.test(String(clip || ""))) return false;
+    const AudioContextClass =
+      typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+    if (!this.context && !AudioContextClass) return false;
+    const token = ++this.voiceRequestToken;
+    this.startVoice(String(clip), { interrupt, intensity }, token).catch(() => {});
+    return true;
+  }
+
+  async startVoice(clip, { interrupt, intensity }, token) {
+    if (!(await this.init())) return false;
+    const path = `./assets/audio/voices/${clip}.mp3`;
+    const buffer = await this.loadAudioBuffer(path, this.voiceBuffers);
+    if (token !== this.voiceRequestToken || this.destroyed) return false;
+    if (this.activeVoiceSource) {
+      if (!interrupt) return true;
+      try {
+        this.activeVoiceSource.stop();
+      } catch {
+        // The previous clip may have ended between checks.
+      }
+    }
+    const source = this.track(this.context.createBufferSource());
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    gain.gain.value = 0.72 + clamp01(intensity) * 0.28;
+    source.connect(gain).connect(this.voiceBus);
+    this.activeVoiceSource = source;
+    source.addEventListener("ended", () => {
+      if (this.activeVoiceSource === source) this.activeVoiceSource = null;
+    }, { once: true });
+    source.start();
+    return true;
+  }
+
+  stopVoice() {
+    this.voiceRequestToken += 1;
+    if (!this.activeVoiceSource) return;
+    try {
+      this.activeVoiceSource.stop();
+    } catch {
+      // The clip may already be ending.
+    }
+    this.activeVoiceSource = null;
+  }
+
   scheduleMusic() {
     if (!this.musicPlaying || !this.context || this.context.state !== "running") return;
     const beat = 60 / 94 / 2;
@@ -366,24 +466,80 @@ export class NovaAudioController {
     }
   }
 
-  async startMusic() {
-    if (!(await this.init())) return false;
-    if (this.musicPlaying) return true;
-    this.musicPlaying = true;
+  startProceduralMusic() {
+    if (!this.musicPlaying || !this.context || this.musicTimer || this.musicSource) return;
     this.musicScheduledUntil = this.context.currentTime;
     this.scheduleMusic();
     this.musicTimer = window.setInterval(() => this.scheduleMusic(), 500);
+  }
+
+  async switchRecordedMusic() {
+    if (!this.musicPlaying || !this.context) return false;
+    const token = ++this.musicTransitionToken;
+    const path = MUSIC_TRACKS[this.musicMode] || MUSIC_TRACKS.street;
+    const buffer = await this.loadAudioBuffer(path, this.musicBuffers);
+    if (token !== this.musicTransitionToken || !this.musicPlaying || this.destroyed) return false;
+
+    if (typeof window !== "undefined") window.clearInterval(this.musicTimer);
+    this.musicTimer = 0;
+
+    const source = this.track(this.context.createBufferSource());
+    const gain = this.context.createGain();
+    const time = this.context.currentTime;
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(1, time + 0.42);
+    source.connect(gain).connect(this.musicBus);
+    source.start(time);
+
+    const previousSource = this.musicSource;
+    const previousGain = this.musicTrackGain;
+    this.musicSource = source;
+    this.musicTrackGain = gain;
+    if (previousSource && previousGain) {
+      previousGain.gain.cancelScheduledValues(time);
+      previousGain.gain.setValueAtTime(Math.max(0.0001, previousGain.gain.value), time);
+      previousGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.42);
+      try {
+        previousSource.stop(time + 0.5);
+      } catch {
+        // The previous loop may already be stopped.
+      }
+    }
+    return true;
+  }
+
+  async startMusic() {
+    if (!(await this.init())) return false;
+    if (this.musicPlaying) {
+      if (!this.musicSource) await this.switchRecordedMusic().catch(() => this.startProceduralMusic());
+      return true;
+    }
+    this.musicPlaying = true;
+    await this.switchRecordedMusic().catch(() => this.startProceduralMusic());
     return true;
   }
 
   stopMusic() {
     this.musicPlaying = false;
+    this.musicTransitionToken += 1;
     if (typeof window !== "undefined") window.clearInterval(this.musicTimer);
     this.musicTimer = 0;
+    if (this.musicSource) {
+      try {
+        this.musicSource.stop();
+      } catch {
+        // The loop may already be stopped.
+      }
+    }
+    this.musicSource = null;
+    this.musicTrackGain = null;
   }
 
   destroy() {
     this.stopMusic();
+    this.stopVoice();
     this.destroyed = true;
     for (const source of this.activeSources) {
       try {

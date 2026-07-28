@@ -1,0 +1,363 @@
+{
+  "provider": "ElevenLabs",
+  "generated_at": "2026-07-28T17:49:21.510Z",
+  "license_note": "Generated specifically for NOVA COURT through the project owner's ElevenLabs account. No downloaded music, samples, celebrity voices, or imitated performers were requested.",
+  "music": {
+    "street": {
+      "title": "Park After Dark",
+      "prompt": "Original instrumental loop for a nocturnal outdoor street basketball duel. 96 BPM gritty boom-bap drums, rubbery sub bass, sparse muted guitar chops, subtle chain-link percussion, and confident head-to-head energy. Raw but polished, contemporary arcade sports game soundtrack. No vocals, no spoken words, no recognizable samples. Keep the melody sparse and leave space for basketball sound effects and an announcer. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/street.mp3",
+      "bytes": 640358,
+      "sha256": "ebc4c3b3e2e55b78615c407d4a5ed52a405e38e6737a25f2c694a7a64a7e317a"
+    },
+    "threePoint": {
+      "title": "Arc Pressure",
+      "prompt": "Original instrumental loop for a timed three-point basketball contest under arena lights. 122 BPM electro hip-hop, precise ticking hi-hats, pulsing synth arpeggio, tight kick and snare, subtle risers, and focused escalating pressure. Energetic without becoming frantic. No vocals, no spoken words, no recognizable samples. Leave space for buzzer, ball, and announcer effects. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/threePoint.mp3",
+      "bytes": 639522,
+      "sha256": "a8807480f11b24061d9970b9a0e519364052d8ccc12e9af47a83f6e433489778"
+    },
+    "team": {
+      "title": "Night Tactics",
+      "prompt": "Original instrumental loop for tactical three-on-three half-court basketball at night. 102 BPM dark modern hip-hop, crisp percussion, tense synth pulses, restrained brass stabs, deep bass, and smart stop-start energy that feels strategic and competitive. No vocals, no spoken words, no recognizable samples. Leave room for gameplay and broadcast commentary. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/team.mp3",
+      "bytes": 641194,
+      "sha256": "052d6d54509aea07b9d5655191822f679b20ee783141158fcec9d2bc5fa51fbf"
+    },
+    "duos": {
+      "title": "Two-Man Current",
+      "prompt": "Original instrumental loop for fast two-on-two half-court basketball. 94 BPM nimble funk-infused hip-hop, syncopated bass, dry rim-click percussion, warm electric keys, and call-and-response synth phrases suggesting teamwork and counters. Competitive, agile, and stylish. No vocals, no spoken words, no recognizable samples. Keep the arrangement uncluttered for game sound effects. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/duos.mp3",
+      "bytes": 639522,
+      "sha256": "68a04f964d6437a6a83580ad16ccd44fb2a22214e8f38ffd17c28b5e8941d709"
+    },
+    "fives": {
+      "title": "Full Court Voltage",
+      "prompt": "Original instrumental loop for full-court five-on-five basketball with a premium night broadcast feel. 110 BPM cinematic hip-hop, stomping arena drums, massive but clean sub bass, short brass-synth swells, pulsing strings, and stadium-scale momentum. Prestigious and intense, not melodramatic. No vocals, no spoken words, no recognizable samples. Leave room for crowd, ball, whistle, and announcer audio. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/fives.mp3",
+      "bytes": 640358,
+      "sha256": "52351cab7586af6224f5aa764372fed8c5ff07dec95f0d91f45663544ad0b8fd"
+    },
+    "practice": {
+      "title": "Open Gym Focus",
+      "prompt": "Original instrumental loop for a solo late-night basketball practice gym. 84 BPM low-fatigue lo-fi neo-soul, warm electric piano, soft hip-hop drums, rounded bass, airy pads, and a focused meditative groove. Calm confidence for repeated shooting and dribbling reps. No vocals, no spoken words, no recognizable samples. Keep transients gentle and leave space for ball sounds. Loop-friendly ending with controlled dynamics.",
+      "model": "music_v1",
+      "length_ms": 40000,
+      "path": "assets/audio/music/practice.mp3",
+      "bytes": 640358,
+      "sha256": "02f5e4528cf91ed55a3658ec0b364be7cd65c62343f61305958c3a03c13b9b45"
+    }
+  },
+  "voices": {
+    "tip-1": {
+      "text": "The lights are up. Let the run begin.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/tip-1.mp3",
+      "bytes": 36824,
+      "sha256": "39d0c42ff09e834503bfcf8436193c251419c184b54d74ca97bbeb453e6a9e6e"
+    },
+    "tip-2": {
+      "text": "NOVA COURT is live. Protect the ball.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/tip-2.mp3",
+      "bytes": 48527,
+      "sha256": "12f0595587cb1d633393fe407ff05d70dba292234cdc6dd4cbc24f942587a894"
+    },
+    "score-1": {
+      "text": "Clean finish at the cup.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/score-1.mp3",
+      "bytes": 26793,
+      "sha256": "dd0a33725543de33d1c64431499950db5a5247d064075c5c0b136c9bba2d0dc9"
+    },
+    "score-2": {
+      "text": "Two points, earned the hard way.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/score-2.mp3",
+      "bytes": 36824,
+      "sha256": "d5d39e8d9ae612d2ebb7d535bb0181b605e4042d8d889ae3ec8888c7f6f73277"
+    },
+    "score-3": {
+      "text": "They found the seam and cashed it.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/score-3.mp3",
+      "bytes": 38078,
+      "sha256": "fae2ea8b33d1375c033d72b7a8e7b1712034d6175da1e8fc1836f8356a90701b"
+    },
+    "swish-1": {
+      "text": "Nothing but night.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/swish-1.mp3",
+      "bytes": 30555,
+      "sha256": "6bdd845ff672903f4c16548f957816fe90f49ece64c18d1d42b7a2a2a3c762d0"
+    },
+    "swish-2": {
+      "text": "Pure release. The net barely had a choice.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/swish-2.mp3",
+      "bytes": 56050,
+      "sha256": "02509816001407f9714eedf0fadf38dd537f3678ca3ae7288408d7a9ef875291"
+    },
+    "swish-3": {
+      "text": "That one cut straight through.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/swish-3.mp3",
+      "bytes": 26793,
+      "sha256": "028264213274c31ade7d3e36d8373adce1d2dae59e92ff3d32ad0560b611fdc2"
+    },
+    "three-1": {
+      "text": "Deep range, bright result.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/three-1.mp3",
+      "bytes": 31808,
+      "sha256": "bd838539030feeef331480a030523b8f5fd3a239165c0404235b41b50fed5151"
+    },
+    "three-2": {
+      "text": "Three from beyond the pulse line.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/three-2.mp3",
+      "bytes": 30555,
+      "sha256": "c510c9ce466095bd7db1e21b5f5c3f741c141b4aed0c15ba22278a941f5bb7ed"
+    },
+    "three-3": {
+      "text": "Space given, three taken.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/three-3.mp3",
+      "bytes": 35570,
+      "sha256": "ce02a3d5f44c30f94eba0f3eefe48a9834d9f225a4f15c2c1df676e96a3537ba"
+    },
+    "dunk-1": {
+      "text": "Above the lights with authority!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/dunk-1.mp3",
+      "bytes": 33062,
+      "sha256": "e70921d81853620bd5f528c4436666d1acb0bffa4d9412b2b88b9ae1a7e92191"
+    },
+    "dunk-2": {
+      "text": "The rim is still shaking!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/dunk-2.mp3",
+      "bytes": 31808,
+      "sha256": "e4477d96d07510b4faa02a08d06bde4c4cc5ebf1e12eff68d219e5d8f4ab323f"
+    },
+    "dunk-3": {
+      "text": "Elevation, power, finish!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/dunk-3.mp3",
+      "bytes": 47273,
+      "sha256": "15fabd12261f5c8174d78187621b5e90eeef28f8040b6ae1f6f108e5da4db0b5"
+    },
+    "block-1": {
+      "text": "Access denied at the summit!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/block-1.mp3",
+      "bytes": 33062,
+      "sha256": "778201749ce0d6876ec062c67a0cab229973968d8ccba32109162de17820e8df"
+    },
+    "block-2": {
+      "text": "Sent away under the lights!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/block-2.mp3",
+      "bytes": 39332,
+      "sha256": "eeaffd8dd3bc19ef62a63c92283237dc36a24ea05b20a4f603ecacce857161e9"
+    },
+    "block-3": {
+      "text": "Perfect timing on the rejection.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/block-3.mp3",
+      "bytes": 34316,
+      "sha256": "e1975f779792ac4c80f6554da89d15b2ac863bd20c4bcf2627bf46b1c43f45c9"
+    },
+    "steal-1": {
+      "text": "Loose handle, live ball!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/steal-1.mp3",
+      "bytes": 34316,
+      "sha256": "9c0140237943f0d1fd51758237a94f012bdfc342a2da07dc6edc7431b8d57e52"
+    },
+    "steal-2": {
+      "text": "Read it clean and knocked it free.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/steal-2.mp3",
+      "bytes": 38078,
+      "sha256": "fd9f0c50a6cc7370613128efd06b98abee47dad9befb86e4b13b018fad6b9297"
+    },
+    "steal-3": {
+      "text": "The lane was open for the defense.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/steal-3.mp3",
+      "bytes": 36824,
+      "sha256": "34e813cf6bb7dec12ab9a2a735b8556442d838445d4992d7cd24584f885245bf"
+    },
+    "rebound-1": {
+      "text": "Strong hands secure the glass.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/rebound-1.mp3",
+      "bytes": 35570,
+      "sha256": "772fb6ac4dfc0fb5b8e4ed9ae980e89aadc11ec73b9233a931cfe157229963b4"
+    },
+    "rebound-2": {
+      "text": "One shot only. Board controlled.",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/rebound-2.mp3",
+      "bytes": 35570,
+      "sha256": "bcb9437791776331d23208a091b848eb20248c6adf9fcdb02a6df36bcf6b2816"
+    },
+    "ankle_break-1": {
+      "text": "The defender lost the rhythm!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/ankle_break-1.mp3",
+      "bytes": 33062,
+      "sha256": "6534ab5142a895629f955ad713af378bc94503df8162d78f0a64c7a145c43ff7"
+    },
+    "ankle_break-2": {
+      "text": "A sharp change of direction creates daylight!",
+      "role": "announcer",
+      "voice_id": "SA7eD52NRr8WAehitVt1",
+      "voice_name": "Tyler Cruz - Cool Energetic DJ",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/ankle_break-2.mp3",
+      "bytes": 43511,
+      "sha256": "9583d8bc8804479a5967b8e526a3fcb7ba1bfa136c091d94315887c50385bbe0"
+    },
+    "overtime-1": {
+      "text": "No separation. Next bucket carries everything.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/overtime-1.mp3",
+      "bytes": 61066,
+      "sha256": "b4e748e5280cbff4c34956a663653bfd2c8de10e2fc22ca16a8d6a1702a21307"
+    },
+    "overtime-2": {
+      "text": "Extra run under the lights.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/overtime-2.mp3",
+      "bytes": 30555,
+      "sha256": "b25476d8e3a79cfe3424a0c7eae19d595364e1f5d44bb6d5b46a329d54c69627"
+    },
+    "final_minute-1": {
+      "text": "Final minute. Every possession is louder now.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/final_minute-1.mp3",
+      "bytes": 54796,
+      "sha256": "ffb4c3281432ecbbe466307f1e8d7a0863063aa5ef6780b04615d9cdacb9c841"
+    },
+    "game_over-1": {
+      "text": "That is the run. Respect at center court.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/game_over-1.mp3",
+      "bytes": 48527,
+      "sha256": "93556cde1400407e6988783f90150c977639070284bf7d16df65b85f10a5465a"
+    },
+    "game_over-2": {
+      "text": "The horn closes another NOVA night.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/game_over-2.mp3",
+      "bytes": 38078,
+      "sha256": "30d32ab253059a671ca8e812ed1665aa02778b8a859055a9faaa26419e328bd8"
+    },
+    "camera-1": {
+      "text": "New angle locked in.",
+      "role": "pa",
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "voice_name": "Sarah - Mature, Reassuring, Confident",
+      "model": "eleven_v3",
+      "path": "assets/audio/voices/camera-1.mp3",
+      "bytes": 28047,
+      "sha256": "b26e86c982ff9c1f40a5c8b92f18289cdffcae8300b297c6fc7405b786b48c94"
+    }
+  }
+}

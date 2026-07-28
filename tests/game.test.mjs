@@ -72,6 +72,8 @@ test("audio controller stores values without requiring Web Audio", () => {
   assert.equal(controller.setSfxVolume(0.9), 0.9);
   assert.equal(controller.setMuted(true), true);
   assert.equal(controller.toggleMute(), false);
+  assert.equal(controller.setMusicMode("threePoint"), "threePoint");
+  assert.equal(controller.setMusicMode("not-a-mode"), "street");
   assert.equal(writes.at(-1)[0], "nova-court-audio");
   controller.destroy();
 });

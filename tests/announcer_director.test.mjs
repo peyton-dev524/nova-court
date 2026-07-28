@@ -10,6 +10,7 @@ test("announcer creates original caption and crowd cue", () => {
   const director = new AnnouncerDirector({ clock: () => 10 });
   const cue = director.announce("dunk", { playerName: "Ace Nova", seed: 7 });
   assert.match(cue.text, /^Ace Nova\./);
+  assert.match(cue.clip, /^dunk-\d+$/);
   assert.equal(cue.priority, "high");
   assert.equal(cue.crowd.intensity, 1);
 });

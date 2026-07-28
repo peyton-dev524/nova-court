@@ -46,3 +46,28 @@ test("runtime still captions when speech synthesis is unavailable", () => {
   assert.equal(runtime.active, false);
 });
 
+test("runtime prefers synchronized recorded clips over browser speech", () => {
+  const clips = [];
+  const spoken = [];
+  const runtime = createAnnouncerRuntime({
+    audio: {
+      playVoice: (...args) => {
+        clips.push(args);
+        return true;
+      },
+    },
+    windowRef: {
+      SpeechSynthesisUtterance: FakeUtterance,
+      speechSynthesis: {
+        speak: (utterance) => spoken.push(utterance),
+        cancel() {},
+        getVoices: () => [],
+      },
+    },
+  });
+  const cue = runtime.announce("block", { seed: 2, now: 10 });
+  assert.equal(clips[0][0], cue.clip);
+  assert.equal(clips[0][1].interrupt, true);
+  assert.equal(spoken.length, 0);
+});
+

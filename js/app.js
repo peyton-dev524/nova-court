@@ -6,8 +6,8 @@ import { createHalfCourtDuosMode } from "./half-court-duos-mode.js";
 import { createFullCourtFiveOnFiveMode } from "./full-court-mode.js";
 import { createCourtRuntime } from "./court-runtime.js";
 import { createTeamRoster, getFormatForModeKey, isTeamModeKey, TEAM_FORMAT_IDS } from "./team-formats.js";
-import { createAnnouncerRuntime } from "./announcer-runtime.js";
-import { createAudioController } from "./audio.js";
+import { createAnnouncerRuntime } from "./announcer-runtime.js?v=2.0";
+import { createAudioController } from "./audio.js?v=2.0";
 import { createUIController } from "./ui.js";
 import {
   ATTRIBUTE_GROUPS,
@@ -88,6 +88,8 @@ function setHidden(node, hidden) {
 
 function showMainMenu() {
   gameActive = false;
+  audio.setMusicMode("street");
+  announcer.stop();
   engine?.setPaused(true);
   engine?.controls?.setEnabled(false);
   setHidden($("#loading-screen"), true);
@@ -365,7 +367,6 @@ function createModeController(modeKey) {
 }
 
 function startMode(modeKey = selectedModeKey) {
-  unlockAudio().catch(() => {});
   runToken += 1;
   pendingShot = null;
   aiActionTimes.clear();
@@ -373,6 +374,8 @@ function startMode(modeKey = selectedModeKey) {
   hudAccumulator = 0;
   currentModeKey = MODE_META[modeKey] ? modeKey : "street";
   selectedModeKey = currentModeKey;
+  audio.setMusicMode(currentModeKey);
+  unlockAudio().catch(() => {});
   currentDifficulty = $("#difficulty-select")?.value || "pro";
   const token = runToken;
   createEngine(currentModeKey);
@@ -1112,6 +1115,7 @@ function bindUI() {
     $$(".mode-card").forEach((item) => item.classList.remove("is-selected"));
     card.classList.add("is-selected");
     selectedModeKey = card.dataset.mode;
+    audio.setMusicMode(selectedModeKey);
     audio.playSfx("ui");
   }));
 

@@ -1,4 +1,4 @@
-import { createAnnouncerDirector } from "./announcer-director.js";
+import { createAnnouncerDirector } from "./announcer-director.js?v=2.0";
 
 /**
  * Browser bridge for the pure announcer director. Speech synthesis is optional:
@@ -40,11 +40,16 @@ export function createAnnouncerRuntime({
     if (!cue) return null;
     ui?.caption?.(`ANNOUNCER: ${cue.text}`, cue.priority === "high" ? 2600 : 2100);
     if (cue.crowd.intensity >= 0.48) audio?.playSfx?.("crowd", cue.crowd.intensity);
-    speak(cue);
+    const recorded = audio?.playVoice?.(cue.clip, {
+      interrupt: cue.interrupt || cue.priority === "high",
+      intensity: getVolume(),
+    });
+    if (!recorded) speak(cue);
     return cue;
   }
 
   function stop() {
+    audio?.stopVoice?.();
     if (activeUtterance) windowRef?.speechSynthesis?.cancel?.();
     activeUtterance = null;
   }
