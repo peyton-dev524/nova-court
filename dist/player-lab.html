@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05090d">
+  <title>NOVA COURT · Player Model Lab</title>
+  <link rel="stylesheet" href="./js/player-model-lab.css?v=1.1">
+</head>
+<body>
+  <main id="player-lab" aria-label="NOVA COURT player model visual harness">
+    <div id="lab-stage" aria-label="Interactive Three.js player model preview"></div>
+
+    <header class="lab-brand">
+      <span>NOVA COURT · DEV TOOLS</span>
+      <h1>PLAYER MODEL LAB</h1>
+      <p>Production geometry · repeatable camera poses · live renderer metrics</p>
+    </header>
+
+    <aside class="lab-controls" aria-label="Player model controls">
+      <label>
+        Athlete
+        <select id="lab-athlete">
+          <option value="classic">Classic Guard</option>
+          <option value="highTop">High-Top Wing</option>
+          <option value="braided">Braided Forward</option>
+          <option value="fade">Fade Center</option>
+        </select>
+      </label>
+      <label>
+        Pose
+        <select id="lab-pose">
+          <option value="neutral">Neutral</option>
+          <option value="defense">Defensive stance</option>
+          <option value="handle">Low handle</option>
+          <option value="gather">Shot gather</option>
+          <option value="release">Jump-shot release</option>
+          <option value="layup">Layup extension</option>
+          <option value="celebrate">Celebration</option>
+        </select>
+      </label>
+      <label>
+        Camera
+        <select id="lab-view">
+          <option value="front">Front full body</option>
+          <option value="three-quarter">Three-quarter</option>
+          <option value="profile">Profile</option>
+          <option value="back">Back / jersey</option>
+        </select>
+      </label>
+
+      <div class="lab-toggle-grid">
+        <label class="lab-toggle"><input id="lab-compare" type="checkbox"><span></span>Compare all</label>
+        <label class="lab-toggle"><input id="lab-wireframe" type="checkbox"><span></span>Wireframe</label>
+        <label class="lab-toggle"><input id="lab-turntable" type="checkbox"><span></span>Turntable</label>
+        <label class="lab-toggle"><input id="lab-guides" type="checkbox" checked><span></span>Scale guides</label>
+      </div>
+
+      <div class="lab-actions">
+        <button id="lab-prev" type="button">← PREV</button>
+        <button id="lab-reset" type="button">RESET VIEW</button>
+        <button id="lab-next" type="button">NEXT →</button>
+      </div>
+      <button id="lab-capture" class="lab-capture" type="button">SAVE NAMED PNG</button>
+
+      <details class="lab-pose-editor" open>
+        <summary>POSE COORDINATE EDITOR</summary>
+        <div class="lab-editor-body">
+          <label class="lab-editor-select">
+            Limb
+            <select id="lab-limb">
+              <option value="left-arm">Left arm / hand</option>
+              <option value="right-arm">Right arm / hand</option>
+              <option value="left-leg">Left leg / foot</option>
+              <option value="right-leg">Right leg / foot</option>
+            </select>
+          </label>
+
+          <div class="lab-coordinate-strip" aria-live="polite">
+            <div><span id="lab-root-label">SHOULDER</span><output id="lab-root-coordinates">0.000, 0.000, 0.000</output></div>
+            <div><span id="lab-bend-label">ELBOW</span><output id="lab-bend-coordinates">0.000, 0.000, 0.000</output></div>
+            <div><span id="lab-end-label">HAND</span><output id="lab-end-coordinates">0.000, 0.000, 0.000</output></div>
+          </div>
+
+          <p class="lab-marker-legend"><i></i>ROOT <i></i>BEND <i></i>END · WORLD METERS</p>
+
+          <fieldset class="lab-rotation-grid">
+            <legend id="lab-upper-legend">SHOULDER ROTATION</legend>
+            <label>X <input id="lab-upper-x" data-joint="upper" data-axis="x" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+            <label>Y <input id="lab-upper-y" data-joint="upper" data-axis="y" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+            <label>Z <input id="lab-upper-z" data-joint="upper" data-axis="z" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+          </fieldset>
+
+          <fieldset class="lab-rotation-grid">
+            <legend id="lab-bend-legend">ELBOW ROTATION</legend>
+            <label>X <input id="lab-bend-x" data-joint="bend" data-axis="x" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+            <label>Y <input id="lab-bend-y" data-joint="bend" data-axis="y" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+            <label>Z <input id="lab-bend-z" data-joint="bend" data-axis="z" type="range" min="-180" max="180" step="1"><output>0°</output></label>
+          </fieldset>
+
+          <div class="lab-editor-actions">
+            <button id="lab-reset-limb" type="button">RESET LIMB</button>
+            <button id="lab-reset-pose" type="button">RESET POSE</button>
+            <button id="lab-save-pose" type="button">SAVE POSE</button>
+          </div>
+          <button id="lab-copy-pose" class="lab-copy-pose" type="button">COPY POSE COORDINATES</button>
+          <output id="lab-editor-status" class="lab-editor-status">Adjust a slider to begin.</output>
+        </div>
+      </details>
+
+      <p class="lab-help">Drag to orbit · wheel to zoom · use named views for visual regression captures.</p>
+    </aside>
+
+    <section class="lab-readout" aria-live="polite">
+      <span id="lab-capture-name">npc-classic-neutral-front-full-body.png</span>
+      <dl>
+        <div><dt>FPS</dt><dd id="lab-fps">60</dd></div>
+        <div><dt>DRAWS</dt><dd id="lab-draws">0</dd></div>
+        <div><dt>TRIS</dt><dd id="lab-tris">0</dd></div>
+        <div><dt>TEXTURES</dt><dd id="lab-textures">0</dd></div>
+      </dl>
+    </section>
+
+    <nav class="lab-views" aria-label="Named camera views">
+      <button type="button" data-view="front">01 FRONT</button>
+      <button type="button" data-view="three-quarter">02 ¾ VIEW</button>
+      <button type="button" data-view="profile">03 PROFILE</button>
+      <button type="button" data-view="back">04 BACK</button>
+    </nav>
+  </main>
+
+  <noscript>The player model lab requires JavaScript.</noscript>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/player-model-lab.js?v=1.3"></script>
+</body>
+</html>

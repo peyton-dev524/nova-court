@@ -350,10 +350,10 @@ export class ProceduralPlayer {
     const T = this.T;
     const group = new T.Group();
     group.name = this.id;
-    const skin = this._material(this.colors.skin, 0.78);
-    const jersey = this._material(this.colors.jersey, 0.48);
+    const skin = this._material(this.colors.skin, 0.72);
+    const jersey = this._material(this.colors.jersey, 0.58);
     const trim = this._material(this.colors.trim, 0.54);
-    const shoes = this._material(this.colors.shoes, 0.3);
+    const shoes = this._material(this.colors.shoes, 0.42);
     const sole = this._material(0x11161c, 0.65);
     const sock = this._material(0xf0f2ed, 0.72);
     const hair = this._material(0x17120f, 0.92);
@@ -362,29 +362,34 @@ export class ProceduralPlayer {
     this.hips.position.y = this.baseHipHeight;
     group.add(this.hips);
 
-    const shorts = this._mesh(new T.BoxGeometry(0.54, 0.37, 0.31), trim);
-    shorts.position.y = 0.08;
-    shorts.geometry.translate(0, -0.01, 0);
-    this.hips.add(shorts);
+    const waistband = this._mesh(new T.CylinderGeometry(0.265, 0.285, 0.13, 12), trim);
+    waistband.position.y = 0.2;
+    waistband.scale.z = 0.74;
+    this.hips.add(waistband);
     for (const side of [-1, 1]) {
-      const shortPanel = this._mesh(new T.BoxGeometry(0.04, 0.31, 0.318), jersey);
-      shortPanel.position.set(side * 0.272, 0.08, 0);
+      const shortLeg = this._mesh(new T.CylinderGeometry(0.137, 0.165, 0.3, 10), trim);
+      shortLeg.position.set(side * 0.14, 0.015, 0);
+      shortLeg.rotation.z = side * -0.035;
+      shortLeg.scale.z = 0.82;
+      this.hips.add(shortLeg);
+      const shortPanel = this._mesh(new T.BoxGeometry(0.035, 0.25, 0.24), jersey);
+      shortPanel.position.set(side * 0.265, 0.02, 0);
       this.hips.add(shortPanel);
       this.detailMeshes.push(shortPanel);
     }
 
-    const torso = this._mesh(new T.CapsuleGeometry(0.305, 0.54, 5, 12), jersey);
-    torso.position.y = 0.65;
-    torso.scale.set(1, 1, 0.68);
+    const torso = this._mesh(new T.CylinderGeometry(0.305, 0.238, 0.59, 14), jersey);
+    torso.position.y = 0.63;
+    torso.scale.z = 0.72;
     this.hips.add(torso);
-    const collar = this._mesh(new T.TorusGeometry(0.16, 0.025, 6, 18, Math.PI), trim);
-    collar.position.set(0, 0.94, -0.205);
+    const collar = this._mesh(new T.TorusGeometry(0.14, 0.022, 6, 20, Math.PI), trim);
+    collar.position.set(0, 0.935, 0.205);
     collar.rotation.set(Math.PI / 2, 0, Math.PI);
     this.hips.add(collar);
     this.detailMeshes.push(collar);
     for (const side of [-1, 1]) {
-      const sidePanel = this._mesh(new T.BoxGeometry(0.045, 0.53, 0.245), trim);
-      sidePanel.position.set(side * 0.296, 0.62, 0);
+      const sidePanel = this._mesh(new T.BoxGeometry(0.035, 0.47, 0.22), trim);
+      sidePanel.position.set(side * 0.254, 0.6, 0);
       this.hips.add(sidePanel);
       this.detailMeshes.push(sidePanel);
     }
@@ -405,23 +410,31 @@ export class ProceduralPlayer {
       this.detailMeshes.push(numberPlate);
     }
 
-    const neck = this._mesh(new T.CylinderGeometry(0.105, 0.115, 0.18, 10), skin);
-    neck.position.y = 1.04;
+    const neck = this._mesh(new T.CylinderGeometry(0.1, 0.12, 0.18, 12), skin);
+    neck.position.y = 1.03;
     this.hips.add(neck);
-    const head = this._mesh(new T.SphereGeometry(0.205, 18, 14), skin);
-    head.position.y = 1.25;
+    const head = this._mesh(new T.SphereGeometry(0.205, 20, 16), skin);
+    head.position.y = 1.255;
     const headShape = this.metadata.headShape;
-    head.scale.set(headShape === "wide" ? 1.03 : 0.94, headShape === "long" ? 1.16 : 1.08, 0.92);
+    head.scale.set(
+      headShape === "wide" ? 1.03 : 0.92,
+      headShape === "long" ? 1.17 : 1.1,
+      0.94,
+    );
     this.hips.add(head);
+    const jaw = this._mesh(new T.SphereGeometry(0.158, 16, 10), skin);
+    jaw.position.set(0, 1.17, 0.012);
+    jaw.scale.set(headShape === "wide" ? 1.08 : 0.92, 0.72, 0.96);
+    this.hips.add(jaw);
     const hairStyle = this.metadata.hairStyle;
     const hairGeometry = hairStyle === "highTop"
-      ? new T.BoxGeometry(0.31, 0.24, 0.3)
+      ? new T.CylinderGeometry(0.15, 0.175, 0.24, 10)
       : hairStyle === "braids"
         ? new T.CapsuleGeometry(0.19, 0.1, 3, 9)
         : new T.SphereGeometry(0.207, 16, 10, 0, Math.PI * 2, 0, hairStyle === "fade" ? Math.PI * 0.36 : Math.PI * 0.48);
     const hairCap = this._mesh(hairGeometry, hair);
-    hairCap.position.y = hairStyle === "highTop" ? 1.43 : hairStyle === "braids" ? 1.34 : 1.27;
-    hairCap.scale.set(hairStyle === "highTop" ? 0.94 : 0.96, hairStyle === "braids" ? 0.78 : 1.04, 0.94);
+    hairCap.position.y = hairStyle === "highTop" ? 1.45 : hairStyle === "braids" ? 1.35 : 1.29;
+    hairCap.scale.set(hairStyle === "highTop" ? 1 : 0.96, hairStyle === "braids" ? 0.78 : 1.04, 0.94);
     this.hips.add(hairCap);
     if (hairStyle === "braids") {
       for (const side of [-1, 1]) {
@@ -434,54 +447,76 @@ export class ProceduralPlayer {
     }
 
     const faceDark = this._material(0x17191c, 0.82);
+    const eyeWhite = this._material(0xf1eee6, 0.76);
     for (const side of [-1, 1]) {
-      const eye = this._mesh(new T.SphereGeometry(0.018, 8, 6), faceDark, false);
-      eye.position.set(side * 0.07, 1.3, 0.188);
-      eye.scale.set(1, 0.72, 0.42);
-      this.hips.add(eye);
-      this.detailMeshes.push(eye);
+      const ear = this._mesh(new T.SphereGeometry(0.038, 8, 6), skin, false);
+      ear.position.set(side * (headShape === "wide" ? 0.205 : 0.187), 1.255, 0);
+      ear.scale.set(0.45, 0.9, 0.62);
+      this.hips.add(ear);
+      this.detailMeshes.push(ear);
+      const sclera = this._mesh(new T.SphereGeometry(0.023, 10, 7), eyeWhite, false);
+      sclera.position.set(side * 0.067, 1.295, 0.19);
+      sclera.scale.set(1.12, 0.56, 0.36);
+      this.hips.add(sclera);
+      this.detailMeshes.push(sclera);
+      const iris = this._mesh(new T.SphereGeometry(0.009, 8, 6), faceDark, false);
+      iris.position.set(side * 0.067, 1.295, 0.205);
+      iris.scale.z = 0.45;
+      this.hips.add(iris);
+      this.detailMeshes.push(iris);
+      const brow = this._mesh(new T.BoxGeometry(0.055, 0.008, 0.01), hair, false);
+      brow.position.set(side * 0.067, 1.326, 0.196);
+      brow.rotation.z = side * -0.08;
+      this.hips.add(brow);
+      this.detailMeshes.push(brow);
     }
     const nose = this._mesh(new T.SphereGeometry(0.027, 8, 6), skin, false);
-    nose.position.set(0, 1.255, 0.207);
+    nose.position.set(0, 1.255, 0.21);
     nose.scale.set(0.72, 1.05, 0.72);
     this.hips.add(nose);
     this.detailMeshes.push(nose);
-    const headband = this._mesh(new T.TorusGeometry(0.198, 0.014, 5, 24), trim);
-    headband.position.set(0, 1.33, 0);
-    headband.rotation.x = Math.PI / 2;
-    headband.scale.z = 0.91;
-    this.hips.add(headband);
-    this.detailMeshes.push(headband);
-    const jerseyHem = this._mesh(new T.BoxGeometry(0.54, 0.045, 0.29), trim);
-    jerseyHem.position.y = 0.36;
+    const mouth = this._mesh(new T.BoxGeometry(0.07, 0.009, 0.012), faceDark, false);
+    mouth.position.set(0, 1.195, 0.187);
+    this.hips.add(mouth);
+    this.detailMeshes.push(mouth);
+    const jerseyHem = this._mesh(new T.CylinderGeometry(0.24, 0.24, 0.025, 14), jersey);
+    jerseyHem.position.y = 0.33;
+    jerseyHem.scale.z = 0.72;
     this.hips.add(jerseyHem);
     this.detailMeshes.push(jerseyHem);
 
     this.arms = [];
     for (const side of [-1, 1]) {
       const shoulder = new T.Group();
-      shoulder.position.set(side * 0.36, 0.87, 0);
+      shoulder.position.set(side * 0.345, 0.865, 0);
       this.hips.add(shoulder);
-      const shoulderBand = this._mesh(new T.CylinderGeometry(0.09, 0.083, 0.145, 9), trim);
-      shoulderBand.position.y = -0.08;
+      const deltoid = this._mesh(new T.SphereGeometry(0.105, 10, 8), skin);
+      deltoid.position.y = -0.03;
+      deltoid.scale.set(0.9, 1.08, 0.86);
+      shoulder.add(deltoid);
+      const shoulderBand = this._mesh(new T.CylinderGeometry(0.094, 0.087, 0.095, 10), trim);
+      shoulderBand.position.y = -0.115;
       shoulder.add(shoulderBand);
       this.detailMeshes.push(shoulderBand);
-      const upper = this._mesh(new T.CapsuleGeometry(0.076, 0.34, 4, 8), skin);
-      upper.position.y = -0.295;
+      const upper = this._mesh(new T.CapsuleGeometry(0.082, 0.32, 4, 9), skin);
+      upper.position.y = -0.285;
       shoulder.add(upper);
       const elbow = new T.Group();
       elbow.position.y = -0.5;
       shoulder.add(elbow);
-      const forearm = this._mesh(new T.CapsuleGeometry(0.066, 0.305, 4, 8), skin);
+      const elbowJoint = this._mesh(new T.SphereGeometry(0.079, 9, 7), skin);
+      elbowJoint.scale.set(0.94, 0.82, 0.92);
+      elbow.add(elbowJoint);
+      const forearm = this._mesh(new T.CapsuleGeometry(0.07, 0.3, 4, 9), skin);
       forearm.position.y = -0.205;
       elbow.add(forearm);
-      const wristBand = this._mesh(new T.CylinderGeometry(0.072, 0.069, 0.07, 9), trim);
+      const wristBand = this._mesh(new T.CylinderGeometry(0.073, 0.069, 0.06, 10), trim);
       wristBand.position.y = -0.39;
       elbow.add(wristBand);
       this.detailMeshes.push(wristBand);
-      const hand = this._mesh(new T.SphereGeometry(0.082, 10, 8), skin);
+      const hand = this._mesh(new T.SphereGeometry(0.085, 11, 9), skin);
       hand.position.y = -0.465;
-      hand.scale.set(0.88, 1.08, 0.8);
+      hand.scale.set(0.86, 1.12, 0.76);
       elbow.add(hand);
       this.arms.push({ shoulder, elbow, hand, side });
     }
@@ -491,25 +526,39 @@ export class ProceduralPlayer {
       const hip = new T.Group();
       hip.position.set(side * 0.165, -0.05, 0);
       this.hips.add(hip);
-      const thigh = this._mesh(new T.CapsuleGeometry(0.102, 0.39, 4, 8), skin);
+      const thigh = this._mesh(new T.CapsuleGeometry(0.112, 0.375, 4, 10), skin);
       thigh.position.y = -0.305;
       hip.add(thigh);
       const knee = new T.Group();
       knee.position.y = -0.575;
       hip.add(knee);
-      const shin = this._mesh(new T.CapsuleGeometry(0.081, 0.33, 4, 8), skin);
+      const kneeCap = this._mesh(new T.SphereGeometry(0.103, 10, 8), skin);
+      kneeCap.position.z = 0.012;
+      kneeCap.scale.set(0.9, 0.82, 0.94);
+      knee.add(kneeCap);
+      const shin = this._mesh(new T.CapsuleGeometry(0.086, 0.315, 4, 9), skin);
       shin.position.y = -0.235;
       knee.add(shin);
-      const sockMesh = this._mesh(new T.CylinderGeometry(0.087, 0.08, 0.18, 9), sock);
+      const sockMesh = this._mesh(new T.CylinderGeometry(0.091, 0.083, 0.18, 10), sock);
       sockMesh.position.y = -0.425;
       knee.add(sockMesh);
       this.detailMeshes.push(sockMesh);
-      const shoe = this._mesh(new T.BoxGeometry(0.19, 0.125, 0.37), shoes);
-      shoe.position.set(0, -0.535, 0.078);
+      const shoe = this._mesh(new T.BoxGeometry(0.19, 0.12, 0.31), shoes);
+      shoe.position.set(0, -0.535, 0.058);
       shoe.rotation.x = -0.04;
       knee.add(shoe);
-      const outsole = this._mesh(new T.BoxGeometry(0.198, 0.035, 0.382), sole);
-      outsole.position.set(0, -0.603, 0.078);
+      const toe = this._mesh(new T.SphereGeometry(0.1, 10, 7), shoes);
+      toe.position.set(0, -0.535, 0.2);
+      toe.scale.set(0.95, 0.56, 1.2);
+      knee.add(toe);
+      const ankleCollar = this._mesh(new T.TorusGeometry(0.082, 0.014, 5, 12), trim);
+      ankleCollar.position.set(0, -0.472, -0.015);
+      ankleCollar.rotation.x = Math.PI / 2;
+      ankleCollar.scale.z = 0.85;
+      knee.add(ankleCollar);
+      this.detailMeshes.push(ankleCollar);
+      const outsole = this._mesh(new T.BoxGeometry(0.2, 0.035, 0.36), sole);
+      outsole.position.set(0, -0.603, 0.08);
       knee.add(outsole);
       this.detailMeshes.push(outsole);
       this.legs.push({ hip, knee, shoe, outsole, side });

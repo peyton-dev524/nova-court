@@ -76,13 +76,15 @@ Six original ElevenLabs-generated instrumental loops are routed across the seven
 - `js/announcer-runtime.js`, `js/audio.js`, `assets/audio/`, and `js/ui.js` — synchronized recorded announcer/PA calls, per-mode music, procedural SFX, captions, menus, HUD, settings, and accessibility.
 - `tests/` — deterministic gameplay, rules, integration, persistence, animation, replay, performance, and interface tests.
 
+The exact production athlete rig can also be inspected at `/player-lab.html` while the local server is running. The visual harness provides repeatable full-body poses and camera angles, roster comparison, wireframe and scale guides, live renderer metrics, and stable PNG capture names. Its pose-coordinate editor exposes shoulder/hip and elbow/knee rotation controls, live joint and hand/foot positions in meters, per-pose saved drafts, and copyable JSON reports.
+
 ## Performance
 
 The renderer targets 60 FPS with a bounded 60 Hz simulation, three-step catch-up cap, throttled AI/HUD work, instanced crowds, pooled VFX, capped pixel ratio, shadow/character tiers, and an adaptive quality governor. Team modes reduce distant-player detail, while 1v1 and solo modes keep the highest character tier. All runtime assets are local and no media is hotlinked. Actual frame rate depends on GPU, browser throttling, display and viewport; use **Performance** quality or reduce camera shake on slower devices.
 
 ## Validation
 
-The complete test suite contains 172 tests covering all seven mode flows, scoring, 21-second clocks, progression/persistence, exact win bonuses and titles, applied position ratings, green-window timing, basket-facing shot alignment, all nine dribbles, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, free throws, AI decisions, team formats, pass-gated inbounds, full-court direction, tutorial/attract presentation, replay freeze/restoration, controls, UI/audio, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
+The complete test suite contains 179 tests covering all seven mode flows, scoring, 21-second clocks, progression/persistence, exact win bonuses and titles, applied position ratings, green-window timing, basket-facing shot alignment, all nine dribbles, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, free throws, AI decisions, team formats, pass-gated inbounds, full-court direction, tutorial/attract presentation, replay freeze/restoration, controls, UI/audio, the player-model harness, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
 
 Final browser QA results are recorded in the completion handoff after exercising the integrated mode selection, My Player navigation/persistence, tutorial/attract presentation, representative team and practice modes, local resource loading, console output, and performance telemetry.
 
