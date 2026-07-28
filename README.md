@@ -62,7 +62,7 @@ Progress is device/browser-local rather than account-synced. Clearing site data 
 
 ## Settings and accessibility
 
-Six original ElevenLabs-generated instrumental loops are routed across the seven modes, while basketball, interface, and crowd effects remain procedural Web Audio. Thirty synchronized ElevenLabs announcer and arena-PA clips replace browser speech synthesis when local assets are available; browser speech remains a graceful development fallback. All audio is decoded into one Web Audio graph, so music/effects volume, master mute, compression, and sound captions remain consistent. Settings also include reduced motion, camera-shake strength, high contrast, color-vision palettes, quality scaling, keyboard focus states, screen-reader announcements, and scalable desktop layouts. Browsers unlock audio only after user interaction.
+Six original ElevenLabs-generated instrumental loops are routed across the seven modes, while basketball, interface, and crowd effects remain procedural Web Audio. Thirty synchronized ElevenLabs announcer and arena-PA clips replace browser speech synthesis when local assets are available; browser speech remains a graceful development fallback. All audio is decoded into one Web Audio graph, so music/effects volume, master mute, compression, and sound captions remain consistent. Settings also include a user-only shooting-assist slider that widens or narrows the green release window without changing CPU shooting, plus reduced motion, camera-shake strength, high contrast, color-vision palettes, quality scaling, keyboard focus states, screen-reader announcements, and scalable desktop layouts. Browsers unlock audio only after user interaction.
 
 ## Architecture
 

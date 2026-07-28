@@ -44,6 +44,12 @@ import {
   shotFacingDirection,
 } from "./shot-coverage.js?v=1.1";
 import {
+  DEFAULT_SHOOTING_ASSIST,
+  normalizeShootingAssist,
+  shotPerfectHalfWidthForPlayer,
+  userShotPerfectHalfWidth,
+} from "./shooting-assist.js";
+import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
   STEAL_OUTCOMES,
@@ -926,7 +932,10 @@ export class NovaCourtEngine {
     this.chargingShot = false;
     this.shotInputAction = "shoot";
     this.shotIdeal = SHOT_METER_IDEAL;
-    this.shotPerfectHalfWidth = SHOT_METER_PERFECT_HALF_WIDTH;
+    this.userShootingAssist = normalizeShootingAssist(
+      options.userShootingAssist ?? DEFAULT_SHOOTING_ASSIST,
+    );
+    this.shotPerfectHalfWidth = userShotPerfectHalfWidth(this.userShootingAssist);
     this.lastShotQuality = 0;
     this.shotApexTolerance = 0.38;
     this.queuedRelease = null;
@@ -1737,6 +1746,26 @@ export class NovaCourtEngine {
     this.events.emit("difficulty", { difficulty });
   }
 
+  setUserShootingAssist(value) {
+    this.userShootingAssist = normalizeShootingAssist(value);
+    this.shotPerfectHalfWidth = userShotPerfectHalfWidth(this.userShootingAssist);
+    this.options.userShootingAssist = this.userShootingAssist;
+    this.events.emit("shootingassist", this.getShootingAssistSnapshot());
+    return this.getShootingAssistSnapshot();
+  }
+
+  getShootingAssistSnapshot() {
+    return Object.freeze({
+      value: this.userShootingAssist,
+      userPerfectWindowWidth: this.shotPerfectHalfWidth * 2,
+      cpuPerfectWindowWidth: SHOT_METER_PERFECT_HALF_WIDTH * 2,
+    });
+  }
+
+  _shotPerfectHalfWidthFor(player) {
+    return shotPerfectHalfWidthForPlayer(player, this.userShootingAssist);
+  }
+
   setCameraMode(mode) {
     const allowed = ["follow", "broadcast", "cinematic"];
     if (!allowed.includes(mode)) return false;
@@ -2477,6 +2506,7 @@ export class NovaCourtEngine {
     if (!this.chargingShot) return;
     this.shotCharge = Math.min(1.25, this.shotCharge + dt * 1.48);
     const player = this.controlledPlayer;
+    const perfectHalfWidth = this._shotPerfectHalfWidthFor(player);
     const meterQuality = 1 - clamp(Math.abs(this.shotCharge - this.shotIdeal) / 0.45, 0, 1);
     const apexQuality = player && this.shotContext === "jumper" && !player.grounded
       ? apexReleaseQuality(player.jumpVelocity) : 0;
@@ -2484,7 +2514,7 @@ export class NovaCourtEngine {
     const perfectRelease = isShotMeterPerfect(
       this.shotCharge,
       this.shotIdeal,
-      this.shotPerfectHalfWidth,
+      perfectHalfWidth,
     );
     this.lastShotQuality = quality;
     this.aimRing.material.color.setHex(quality > 0.9 ? 0x72ff9b : quality > 0.48 ? 0xffd45b : 0xff5475);
@@ -2500,8 +2530,8 @@ export class NovaCourtEngine {
       quality,
       perfectRelease,
       apex: apexQuality > 0.91,
-      perfectWindowStart: this.shotIdeal - this.shotPerfectHalfWidth,
-      perfectWindowWidth: this.shotPerfectHalfWidth * 2,
+      perfectWindowStart: this.shotIdeal - perfectHalfWidth,
+      perfectWindowWidth: perfectHalfWidth * 2,
       jumpVelocity: player?.jumpVelocity || 0,
       makeProbability: preview?.percentage.makeProbability ?? 0,
       makePercent: preview?.percentage.makePercent ?? 0,
@@ -2533,6 +2563,7 @@ export class NovaCourtEngine {
   releaseShot(player = this.controlledPlayer, override = {}) {
     if (!this.chargingShot || !player?.hasBall) return false;
     const context = override.context || this.shotContext || this._shotContext(player);
+    const perfectHalfWidth = this._shotPerfectHalfWidthFor(player);
     if (context === "dunk" && !override.choreographyRelease) {
       const timingQuality = override.quality
         ?? (1 - clamp(Math.abs(this.shotCharge - this.shotIdeal) / 0.45, 0, 1));
@@ -2552,7 +2583,7 @@ export class NovaCourtEngine {
           perfectRelease: override.perfectRelease ?? isShotMeterPerfect(
             this.shotCharge,
             this.shotIdeal,
-            this.shotPerfectHalfWidth,
+            perfectHalfWidth,
           ),
         },
       };
@@ -2568,7 +2599,7 @@ export class NovaCourtEngine {
     const perfectRelease = override.perfectRelease ?? isShotMeterPerfect(
       this.shotCharge,
       this.shotIdeal,
-      this.shotPerfectHalfWidth,
+      perfectHalfWidth,
     );
     this._facePlayerToBasket(player);
     const releaseHand = context === "dunk" && player.dunkSelection?.finishHand
@@ -2591,6 +2622,7 @@ export class NovaCourtEngine {
         charge: this.shotCharge,
         rating: ratings.freeThrow ?? ratings.shooting ?? 0.7,
         outcomeValue: Math.random(),
+        halfWidth: perfectHalfWidth,
       })
       : null;
     const freeThrowPercentage = context === "free_throw"

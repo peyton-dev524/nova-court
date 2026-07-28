@@ -324,6 +324,19 @@
           <label>Music <input id="music-volume" type="range" min="0" max="100" value="38"><output>38</output></label>
           <label>Sound effects <input id="sfx-volume" type="range" min="0" max="100" value="75"><output>75</output></label>
           <label>Camera shake <input id="camera-shake" type="range" min="0" max="100" value="65"><output>65</output></label>
+          <div class="setting-row shooting-assist-setting">
+            <div class="shooting-assist-heading">
+              <label for="shooting-assist">User shooting assist</label>
+              <details class="setting-info">
+                <summary aria-label="About user shooting assist">i</summary>
+                <p id="shooting-assist-help">This only changes the green release window for the player you control. CPU timing, ratings, contest coverage, and AI difficulty do not change.</p>
+              </details>
+            </div>
+            <div class="shooting-assist-preview" aria-hidden="true"><span></span><i></i></div>
+            <input id="shooting-assist" type="range" min="0" max="100" step="1" value="50" aria-describedby="shooting-assist-help shooting-assist-scale">
+            <output id="shooting-assist-output" for="shooting-assist">STANDARD · 7.2% GREEN</output>
+            <div id="shooting-assist-scale" class="shooting-assist-scale"><span>HARDER</span><span>EASIER</span></div>
+          </div>
           <label>Visual preset
             <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
           </label>
@@ -347,6 +360,6 @@
 
   <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/app.js?v=7.0"></script>
+  <script type="module" src="./js/app.js?v=7.1"></script>
 </body>
 </html>

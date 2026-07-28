@@ -40,6 +40,7 @@ test("settings normalization validates accessibility and difficulty options", ()
     colorBlind: "unknown",
     difficulty: "impossible",
     captions: false,
+    shootingAssist: 3,
   }), {
     musicVolume: 1,
     sfxVolume: 0,
@@ -50,6 +51,7 @@ test("settings normalization validates accessibility and difficulty options", ()
     captions: false,
     cameraShake: 0.65,
     difficulty: "pro",
+    shootingAssist: 1,
   });
 });
 

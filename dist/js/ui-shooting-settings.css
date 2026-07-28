@@ -1,0 +1,162 @@
+.shooting-assist-setting {
+  display: grid;
+  grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.4fr) auto;
+  align-items: center;
+  gap: 7px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.shooting-assist-heading {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1 / 4;
+  align-items: center;
+  gap: 8px;
+  color: var(--paper);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.setting-info {
+  position: relative;
+  z-index: 4;
+}
+
+.setting-info summary {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--cyan);
+  border-radius: 50%;
+  background: rgba(56, 232, 255, .08);
+  color: var(--cyan-bright);
+  font: 900 .68rem/1 system-ui, sans-serif;
+  cursor: pointer;
+  list-style: none;
+}
+
+.setting-info summary::-webkit-details-marker {
+  display: none;
+}
+
+.setting-info summary:hover,
+.setting-info summary:focus-visible {
+  background: var(--cyan);
+  color: var(--ink);
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.setting-info p {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 9px);
+  width: min(310px, 70vw);
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--cyan);
+  border-radius: 8px;
+  background: rgba(2, 10, 14, .98);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .52);
+  color: var(--paper);
+  font-size: .66rem;
+  font-weight: 650;
+  letter-spacing: .02em;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.shooting-assist-preview {
+  --assist-window-start: 68.4%;
+  --assist-window-width: 7.2%;
+  position: relative;
+  grid-column: 2;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .11);
+}
+
+.shooting-assist-preview span {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 84, 117, .38), rgba(255, 209, 102, .5) 58%, rgba(90, 255, 157, .18));
+}
+
+.shooting-assist-preview i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--assist-window-start);
+  width: var(--assist-window-width);
+  min-width: 7px;
+  border-radius: inherit;
+  background: #5aff9d;
+  box-shadow: 0 0 10px rgba(90, 255, 157, .9);
+  transition: left .12s ease, width .12s ease;
+}
+
+#shooting-assist {
+  grid-column: 2;
+  width: 100%;
+  accent-color: #5aff9d;
+}
+
+#shooting-assist-output {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  min-width: 136px;
+  color: #5aff9d;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-align: right;
+}
+
+.shooting-assist-scale {
+  display: flex;
+  grid-column: 2;
+  justify-content: space-between;
+  color: var(--dim);
+  font-size: .48rem;
+  font-weight: 850;
+  letter-spacing: .1em;
+}
+
+.high-contrast .setting-info summary,
+.high-contrast .shooting-assist-preview {
+  border: 1px solid currentColor;
+}
+
+@media (max-width: 680px) {
+  .shooting-assist-setting {
+    grid-template-columns: 1fr auto;
+  }
+
+  .shooting-assist-heading {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .shooting-assist-preview,
+  #shooting-assist,
+  .shooting-assist-scale {
+    grid-column: 1 / -1;
+  }
+
+  #shooting-assist-output {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shooting-assist-preview i {
+    transition: none;
+  }
+}

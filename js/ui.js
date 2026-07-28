@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   captions: true,
   cameraShake: 0.65,
   difficulty: "pro",
+  shootingAssist: 0.5,
 });
 
 const COLOR_BLIND_MODES = new Set(["default", "deuteranopia", "protanopia", "tritanopia"]);
@@ -51,6 +52,7 @@ export function normalizeSettings(input = {}) {
     captions: Boolean(merged.captions),
     cameraShake: clamp(merged.cameraShake),
     difficulty: DIFFICULTIES.has(merged.difficulty) ? merged.difficulty : "pro",
+    shootingAssist: clamp(merged.shootingAssist),
   };
 }
 

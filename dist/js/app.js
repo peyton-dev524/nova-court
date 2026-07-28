@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.5";
+import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.6";
 import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -18,6 +18,10 @@ import { createAnnouncerRuntime } from "./announcer-runtime.js?v=2.0";
 import { createAudioController } from "./audio.js?v=2.0";
 import { createUIController } from "./ui.js";
 import { createPresentationDirector } from "./presentation-director.js";
+import {
+  normalizeShootingAssist,
+  shootingAssistDisplay,
+} from "./shooting-assist.js";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
@@ -99,6 +103,7 @@ for (const href of [
   "./js/ui-menu-polish.css?v=1.1",
   "./js/ui-hud-polish.css?v=1.1",
   "./js/ui-profile-polish.css?v=1.1",
+  "./js/ui-shooting-settings.css?v=1.0",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -172,6 +177,18 @@ function resetShotMeter() {
   meter?.setAttribute("aria-hidden", "true");
   meter?.removeAttribute("data-quality");
   meter?.removeAttribute("data-tone");
+}
+
+function renderShootingAssistSetting(value = ui.settings.shootingAssist) {
+  const display = shootingAssistDisplay(value);
+  const slider = $("#shooting-assist");
+  const output = $("#shooting-assist-output");
+  const preview = $(".shooting-assist-preview");
+  if (slider) slider.value = String(Math.round(display.assist * 100));
+  if (output) output.value = `${display.label} · ${display.windowPercent.toFixed(1)}% GREEN`;
+  preview?.style.setProperty("--assist-window-start", `${(0.72 - display.halfWidth) * 100}%`);
+  preview?.style.setProperty("--assist-window-width", `${display.windowPercent}%`);
+  return display;
 }
 
 async function unlockAudio() {
@@ -384,6 +401,7 @@ function createEngine(modeKey, preview = false, roster = null) {
     visualQuality: performanceMode || modeKey === "fives" ? "performance" : "balanced",
     venue: modeKey === "street" ? "park" : teamMode ? "arena" : "arena",
     reducedMotion: ui.settings.reducedMotion,
+    userShootingAssist: ui.settings.shootingAssist,
   });
   bindEngineEvents();
   engine.start();
@@ -407,6 +425,7 @@ function createEngine(modeKey, preview = false, roster = null) {
         textures: engine?.renderer?.info?.memory?.textures || 0,
         geometries: engine?.renderer?.info?.memory?.geometries || 0,
       }),
+      shootingAssist: () => engine?.getShootingAssistSnapshot?.() || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
     };
   }
@@ -1284,6 +1303,7 @@ function bindUI() {
   ensurePracticeCard();
   ensureBroadcastChrome();
   renderPlayerProfile();
+  renderShootingAssistSetting();
   $("#close-my-player")?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1436,6 +1456,13 @@ function bindUI() {
     ui.settings.cameraShake = Number(event.target.value) / 100;
     if (event.target.nextElementSibling) event.target.nextElementSibling.value = String(event.target.value);
   });
+  $("#shooting-assist")?.addEventListener("input", (event) => {
+    const shootingAssist = normalizeShootingAssist(Number(event.target.value) / 100);
+    ui.applySettings({ ...ui.settings, shootingAssist });
+    renderShootingAssistSetting(shootingAssist);
+    engine?.setUserShootingAssist(shootingAssist);
+  });
+  $("#shooting-assist")?.addEventListener("change", () => audio.playSfx("ui"));
   $("#reduced-motion")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, reducedMotion: event.target.checked }));
   $("#high-contrast")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, highContrast: event.target.checked }));
   $("#captions-enabled")?.addEventListener("change", (event) => {
