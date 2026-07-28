@@ -93,7 +93,7 @@ let presentationKind = null;
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
-compat.href = "./js/compat.css?v=5.0";
+compat.href = "./js/compat.css?v=7.0";
 document.head.append(compat);
 
 function setHidden(node, hidden) {
@@ -105,6 +105,7 @@ function setHidden(node, hidden) {
 
 function showMainMenu() {
   gameActive = false;
+  resetShotMeter();
   audio.setMusicMode("street");
   announcer.stop();
   if (presentationKind !== "attract") startAttractMode();
@@ -127,8 +128,10 @@ function showMainMenu() {
 
 function showModeSelect() {
   engine?.setPaused(true);
-  setHidden($("#main-menu"), true);
-  setHidden($("#my-player-screen"), true);
+  resetShotMeter();
+  for (const id of ["main-menu", "my-player-screen", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
+    setHidden($(`#${id}`), true);
+  }
   setHidden($("#mode-select"), false);
   app.dataset.state = "modes";
   $("#mode-select").scrollTop = 0;
@@ -151,6 +154,14 @@ function showOverlay(id) {
 
 function hideOverlay(id) {
   setHidden($(`#${id}`), true);
+}
+
+function resetShotMeter() {
+  const meter = $("#shot-meter");
+  meter?.classList.remove("is-active", "is-result");
+  meter?.setAttribute("aria-hidden", "true");
+  meter?.removeAttribute("data-quality");
+  meter?.removeAttribute("data-tone");
 }
 
 async function unlockAudio() {
@@ -500,6 +511,7 @@ function createModeController(modeKey) {
 
 function startMode(modeKey = selectedModeKey) {
   stopPresentation();
+  resetShotMeter();
   runToken += 1;
   pendingShot = null;
   aiActionTimes.clear();
