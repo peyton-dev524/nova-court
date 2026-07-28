@@ -1,1 +1,432 @@
 /* Final-loaded menu and mode-selection polish. */
+
+/* Main menu: make the two ways onto the court unmistakably primary. */
+#main-menu.screen--menu {
+  grid-template-columns: minmax(340px, 520px) minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(3, 7, 10, 0.98) 0 36%, rgba(3, 7, 10, 0.68) 58%, rgba(3, 7, 10, 0.2)),
+    linear-gradient(0deg, rgba(3, 7, 10, 0.35), transparent 44%);
+}
+
+#main-menu .menu-rail {
+  z-index: 2;
+  min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  justify-content: center;
+  gap: clamp(18px, 3.2vh, 30px);
+  padding:
+    max(20px, var(--safe-top))
+    clamp(34px, 6vw, 76px)
+    max(18px, var(--safe-bottom));
+}
+
+#main-menu .brand-lockup--menu h1 {
+  font-size: clamp(58px, 7vw, 92px);
+  line-height: 0.78;
+}
+
+#main-menu .brand-lockup--menu p {
+  margin-block: 16px 0;
+  color: rgba(244, 251, 255, 0.72);
+  font-size: 0.95rem;
+}
+
+#main-menu .menu-actions {
+  display: grid;
+  width: min(100%, 440px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+#main-menu .menu-actions .button {
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: 18px;
+  border-color: rgba(141, 230, 243, 0.22);
+  background: rgba(8, 20, 25, 0.82);
+  box-shadow: none;
+}
+
+#main-menu #quick-play,
+#main-menu #open-modes {
+  grid-column: 1 / -1;
+  min-height: 62px;
+  font-size: 0.88rem;
+  letter-spacing: 0.13em;
+}
+
+#main-menu #quick-play {
+  border-color: var(--cyan);
+  background: linear-gradient(105deg, #35e5f9, #8cf5ff);
+  color: #021216;
+  box-shadow: 0 12px 34px rgba(56, 232, 255, 0.2);
+}
+
+#main-menu #quick-play .button__eyebrow {
+  color: rgba(2, 18, 22, 0.68);
+}
+
+#main-menu #open-modes {
+  border-color: rgba(166, 247, 255, 0.72);
+  background:
+    linear-gradient(90deg, rgba(56, 232, 255, 0.13), rgba(8, 20, 25, 0.88));
+}
+
+#main-menu #open-my-player {
+  grid-column: 1 / -1;
+}
+
+#main-menu #open-controls,
+#main-menu #open-settings {
+  justify-content: center;
+  color: rgba(244, 251, 255, 0.82);
+  text-align: center;
+}
+
+#main-menu #open-my-player .button__eyebrow {
+  overflow: hidden;
+  color: var(--gold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#main-menu .menu-actions .button:hover {
+  border-color: var(--cyan);
+  background: rgba(20, 51, 61, 0.94);
+}
+
+#main-menu #quick-play:hover {
+  background: var(--cyan-bright);
+  color: #021216;
+}
+
+#main-menu .menu-footer {
+  gap: 22px;
+  color: rgba(210, 228, 235, 0.72);
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+/* Keep the supporting card clear of the attract-mode player cluster. */
+#main-menu .menu-feature {
+  position: absolute;
+  z-index: 2;
+  right: max(22px, var(--safe-right));
+  bottom: max(22px, var(--safe-bottom));
+  width: min(360px, calc(100vw - 44px));
+  max-width: none;
+  margin: 0;
+  padding: 18px 20px;
+  border-color: rgba(56, 232, 255, 0.3);
+  background: rgba(4, 13, 18, 0.9);
+}
+
+#main-menu .menu-feature p {
+  color: rgba(213, 228, 234, 0.76);
+  line-height: 1.45;
+}
+
+/* Mode browser: seven readable choices and the launch controls in one 720p frame. */
+#mode-select.screen--panel {
+  gap: 12px;
+  overflow: hidden;
+  padding:
+    max(14px, var(--safe-top))
+    max(18px, var(--safe-right))
+    max(14px, var(--safe-bottom))
+    max(18px, var(--safe-left));
+}
+
+#mode-select .panel-header {
+  min-height: 58px;
+  gap: 16px;
+}
+
+#mode-select .panel-header h2 {
+  margin-top: 2px;
+  font-size: clamp(38px, 5vw, 56px);
+}
+
+#mode-select .panel-header .overline {
+  font-size: 0.62rem;
+}
+
+#mode-select .mode-grid {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  overflow: visible;
+}
+
+#mode-select .mode-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 18px;
+  border-radius: 13px;
+  justify-content: flex-start;
+  background:
+    linear-gradient(to top, rgba(3, 7, 10, 0.98), rgba(8, 24, 30, 0.72)),
+    var(--ink-2);
+  transition:
+    transform 0.18s var(--ease-out),
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+#mode-select .mode-card::before {
+  opacity: 0.52;
+}
+
+#mode-select .mode-card::after {
+  display: none;
+}
+
+#mode-select .mode-card__number {
+  top: 13px;
+  right: 15px;
+  color: rgba(244, 251, 255, 0.28);
+  font-size: 0.72rem;
+}
+
+#mode-select .mode-card__tag {
+  z-index: 1;
+  max-width: calc(100% - 44px);
+  margin: 0 0 9px;
+  font-size: 0.57rem;
+  line-height: 1.25;
+}
+
+#mode-select .mode-card > strong {
+  z-index: 1;
+  margin: 0 0 9px;
+  font-size: clamp(1.85rem, 3.1vw, 2.65rem);
+  line-height: 0.85;
+}
+
+#mode-select .mode-card p {
+  z-index: 1;
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: rgba(213, 228, 234, 0.76);
+  font-size: 0.76rem;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+#mode-select .mode-card__cta {
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 9px;
+  color: rgba(214, 250, 255, 0.88);
+  font-size: 0.57rem;
+  line-height: 1.25;
+}
+
+#mode-select .mode-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(166, 247, 255, 0.75);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), 0 0 20px rgba(56, 232, 255, 0.13);
+}
+
+#mode-select .mode-card:focus-visible {
+  z-index: 3;
+  outline: 3px solid var(--cyan-bright);
+  outline-offset: 2px;
+}
+
+#mode-select .mode-card.is-selected {
+  transform: none;
+  border-color: var(--cyan-bright);
+  background:
+    linear-gradient(145deg, rgba(56, 232, 255, 0.24), rgba(5, 18, 24, 0.96)),
+    var(--ink-2);
+  box-shadow:
+    inset 0 0 0 1px rgba(166, 247, 255, 0.32),
+    0 0 22px rgba(56, 232, 255, 0.17);
+}
+
+#mode-select .mode-card--practice.is-selected {
+  border-color: #ffcf70;
+  background:
+    linear-gradient(145deg, rgba(255, 190, 77, 0.2), rgba(5, 18, 24, 0.96)),
+    var(--ink-2);
+}
+
+#mode-select .setup-strip {
+  min-height: 60px;
+  margin-top: 0;
+  padding: 8px 10px;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(130px, 0.7fr) minmax(220px, 1.4fr);
+  gap: 10px;
+  border-radius: 11px;
+}
+
+#mode-select .setup-strip label {
+  gap: 4px;
+  font-size: 0.56rem;
+}
+
+#mode-select .setup-strip select,
+#mode-select .setup-strip .button {
+  min-height: 38px;
+}
+
+#mode-select .setup-strip .button {
+  width: 100%;
+  margin: 0;
+}
+
+/* Mid-size layouts remain vertically scrollable instead of becoming a wide carousel. */
+@media (max-width: 1050px) {
+  #main-menu.screen--menu {
+    grid-template-columns: minmax(320px, 470px) minmax(0, 1fr);
+  }
+
+  #main-menu .menu-feature {
+    width: min(320px, 34vw);
+  }
+
+  #mode-select.screen--panel {
+    overflow-y: auto;
+  }
+
+  #mode-select .mode-grid {
+    flex: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(205px, auto);
+    overflow: visible;
+  }
+}
+
+@media (max-width: 800px) {
+  #main-menu.screen--menu {
+    display: block;
+    overflow-y: auto;
+    background: linear-gradient(90deg, rgba(3, 7, 10, 0.97), rgba(3, 7, 10, 0.72));
+  }
+
+  #main-menu .menu-rail {
+    width: min(100%, 560px);
+    min-height: 100dvh;
+    margin-inline: auto;
+    padding-inline: max(24px, var(--safe-left), var(--safe-right));
+  }
+
+  #main-menu .menu-feature {
+    display: none;
+  }
+
+  #mode-select .mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(190px, auto);
+  }
+}
+
+@media (max-width: 560px) {
+  #main-menu .menu-actions {
+    grid-template-columns: 1fr;
+  }
+
+  #main-menu #quick-play,
+  #main-menu #open-modes,
+  #main-menu #open-my-player {
+    grid-column: auto;
+  }
+
+  #main-menu #open-controls,
+  #main-menu #open-settings {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  #mode-select .panel-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  #mode-select .panel-index {
+    display: none;
+  }
+
+  #mode-select .mode-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(176px, auto);
+  }
+
+  #mode-select .setup-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Short desktop windows get a denser composition; shorter still becomes scrollable. */
+@media (min-width: 801px) and (max-height: 760px) {
+  #main-menu .menu-rail {
+    gap: 17px;
+  }
+
+  #main-menu .brand-lockup--menu h1 {
+    font-size: clamp(56px, 6.6vw, 84px);
+  }
+
+  #main-menu .brand-lockup--menu p {
+    margin-top: 12px;
+  }
+
+  #main-menu #quick-play,
+  #main-menu #open-modes {
+    min-height: 58px;
+  }
+
+  #mode-select .panel-header {
+    min-height: 52px;
+  }
+
+  #mode-select .panel-header h2 {
+    font-size: 45px;
+  }
+
+  #mode-select .mode-card {
+    padding: 13px 16px;
+  }
+
+  #mode-select .mode-card > strong {
+    font-size: clamp(1.75rem, 2.8vw, 2.35rem);
+  }
+
+  #mode-select .mode-card p {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-height: 610px) {
+  #main-menu.screen--menu,
+  #mode-select.screen--panel {
+    overflow-y: auto;
+  }
+
+  #main-menu .menu-rail {
+    justify-content: flex-start;
+  }
+
+  #mode-select .mode-grid {
+    flex: none;
+    grid-template-rows: none;
+    grid-auto-rows: minmax(180px, auto);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #main-menu .button,
+  #mode-select .mode-card {
+    transition: none;
+  }
+
+  #main-menu .button::after {
+    display: none;
+  }
+}
