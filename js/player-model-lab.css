@@ -451,3 +451,12 @@ select:focus-visible {
     transition: none;
   }
 }
+body.basketball-review .lab-brand,
+body.basketball-review .lab-controls,
+body.basketball-review .lab-views {
+  display: none;
+}
+
+body.basketball-review .lab-readout {
+  max-width: 26rem;
+}

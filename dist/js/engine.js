@@ -69,6 +69,7 @@ import {
   shouldEnforceOutOfBounds,
   shouldQueueMadeShotReplay,
 } from "./finishing-mechanics.js?v=1.0";
+import { createBasketballMesh } from "./basketball-visuals.js?v=1.0";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -1536,21 +1537,11 @@ export class NovaCourtEngine {
 
   _buildBall() {
     const T = this.T;
-    const material = new T.MeshStandardMaterial({
-      color: 0xd86d28, roughness: 0.72, metalness: 0.0,
+    this.ballMesh = createBasketballMesh(T, COURT.ballRadius, {
+      anisotropy: this.renderer.capabilities.getMaxAnisotropy?.() || 1,
+      textureRegistry: this.generatedTextures,
     });
-    this.ballMesh = new T.Mesh(new T.SphereGeometry(COURT.ballRadius, 22, 16), material);
-    this.ballMesh.castShadow = true;
-    this.ballMesh.receiveShadow = true;
     this.worldRoot.add(this.ballMesh);
-    const seamMat = new T.LineBasicMaterial({ color: 0x2d180f, transparent: true, opacity: 0.9 });
-    for (const rotation of [[0, 0, 0], [0, Math.PI / 2, 0], [Math.PI / 2, 0, 0]]) {
-      const curve = new T.EllipseCurve(0, 0, COURT.ballRadius * 1.005, COURT.ballRadius * 1.005, 0, Math.PI * 2);
-      const geometry = new T.BufferGeometry().setFromPoints(curve.getPoints(40));
-      const seam = new T.LineLoop(geometry, seamMat);
-      seam.rotation.set(...rotation);
-      this.ballMesh.add(seam);
-    }
     this.ball = {
       position: this.ballMesh.position,
       previousPosition: new T.Vector3(),

@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.8";
+import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.9";
 import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";

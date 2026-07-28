@@ -1,4 +1,5 @@
-import { ProceduralPlayer } from "./engine.js?v=5.8";
+import { ProceduralPlayer } from "./engine.js?v=5.9";
+import { createBasketballMesh } from "./basketball-visuals.js?v=1.0";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Player Model Lab requires THREE.");
@@ -37,7 +38,8 @@ const harnessEngine = {
   events: { emit() {} },
 };
 
-scene.add(new T.HemisphereLight(0xc8e7ff, 0x141016, 1.35));
+const hemisphere = new T.HemisphereLight(0xc8e7ff, 0x141016, 1.35);
+scene.add(hemisphere);
 const key = new T.DirectionalLight(0xffeddb, 3.4);
 key.position.set(4.5, 7.5, 6);
 key.castShadow = true;
@@ -149,6 +151,11 @@ const ATHLETES = Object.freeze([
   },
 ]);
 
+const basketballPrototype = createBasketballMesh(T, 0.12, {
+  anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
+  textureRegistry: harnessEngine.generatedTextures,
+});
+
 const playerEntries = ATHLETES.map((config) => {
   const player = new ProceduralPlayer(harnessEngine, {
     ...config,
@@ -158,11 +165,7 @@ const playerEntries = ATHLETES.map((config) => {
     position: new T.Vector3(),
   });
   player.marker.visible = false;
-  const ball = new T.Mesh(
-    new T.SphereGeometry(0.12, 20, 14),
-    new T.MeshStandardMaterial({ color: 0xd96e28, roughness: 0.67 }),
-  );
-  ball.castShadow = true;
+  const ball = basketballPrototype.clone();
   scene.add(ball);
   return { config, player, ball };
 });
@@ -177,6 +180,7 @@ const poseIds = ["neutral", "defense", "handle", "gather", "release", "layup", "
 const athleteIds = ATHLETES.map((athlete) => athlete.id);
 const query = new URLSearchParams(location.search);
 const state = {
+  subject: query.get("subject") === "basketball" ? "basketball" : "player",
   athlete: athleteIds.includes(query.get("athlete")) ? query.get("athlete") : "classic",
   pose: poseIds.includes(query.get("pose")) ? query.get("pose") : "neutral",
   view: views[query.get("view")] ? query.get("view") : "front",
@@ -191,6 +195,23 @@ const state = {
   elevationOffset: 0,
   zoomOffset: 0,
 };
+
+const basketballReviewBall = state.subject === "basketball"
+  ? createBasketballMesh(T, 0.88, {
+    anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
+    textureRegistry: harnessEngine.generatedTextures,
+  })
+  : null;
+if (basketballReviewBall) {
+  basketballReviewBall.position.y = 0.9;
+  basketballReviewBall.rotation.set(-0.06, 0.02, -0.02);
+  scene.add(basketballReviewBall);
+  hemisphere.intensity = 0.72;
+  key.intensity = 1.9;
+  fill.intensity = 0.72;
+  rim.intensity = 8;
+  document.body.classList.add("basketball-review");
+}
 
 const POSE_DRAFT_STORAGE_KEY = "nova-court.player-lab.pose-drafts.v2";
 const LIMB_DEFINITIONS = Object.freeze({
@@ -590,7 +611,7 @@ async function copyPoseReport() {
 function applySceneState() {
   const activeIndex = athleteIds.indexOf(state.athlete);
   playerEntries.forEach((entry, index) => {
-    const visible = state.compare || index === activeIndex;
+    const visible = state.subject !== "basketball" && (state.compare || index === activeIndex);
     entry.player.root.visible = visible;
     entry.ball.visible = visible && ballVisibleForPose(state.pose);
     entry.player.root.position.set(
@@ -605,8 +626,10 @@ function applySceneState() {
     });
     positionBall(entry);
   });
-  guideRoot.visible = state.guides && !state.compare;
-  grid.visible = state.guides;
+  if (basketballReviewBall) basketballReviewBall.visible = true;
+  guideRoot.visible = state.subject !== "basketball" && state.guides && !state.compare;
+  grid.visible = state.subject !== "basketball" && state.guides;
+  floorRing.visible = state.subject !== "basketball";
   updateCaptureName();
   updateViewButtons();
   syncControls();
@@ -617,6 +640,17 @@ function updateCamera() {
   const preset = views[state.view];
   const azimuth = preset.azimuth + state.azimuthOffset;
   const elevation = preset.elevation + state.elevationOffset;
+  if (state.subject === "basketball") {
+    const target = new T.Vector3(0, 0.9, 0);
+    const distance = 4.05 + state.zoomOffset;
+    camera.position.set(
+      Math.sin(azimuth) * Math.cos(elevation) * distance,
+      target.y + Math.sin(elevation) * distance,
+      Math.cos(azimuth) * Math.cos(elevation) * distance,
+    );
+    camera.lookAt(target);
+    return;
+  }
   const distance = preset.distance + state.zoomOffset + (state.compare ? 2.6 : 0);
   const compareTargetX = state.view === "back" ? -0.42 : 0.42;
   const target = new T.Vector3(
@@ -633,6 +667,10 @@ function updateCamera() {
 }
 
 function updateCaptureName() {
+  if (state.subject === "basketball") {
+    $("#lab-capture-name").textContent = `basketball-${state.view}.png`;
+    return;
+  }
   const athlete = state.compare ? "roster" : state.athlete;
   $("#lab-capture-name").textContent =
     `npc-${athlete}-${state.pose}-${state.view}-full-body.png`;
@@ -819,6 +857,11 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
+  createBasketballReviewMesh(radius = 1) {
+    return createBasketballMesh(T, radius, {
+      anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
+    });
+  },
   setAthlete(id) {
     if (!athleteIds.includes(id)) return false;
     state.athlete = id;
@@ -847,6 +890,7 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
   },
   snapshot() {
     return Object.freeze({
+      subject: state.subject,
       athlete: state.athlete,
       pose: state.pose,
       view: state.view,
