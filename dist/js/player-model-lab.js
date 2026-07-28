@@ -1,5 +1,8 @@
-import { ProceduralPlayer } from "./engine.js?v=5.9";
-import { createBasketballMesh } from "./basketball-visuals.js?v=1.0";
+import { ProceduralPlayer } from "./engine.js?v=6.0";
+import {
+  createBasketballMesh,
+  normalizeBasketballStyle,
+} from "./basketball-visuals.js?v=1.1";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Player Model Lab requires THREE.");
@@ -151,9 +154,12 @@ const ATHLETES = Object.freeze([
   },
 ]);
 
+const query = new URLSearchParams(location.search);
+const selectedBallStyle = normalizeBasketballStyle(query.get("ball"));
 const basketballPrototype = createBasketballMesh(T, 0.12, {
   anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
   textureRegistry: harnessEngine.generatedTextures,
+  style: selectedBallStyle,
 });
 
 const playerEntries = ATHLETES.map((config) => {
@@ -178,7 +184,6 @@ const views = Object.freeze({
 });
 const poseIds = ["neutral", "defense", "handle", "gather", "release", "layup", "celebrate"];
 const athleteIds = ATHLETES.map((athlete) => athlete.id);
-const query = new URLSearchParams(location.search);
 const state = {
   subject: query.get("subject") === "basketball" ? "basketball" : "player",
   athlete: athleteIds.includes(query.get("athlete")) ? query.get("athlete") : "classic",
@@ -200,6 +205,7 @@ const basketballReviewBall = state.subject === "basketball"
   ? createBasketballMesh(T, 0.88, {
     anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
     textureRegistry: harnessEngine.generatedTextures,
+    style: selectedBallStyle,
   })
   : null;
 if (basketballReviewBall) {
@@ -668,7 +674,7 @@ function updateCamera() {
 
 function updateCaptureName() {
   if (state.subject === "basketball") {
-    $("#lab-capture-name").textContent = `basketball-${state.view}.png`;
+    $("#lab-capture-name").textContent = `basketball-${selectedBallStyle}-${state.view}.png`;
     return;
   }
   const athlete = state.compare ? "roster" : state.athlete;
@@ -857,9 +863,10 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
-  createBasketballReviewMesh(radius = 1) {
+  createBasketballReviewMesh(radius = 1, style = selectedBallStyle) {
     return createBasketballMesh(T, radius, {
       anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
+      style: normalizeBasketballStyle(style),
     });
   },
   setAthlete(id) {
@@ -891,6 +898,7 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
   snapshot() {
     return Object.freeze({
       subject: state.subject,
+      ballStyle: selectedBallStyle,
       athlete: state.athlete,
       pose: state.pose,
       view: state.view,

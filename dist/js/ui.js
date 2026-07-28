@@ -17,10 +17,12 @@ const DEFAULT_SETTINGS = Object.freeze({
   cameraShake: 0.65,
   difficulty: "pro",
   shootingAssist: 0.5,
+  ballStyle: "classic",
 });
 
 const COLOR_BLIND_MODES = new Set(["default", "deuteranopia", "protanopia", "tritanopia"]);
 const DIFFICULTIES = new Set(["rookie", "starter", "pro", "allStar", "legend"]);
+const BALL_STYLES = new Set(["classic", "redWhiteBlue"]);
 
 export function clamp(value, min = 0, max = 1) {
   const number = Number(value);
@@ -53,6 +55,7 @@ export function normalizeSettings(input = {}) {
     cameraShake: clamp(merged.cameraShake),
     difficulty: DIFFICULTIES.has(merged.difficulty) ? merged.difficulty : "pro",
     shootingAssist: clamp(merged.shootingAssist),
+    ballStyle: BALL_STYLES.has(merged.ballStyle) ? merged.ballStyle : "classic",
   };
 }
 

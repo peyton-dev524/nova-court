@@ -9,11 +9,15 @@ import {
   BASKETBALL_MAX_CHANNEL_WIDTH_MM,
   BASKETBALL_REFERENCE_CURVE_INTERSECTION_OFFSET,
   BASKETBALL_REFERENCE_RADIUS_MM,
+  BASKETBALL_STYLE_IDS,
   BASKETBALL_TEXTURE_HEIGHT,
   BASKETBALL_TEXTURE_WIDTH,
+  applyBasketballStyle,
   basketballCurvedSeamPoint,
+  basketballPanelIndex,
   basketballSeamDistances,
   createBasketballTextureData,
+  normalizeBasketballStyle,
 } from "../js/basketball-visuals.js";
 
 function pixel(array, width, x, y) {
@@ -38,6 +42,78 @@ test("basketball texture channels stay compact, independent, and deterministic",
   );
   assert.equal(first.metadata.topology, "traditional-eight-panel-spherical-wave");
   assert.equal(first.metadata.maximumChannelWidthMm, 6.35);
+  assert.equal(first.metadata.style, "classic");
+});
+
+test("red, white, and blue finish changes only the authored color panels", () => {
+  const classic = createBasketballTextureData({ style: "classic" });
+  const alternate = createBasketballTextureData({ style: "redWhiteBlue" });
+
+  assert.deepEqual(BASKETBALL_STYLE_IDS, ["classic", "redWhiteBlue"]);
+  assert.equal(normalizeBasketballStyle("redWhiteBlue"), "redWhiteBlue");
+  assert.equal(normalizeBasketballStyle("unknown"), "classic");
+  assert.notDeepEqual(alternate.albedo, classic.albedo);
+  assert.deepEqual(alternate.bump, classic.bump);
+  assert.deepEqual(alternate.roughness, classic.roughness);
+  assert.equal(alternate.metadata.style, "redWhiteBlue");
+  assert.equal(alternate.metadata.textureBytes, classic.metadata.textureBytes);
+});
+
+test("alternate colors follow four front-facing panels bounded by real channels", () => {
+  assert.equal(basketballPanelIndex(0, 0.9, 0.435), 7);
+  assert.equal(basketballPanelIndex(0, 0.35, 0.936), 6);
+  assert.equal(basketballPanelIndex(0, -0.35, 0.936), 2);
+  assert.equal(basketballPanelIndex(0, -0.9, 0.435), 3);
+});
+
+test("runtime style switching replaces one albedo map without growing the texture registry", () => {
+  class FakeDataTexture {
+    constructor(data, width, height) {
+      this.data = data;
+      this.width = width;
+      this.height = height;
+      this.disposed = false;
+    }
+
+    dispose() {
+      this.disposed = true;
+    }
+  }
+  const T = {
+    DataTexture: FakeDataTexture,
+    RGBAFormat: "rgba",
+    UnsignedByteType: "ubyte",
+    RepeatWrapping: "repeat",
+    ClampToEdgeWrapping: "clamp",
+    LinearMipmapLinearFilter: "mipmap",
+    LinearFilter: "linear",
+    SRGBColorSpace: "srgb",
+  };
+  const previousMap = new FakeDataTexture(new Uint8Array(4), 1, 1);
+  const bumpMap = new FakeDataTexture(new Uint8Array(4), 1, 1);
+  const roughnessMap = new FakeDataTexture(new Uint8Array(4), 1, 1);
+  const mesh = {
+    material: { map: previousMap, bumpMap, roughnessMap, needsUpdate: false },
+    userData: { visualProfile: { style: "classic" } },
+  };
+  const registry = [previousMap, bumpMap, roughnessMap];
+
+  assert.equal(applyBasketballStyle(T, mesh, "redWhiteBlue", {
+    anisotropy: 4,
+    textureRegistry: registry,
+  }), "redWhiteBlue");
+  assert.equal(registry.length, 3);
+  assert.equal(registry[0], mesh.material.map);
+  assert.equal(previousMap.disposed, true);
+  assert.equal(mesh.material.needsUpdate, true);
+  assert.equal(mesh.userData.visualProfile.style, "redWhiteBlue");
+
+  const selectedMap = mesh.material.map;
+  assert.equal(applyBasketballStyle(T, mesh, "redWhiteBlue", {
+    textureRegistry: registry,
+  }), "redWhiteBlue");
+  assert.equal(mesh.material.map, selectedMap);
+  assert.equal(registry.length, 3);
 });
 
 test("basketball scale and channel width follow regulation-size measurements", () => {
@@ -140,6 +216,9 @@ test("game and model lab share the procedural basketball factory", async () => {
   ]);
 
   assert.match(engine, /createBasketballMesh\(T, COURT\.ballRadius/);
+  assert.match(engine, /setBasketballStyle\(style\)/);
+  assert.match(engine, /applyBasketballStyle\(this\.T, this\.ballMesh/);
   assert.match(lab, /const basketballPrototype = createBasketballMesh\(T, 0\.12/);
+  assert.match(lab, /normalizeBasketballStyle\(query\.get\("ball"\)\)/);
   assert.doesNotMatch(engine, /new T\.LineLoop/);
 });

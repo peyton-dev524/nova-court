@@ -52,7 +52,9 @@ test("settings normalization validates accessibility and difficulty options", ()
     cameraShake: 0.65,
     difficulty: "pro",
     shootingAssist: 1,
+    ballStyle: "classic",
   });
+  assert.equal(ui.normalizeSettings({ ballStyle: "redWhiteBlue" }).ballStyle, "redWhiteBlue");
 });
 
 test("audio math helpers produce stable values", () => {

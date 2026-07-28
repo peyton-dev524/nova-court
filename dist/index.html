@@ -340,6 +340,12 @@
           <label>Visual preset
             <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
           </label>
+          <label>Game ball
+            <select id="ball-style" data-setting="ballStyle">
+              <option value="classic">Classic orange</option>
+              <option value="redWhiteBlue">Red / white / blue</option>
+            </select>
+          </label>
           <label class="toggle">Reduce motion <input id="reduced-motion" type="checkbox"><span></span></label>
           <label class="toggle">High contrast <input id="high-contrast" type="checkbox"><span></span></label>
           <label class="toggle">Sound captions <input id="captions-enabled" type="checkbox" checked><span></span></label>
@@ -360,6 +366,6 @@
 
   <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/app.js?v=7.4"></script>
+  <script type="module" src="./js/app.js?v=7.5"></script>
 </body>
 </html>

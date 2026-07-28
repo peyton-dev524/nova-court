@@ -69,7 +69,11 @@ import {
   shouldEnforceOutOfBounds,
   shouldQueueMadeShotReplay,
 } from "./finishing-mechanics.js?v=1.0";
-import { createBasketballMesh } from "./basketball-visuals.js?v=1.0";
+import {
+  applyBasketballStyle,
+  createBasketballMesh,
+  normalizeBasketballStyle,
+} from "./basketball-visuals.js?v=1.1";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -1540,6 +1544,7 @@ export class NovaCourtEngine {
     this.ballMesh = createBasketballMesh(T, COURT.ballRadius, {
       anisotropy: this.renderer.capabilities.getMaxAnisotropy?.() || 1,
       textureRegistry: this.generatedTextures,
+      style: this.options.ballStyle,
     });
     this.worldRoot.add(this.ballMesh);
     this.ball = {
@@ -1792,6 +1797,19 @@ export class NovaCourtEngine {
     this.options.userShootingAssist = this.userShootingAssist;
     this.events.emit("shootingassist", this.getShootingAssistSnapshot());
     return this.getShootingAssistSnapshot();
+  }
+
+  setBasketballStyle(style) {
+    const normalizedStyle = normalizeBasketballStyle(style);
+    this.options.ballStyle = normalizedStyle;
+    if (this.ballMesh) {
+      applyBasketballStyle(this.T, this.ballMesh, normalizedStyle, {
+        anisotropy: this.renderer.capabilities.getMaxAnisotropy?.() || 1,
+        textureRegistry: this.generatedTextures,
+      });
+    }
+    this.events.emit("basketballstyle", { style: normalizedStyle });
+    return normalizedStyle;
   }
 
   getShootingAssistSnapshot() {

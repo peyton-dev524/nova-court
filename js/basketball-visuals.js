@@ -15,9 +15,26 @@ export const BASKETBALL_CURVED_SEAM_PHASE = Math.PI / 2;
 export const BASKETBALL_CHANNEL_OUTER_HALF_ANGLE = (
   BASKETBALL_MAX_CHANNEL_WIDTH_MM / (2 * BASKETBALL_REFERENCE_RADIUS_MM)
 );
+export const BASKETBALL_STYLE_IDS = Object.freeze(["classic", "redWhiteBlue"]);
+export const DEFAULT_BASKETBALL_STYLE = "classic";
+
+const RED_WHITE_BLUE_PANEL_COLORS = Object.freeze([
+  Object.freeze([214, 211, 198]),
+  Object.freeze([172, 12, 22]),
+  Object.freeze([214, 211, 198]),
+  Object.freeze([172, 12, 22]),
+  Object.freeze([214, 211, 198]),
+  Object.freeze([16, 42, 98]),
+  Object.freeze([214, 211, 198]),
+  Object.freeze([16, 42, 98]),
+]);
 
 const CHANNELS = 4;
 const TWO_PI = Math.PI * 2;
+
+export function normalizeBasketballStyle(value) {
+  return BASKETBALL_STYLE_IDS.includes(value) ? value : DEFAULT_BASKETBALL_STYLE;
+}
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -51,6 +68,28 @@ export function basketballCurvedSeamPoint(
     y: cosLatitude * Math.sin(azimuth),
     z: cosLatitude * Math.cos(azimuth),
   });
+}
+
+export function basketballPanelIndex(
+  x,
+  y,
+  z,
+  {
+    amplitude = BASKETBALL_CURVED_SEAM_AMPLITUDE,
+    phase = BASKETBALL_CURVED_SEAM_PHASE,
+  } = {},
+) {
+  const length = Math.hypot(x, y, z);
+  if (!Number.isFinite(length) || length <= Number.EPSILON) {
+    throw new RangeError("Basketball panel samples require a finite non-zero direction.");
+  }
+  const nx = x / length;
+  const ny = y / length;
+  const nz = z / length;
+  const azimuth = Math.atan2(ny, nz);
+  const latitude = Math.asin(Math.max(-1, Math.min(1, nx)));
+  const curvedLatitude = amplitude * Math.sin(2 * azimuth + phase);
+  return (ny >= 0 ? 4 : 0) | (nz >= 0 ? 2 : 0) | (latitude >= curvedLatitude ? 1 : 0);
 }
 
 export function basketballSeamDistances(
@@ -100,11 +139,13 @@ export function createBasketballTextureData({
   width = BASKETBALL_TEXTURE_WIDTH,
   height = BASKETBALL_TEXTURE_HEIGHT,
   seed = 2408,
+  style = DEFAULT_BASKETBALL_STYLE,
 } = {}) {
   if (!Number.isInteger(width) || width < 16 || !Number.isInteger(height) || height < 8) {
     throw new RangeError("Basketball textures require integer dimensions of at least 16 by 8.");
   }
 
+  const normalizedStyle = normalizeBasketballStyle(style);
   const albedo = new Uint8Array(width * height * CHANNELS);
   const bump = new Uint8Array(width * height * CHANNELS);
   const roughness = new Uint8Array(width * height * CHANNELS);
@@ -150,9 +191,22 @@ export function createBasketballTextureData({
       const grain = hash2(px, py, seed);
       const broadVariation = hash2(Math.floor(px / 12), Math.floor(py / 12), seed + 19);
 
-      const surfaceRed = 181 + broadVariation * 13 + pebble * 6 + grain * 3;
-      const surfaceGreen = 58 + broadVariation * 7 + pebble * 3 + grain * 2;
-      const surfaceBlue = 20 + broadVariation * 3 + grain * 2;
+      let surfaceRed;
+      let surfaceGreen;
+      let surfaceBlue;
+      if (normalizedStyle === "redWhiteBlue") {
+        const panelColor = RED_WHITE_BLUE_PANEL_COLORS[
+          basketballPanelIndex(sphereX, sphereY, sphereZ)
+        ];
+        const colorVariation = 0.9 + broadVariation * 0.075 + pebble * 0.022 + grain * 0.012;
+        surfaceRed = panelColor[0] * colorVariation;
+        surfaceGreen = panelColor[1] * colorVariation;
+        surfaceBlue = panelColor[2] * colorVariation;
+      } else {
+        surfaceRed = 181 + broadVariation * 13 + pebble * 6 + grain * 3;
+        surfaceGreen = 58 + broadVariation * 7 + pebble * 3 + grain * 2;
+        surfaceBlue = 20 + broadVariation * 3 + grain * 2;
+      }
       const offset = (py * width + px) * CHANNELS;
 
       albedo[offset] = mixChannel(surfaceRed, 31, groove);
@@ -183,6 +237,7 @@ export function createBasketballTextureData({
     bump,
     roughness,
     metadata: Object.freeze({
+      style: normalizedStyle,
       topology: "traditional-eight-panel-spherical-wave",
       finish: "matte-pebbled-rubber",
       referenceCircumferenceMm: BASKETBALL_REFERENCE_CIRCUMFERENCE_MM,
@@ -209,7 +264,8 @@ function makeDataTexture(T, data, width, height, { color = false, anisotropy = 1
 export function createBasketballMesh(T, radius, {
   anisotropy = 1,
   textureRegistry,
-  textureData = createBasketballTextureData(),
+  style = DEFAULT_BASKETBALL_STYLE,
+  textureData = createBasketballTextureData({ style }),
 } = {}) {
   if (!T?.Mesh || !T?.SphereGeometry || !T?.MeshStandardMaterial || !T?.DataTexture) {
     throw new TypeError("createBasketballMesh requires a complete THREE namespace.");
@@ -250,8 +306,44 @@ export function createBasketballMesh(T, radius, {
   mesh.userData.visualProfile = {
     source: "img2threejs-inspired-procedural-reconstruction",
     topology: textureData.metadata?.topology || "traditional-eight-panel-spherical-wave",
+    style: textureData.metadata?.style || normalizeBasketballStyle(style),
     textureBytes: textureData.metadata?.textureBytes || 0,
     drawCalls: 1,
   };
   return mesh;
+}
+
+export function applyBasketballStyle(T, mesh, style, {
+  anisotropy = 1,
+  textureRegistry,
+} = {}) {
+  if (!mesh?.material || Array.isArray(mesh.material)) {
+    throw new TypeError("applyBasketballStyle requires a basketball mesh with one material.");
+  }
+  const normalizedStyle = normalizeBasketballStyle(style);
+  if (mesh.userData?.visualProfile?.style === normalizedStyle) return normalizedStyle;
+
+  const textureData = createBasketballTextureData({ style: normalizedStyle });
+  const nextMap = makeDataTexture(
+    T,
+    textureData.albedo,
+    textureData.width,
+    textureData.height,
+    { color: true, anisotropy },
+  );
+  const previousMap = mesh.material.map;
+  mesh.material.map = nextMap;
+  mesh.material.needsUpdate = true;
+
+  if (Array.isArray(textureRegistry)) {
+    const index = textureRegistry.indexOf(previousMap);
+    if (index >= 0) textureRegistry.splice(index, 1, nextMap);
+    else textureRegistry.push(nextMap);
+  }
+  previousMap?.dispose?.();
+  mesh.userData.visualProfile = {
+    ...(mesh.userData.visualProfile || {}),
+    style: normalizedStyle,
+  };
+  return normalizedStyle;
 }

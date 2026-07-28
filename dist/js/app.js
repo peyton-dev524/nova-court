@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=5.9";
+import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=6.0";
 import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -402,6 +402,7 @@ function createEngine(modeKey, preview = false, roster = null) {
     venue: modeKey === "street" ? "park" : teamMode ? "arena" : "arena",
     reducedMotion: ui.settings.reducedMotion,
     userShootingAssist: ui.settings.shootingAssist,
+    ballStyle: ui.settings.ballStyle,
   });
   bindEngineEvents();
   engine.start();
@@ -426,6 +427,7 @@ function createEngine(modeKey, preview = false, roster = null) {
         geometries: engine?.renderer?.info?.memory?.geometries || 0,
       }),
       shootingAssist: () => engine?.getShootingAssistSnapshot?.() || null,
+      basketballStyle: () => engine?.ballMesh?.userData?.visualProfile?.style || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
     };
   }
@@ -1472,7 +1474,9 @@ function bindUI() {
   $("#mute-all")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, muted: event.target.checked }));
 
   window.addEventListener("nova:settings", (event) => {
-    engine && (engine.options.reducedMotion = event.detail.reducedMotion);
+    if (!engine) return;
+    engine.options.reducedMotion = event.detail.reducedMotion;
+    engine.setBasketballStyle(event.detail.ballStyle);
   });
   window.addEventListener("keydown", (event) => {
     if (event.code === "Escape" && !$("#settings-screen").hidden) hideOverlay("settings-screen");
