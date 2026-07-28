@@ -17,13 +17,16 @@ import { allowsRestart, cameraPresetForTeamMode } from "./team-mode-ui.js";
 import { createAnnouncerRuntime } from "./announcer-runtime.js?v=2.0";
 import { createAudioController } from "./audio.js?v=2.0";
 import { createUIController } from "./ui.js";
+import { createPresentationDirector } from "./presentation-director.js";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
+  AVATAR_APPEARANCES,
   COSMETIC_PALETTES,
   POSITION_PRESETS,
   awardMatch,
   equipCosmetic,
+  getAvailableTitles,
   getEnginePlayerConfig,
   getProfileSummary,
   getUpgradeCost,
@@ -31,6 +34,8 @@ import {
   purchaseCosmetic,
   saveProfile,
   selectPosition,
+  selectTitle,
+  updatePlayerIdentity,
   upgradeAttribute,
 } from "./player-progression.js";
 
@@ -83,6 +88,8 @@ let selectedModeKey = "street";
 let audioUnlocked = false;
 let aiAccumulator = 0;
 let hudAccumulator = 0;
+let presentationDirector = null;
+let presentationKind = null;
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
@@ -100,7 +107,8 @@ function showMainMenu() {
   gameActive = false;
   audio.setMusicMode("street");
   announcer.stop();
-  engine?.setPaused(true);
+  if (presentationKind !== "attract") startAttractMode();
+  engine?.setPaused(false);
   engine?.controls?.setEnabled(false);
   setHidden($("#loading-screen"), true);
   setHidden($("#mode-select"), true);
@@ -109,12 +117,16 @@ function showMainMenu() {
   setHidden($("#controls-screen"), true);
   setHidden($("#settings-screen"), true);
   setHidden($("#my-player-screen"), true);
+  setHidden($("#create-player-screen"), true);
+  setHidden($("#tutorial-screen"), true);
   setHidden($("#hud"), true);
   setHidden($("#main-menu"), false);
   app.dataset.state = "menu";
+  renderPlayerProfile();
 }
 
 function showModeSelect() {
+  engine?.setPaused(true);
   setHidden($("#main-menu"), true);
   setHidden($("#my-player-screen"), true);
   setHidden($("#mode-select"), false);
@@ -191,7 +203,15 @@ function renderPlayerProfile() {
   $("#profile-wins").textContent = summary.wins;
   $("#profile-xp-label").textContent = nextXp ? `${summary.xp} / ${nextXp} XP` : "MAX LEVEL";
   $("#profile-xp-fill").style.width = `${Math.round(xpProgress * 100)}%`;
-  $("#menu-player-summary").textContent = `${summary.position} / ${summary.overall} OVR / ${summary.credits.toLocaleString()} CR`;
+  $("#menu-player-summary").textContent = `${summary.displayName} · ${summary.title.name} · ${summary.overall} OVR`;
+  $("#profile-display-name").textContent = summary.displayName.toUpperCase();
+  $("#profile-title").textContent = summary.title.name;
+  $("#player-card-name").textContent = summary.displayName.toUpperCase();
+  $("#player-card-meta").textContent = `#${String(summary.jerseyNumber).padStart(2, "0")} · ${summary.title.name} · ${summary.overall} OVR`;
+  const identityName = $("#identity-name");
+  if (identityName && document.activeElement !== identityName) identityName.value = summary.displayName === "UNNAMED PLAYER" ? "" : summary.displayName;
+  const jerseyNumber = $("#jersey-number");
+  if (jerseyNumber && document.activeElement !== jerseyNumber) jerseyNumber.value = summary.jerseyNumber;
 
   const positions = $("#position-tabs");
   positions.replaceChildren(...Object.entries(POSITION_PRESETS).map(([key, value]) => {
@@ -246,6 +266,28 @@ function renderPlayerProfile() {
     button.innerHTML = `<i aria-hidden="true"></i><span><b>${item.name}</b><small>${equipped ? "EQUIPPED" : owned ? "OWNED / EQUIP" : `${item.cost.toLocaleString()} CR`}</small></span>`;
     return button;
   }));
+
+  const appearanceRoot = $("#appearance-grid");
+  appearanceRoot?.replaceChildren(...AVATAR_APPEARANCES.map((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `identity-choice${summary.appearance.id === item.id ? " is-selected" : ""}`;
+    button.dataset.appearance = item.id;
+    button.setAttribute("aria-pressed", String(summary.appearance.id === item.id));
+    button.innerHTML = `<i style="--skin:#${item.skin.toString(16).padStart(6, "0")}"></i><span>${item.name}</span>`;
+    return button;
+  }));
+
+  const titleRoot = $("#title-grid");
+  titleRoot?.replaceChildren(...getAvailableTitles(playerProfile).map((title) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `title-chip${summary.title.id === title.id ? " is-selected" : ""}`;
+    button.dataset.title = title.id;
+    button.setAttribute("aria-pressed", String(summary.title.id === title.id));
+    button.textContent = title.name;
+    return button;
+  }));
 }
 
 function showMyPlayer() {
@@ -275,6 +317,10 @@ function controlledProfileConfig() {
       steal: config.steal,
       block: config.block,
       stamina: config.staminaRating,
+      jerseyNumber: config.jerseyNumber,
+      appearanceId: config.appearanceId,
+      hairStyle: config.hairStyle,
+      headShape: config.headShape,
     },
   };
 }
@@ -292,23 +338,23 @@ function createRoster(modeKey) {
   }
   if (modeKey === "threePoint" || modeKey === "practice") {
     return [
-      { id: "ace", name: "Ace Nova", team: "home", controlled: true, position: new V(modeKey === "practice" ? 0 : -4.6, 0, modeKey === "practice" ? 3.7 : -0.5), ...controlled },
+      { id: "ace", name: controlled.name, team: "home", controlled: true, position: new V(modeKey === "practice" ? 0 : -4.6, 0, modeKey === "practice" ? 3.7 : -0.5), ...controlled },
     ];
   }
   return [
-    { id: "ace", name: "Ace Nova", team: "home", controlled: true, position: new V(0, 0, 3.7), ...controlled },
+    { id: "ace", name: controlled.name, team: "home", controlled: true, position: new V(0, 0, 3.7), ...controlled },
     { id: "shade", name: "Shade", team: "away", isAI: true, role: "handler", shooting: 0.86, vertical: 0.85, position: new V(0.5, 0, 0.7), primary: 0xff6438, accent: 0xffc15d, skinColor: 0x5f382a, shoeColor: 0xffddd1 },
   ];
 }
 
-function createEngine(modeKey, preview = false) {
+function createEngine(modeKey, preview = false, roster = null) {
   engine?.destroy();
   gameRoot.replaceChildren();
   const teamMode = isTeamModeKey(modeKey);
   const performanceMode = $("#quality-select")?.value === "performance";
   engine = new NovaCourtEngine({
     container: gameRoot,
-    players: createRoster(modeKey),
+    players: roster || createRoster(modeKey),
     mode: MODE_MAP[modeKey],
     courtRuntime: createCourtRuntime(modeKey),
     difficulty: currentDifficulty,
@@ -340,9 +386,76 @@ function createEngine(modeKey, preview = false) {
         textures: engine?.renderer?.info?.memory?.textures || 0,
         geometries: engine?.renderer?.info?.memory?.geometries || 0,
       }),
+      presentation: () => presentationDirector?.getSnapshot?.() || null,
     };
   }
   return engine;
+}
+
+function createPresentationRoster() {
+  const V = globalThis.THREE.Vector3;
+  return [
+    { id: "demo-nova-1", name: "Nova One", team: "home", isAI: true, position: new V(-2.8, 0, 3.6), primary: 0x38e8ff, accent: 0xf4fbff, jerseyNumber: 7, hairStyle: "highTop", headShape: "long", skinColor: 0x75442f },
+    { id: "demo-nova-2", name: "Nova Two", team: "home", isAI: true, position: new V(3.4, 0, 1.2), primary: 0x38e8ff, accent: 0x152d40, jerseyNumber: 24, hairStyle: "braids", skinColor: 0x4f2f25 },
+    { id: "demo-eclipse-1", name: "Eclipse One", team: "away", isAI: true, position: new V(-1.7, 0, 1.2), primary: 0xff6438, accent: 0xffd166, jerseyNumber: 11, hairStyle: "fade", headShape: "wide", skinColor: 0xc88a68 },
+  ];
+}
+
+function stopPresentation() {
+  if (engine) engine.presentationUpdate = null;
+  presentationDirector?.destroy?.();
+  presentationDirector = null;
+  presentationKind = null;
+}
+
+function startAttractMode() {
+  stopPresentation();
+  createEngine("street", false, createPresentationRoster());
+  engine.controls.setEnabled(false);
+  engine.setCameraMode("broadcast");
+  presentationKind = "attract";
+  presentationDirector = createPresentationDirector(engine, { loop: true });
+  engine.presentationUpdate = (dt) => presentationDirector?.update(dt);
+  engine.setPaused(false);
+  engine.controls.setEnabled(false);
+}
+
+function renderTutorialStep(step) {
+  if (!step) return;
+  $("#tutorial-step-count").textContent = `${step.index + 1} / ${step.total}`;
+  $("#tutorial-step-label").textContent = step.label;
+  $("#tutorial-step-control").textContent = step.control;
+  $("#tutorial-step-copy").textContent = step.copy;
+  $("#tutorial-progress-fill").style.width = `${Math.round(((step.index + 1) / step.total) * 100)}%`;
+  $$(".tutorial-step-dot").forEach((dot, index) => dot.classList.toggle("is-active", index === step.index));
+}
+
+function startTutorial() {
+  stopPresentation();
+  createEngine("street", false, createPresentationRoster());
+  engine.controls.setEnabled(false);
+  engine.setCameraMode("broadcast");
+  presentationKind = "tutorial";
+  presentationDirector = createPresentationDirector(engine, {
+    tutorial: true,
+    onStep: renderTutorialStep,
+    onComplete: () => {
+      $("#tutorial-step-label").textContent = "RUN COMPLETE";
+      $("#tutorial-step-control").textContent = "REPLAY OR TAKE THE COURT";
+      $("#tutorial-step-copy").textContent = "You saw every core action. This demonstration never changes credits, XP, or your record.";
+      $("#tutorial-replay").hidden = false;
+    },
+  });
+  engine.presentationUpdate = (dt) => presentationDirector?.update(dt);
+  engine.setPaused(false);
+  engine.controls.setEnabled(false);
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
+    setHidden($(`#${id}`), true);
+  }
+  setHidden($("#hud"), true);
+  setHidden($("#tutorial-screen"), false);
+  $("#tutorial-replay").hidden = true;
+  app.dataset.state = "tutorial";
 }
 
 function configForMode(modeKey) {
@@ -386,6 +499,7 @@ function createModeController(modeKey) {
 }
 
 function startMode(modeKey = selectedModeKey) {
+  stopPresentation();
   runToken += 1;
   pendingShot = null;
   aiActionTimes.clear();
@@ -1060,7 +1174,7 @@ function endGame(result = mode?.getState()?.result || {}) {
   if (reward.ok) {
     playerProfile = saveProfile(reward.profile);
     const summary = getProfileSummary(playerProfile);
-    $("#result-reward").innerHTML = `<span><b>+${reward.credits} CR</b> MATCH PAY</span><span><b>+${reward.xp} XP</b> LEVEL ${summary.level}</span><span><b>${summary.overall} OVR</b> ${summary.position}</span>`;
+    $("#result-reward").innerHTML = `<span><b>+${reward.baseCredits} CR</b> MATCH PAY</span>${won ? `<span class="is-win-bonus"><b>+${reward.winCredits} CR</b> WIN BONUS</span>` : ""}<span><b>+${reward.xp} XP</b> LEVEL ${summary.level}</span><span><b>${summary.overall} OVR</b> ${summary.title.name}</span>`;
     renderPlayerProfile();
   } else {
     $("#result-reward").textContent = "MATCH REWARD ALREADY SAVED";
@@ -1162,6 +1276,10 @@ function bindUI() {
   $("#open-modes")?.addEventListener("click", showModeSelect);
   $("#open-my-player")?.addEventListener("click", showMyPlayer);
   $("#open-controls")?.addEventListener("click", () => showOverlay("controls-screen"));
+  $("#open-tutorial")?.addEventListener("click", () => {
+    hideOverlay("controls-screen");
+    startTutorial();
+  });
   $("#open-settings")?.addEventListener("click", () => showOverlay("settings-screen"));
   $("#position-tabs")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-position]");
@@ -1196,6 +1314,55 @@ function bindUI() {
       profileMessage("Earn more credits to unlock that colorway.", "warning");
       audio.playSfx("ui");
     }
+  });
+  $("#save-identity")?.addEventListener("click", () => {
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: $("#identity-name")?.value,
+      jerseyNumber: $("#jersey-number")?.value,
+      appearanceId: playerProfile.identity.appearanceId,
+    });
+    if (result.ok) commitProfile(result.profile, "Player identity saved.");
+    else profileMessage("Enter a name using letters or numbers.", "warning");
+  });
+  $("#appearance-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-appearance]");
+    if (!button) return;
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: playerProfile.identity.displayName || "Ace Nova",
+      appearanceId: button.dataset.appearance,
+    });
+    if (result.ok) commitProfile(result.profile, `${AVATAR_APPEARANCES.find((item) => item.id === button.dataset.appearance)?.name} appearance equipped.`);
+  });
+  $("#title-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-title]");
+    if (!button) return;
+    const result = selectTitle(playerProfile, button.dataset.title);
+    if (result.ok) commitProfile(result.profile, `${result.profile.identity.selectedTitle === "legend" ? "LEGEND" : button.textContent} title equipped.`);
+  });
+  $("#create-player-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: $("#create-player-name")?.value,
+      jerseyNumber: $("#create-player-number")?.value,
+      appearanceId: $("#create-player-appearance")?.value,
+    });
+    if (!result.ok) {
+      $("#create-player-error").textContent = "Enter a display name using letters or numbers.";
+      return;
+    }
+    playerProfile = saveProfile(result.profile);
+    setHidden($("#create-player-screen"), true);
+    renderPlayerProfile();
+    startAttractMode();
+    showMainMenu();
+  });
+  $("#tutorial-skip")?.addEventListener("click", () => {
+    presentationDirector?.skip?.();
+    showMainMenu();
+  });
+  $("#tutorial-replay")?.addEventListener("click", () => {
+    $("#tutorial-replay").hidden = true;
+    presentationDirector?.replay?.();
   });
   $("#start-selected-mode")?.addEventListener("click", () => startMode(selectedModeKey));
   $("#pause-button")?.addEventListener("click", pauseGame);
@@ -1287,7 +1454,15 @@ async function boot() {
     await new Promise((resolve) => setTimeout(resolve, 420));
     $("#loader-fill").style.width = "100%";
     await new Promise((resolve) => setTimeout(resolve, 220));
-    showMainMenu();
+    if (getProfileSummary(playerProfile).needsOnboarding) {
+      setHidden($("#loading-screen"), true);
+      setHidden($("#create-player-screen"), false);
+      app.dataset.state = "onboarding";
+      $("#create-player-name")?.focus();
+    } else {
+      startAttractMode();
+      showMainMenu();
+    }
     requestAnimationFrame(tick);
   } catch (error) {
     fail(error);

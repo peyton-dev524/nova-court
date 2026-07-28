@@ -1,8 +1,9 @@
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 
-export const PROFILE_SCHEMA_VERSION = 2;
+export const PROFILE_SCHEMA_VERSION = 3;
 export const PROFILE_STORAGE_KEY = "nova-court-my-player-v2";
+export const WIN_CREDIT_BONUS = 10;
 export const ATTRIBUTE_GROUPS = Object.freeze({
   Finishing: Object.freeze(["closeShot", "drivingLayup", "drivingDunk"]),
   Shooting: Object.freeze(["midRange", "threePoint", "freeThrow"]),
@@ -94,6 +95,53 @@ export const COSMETIC_PALETTES = Object.freeze([
   Object.freeze({ id: "prismRush", name: "Prism Rush", cost: 1800, colors: { primary: 0xe947ff, accent: 0x35f3ff, shoes: 0xfff7ff, skin: 0x9d6548 } }),
 ]);
 
+export const AVATAR_APPEARANCES = Object.freeze([
+  Object.freeze({ id: "classic", name: "Classic", hair: "crop", headShape: "round", skin: 0x9d6548 }),
+  Object.freeze({ id: "highTop", name: "High Top", hair: "highTop", headShape: "long", skin: 0x75442f }),
+  Object.freeze({ id: "braided", name: "Braided", hair: "braids", headShape: "round", skin: 0x4f2f25 }),
+  Object.freeze({ id: "fade", name: "Fade", hair: "fade", headShape: "wide", skin: 0xc88a68 }),
+]);
+
+const MILESTONE_TITLE_NAMES = Object.freeze({
+  25: "PROSPECT",
+  30: "SPARK",
+  35: "UPSTART",
+  40: "PLAYMAKER",
+  45: "BUCKET GETTER",
+  50: "TWO-WAY",
+  55: "COURT GENERAL",
+  60: "NIGHT SHIFT",
+  65: "HEADLINER",
+  70: "SHOWSTOPPER",
+  75: "FRANCHISE",
+  80: "ALL-NOVA",
+  85: "SUPERSTAR",
+  90: "ICON",
+  95: "IMMORTAL",
+});
+
+export const TITLE_DEFINITIONS = Object.freeze([
+  ...Object.entries(MILESTONE_TITLE_NAMES).map(([overall, name]) => Object.freeze({
+    id: `ovr-${overall}`,
+    name,
+    kind: "overall",
+    requiredOverall: Number(overall),
+  })),
+  Object.freeze({ id: "legend", name: "LEGEND", kind: "overall", requiredOverall: 99 }),
+  Object.freeze({ id: "dev", name: "DEV", kind: "entitlement", entitlement: "dev" }),
+  Object.freeze({ id: "tester", name: "TESTER", kind: "entitlement", entitlement: "tester" }),
+  Object.freeze({ id: "owner", name: "OWNER", kind: "entitlement", entitlement: "owner" }),
+]);
+
+export function normalizeDisplayName(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N} _.'-]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 18);
+}
+
 function makeBuild(position) {
   return {
     position,
@@ -112,6 +160,14 @@ export function createDefaultProfile() {
     credits: 600,
     builds: Object.fromEntries(Object.keys(POSITION_PRESETS).map((position) => [position, makeBuild(position)])),
     cosmetics: { owned: ["novaPulse"], equipped: "novaPulse" },
+    identity: {
+      created: false,
+      displayName: "",
+      jerseyNumber: 1,
+      appearanceId: "classic",
+      selectedTitle: "ovr-25",
+    },
+    entitlements: { dev: false, tester: false, owner: false },
     rewardedMatches: [],
     updatedAt: 0,
   };
@@ -173,7 +229,23 @@ export function normalizeProfile(candidate) {
   const owned = [...new Set(["novaPulse", ...(Array.isArray(source.cosmetics?.owned) ? source.cosmetics.owned : [])])]
     .filter((id) => validCosmetics.has(id));
   const equipped = owned.includes(source.cosmetics?.equipped) ? source.cosmetics.equipped : "novaPulse";
-  return {
+  const legacyProfile = Number(source.version) > 0 && Number(source.version) < PROFILE_SCHEMA_VERSION;
+  const displayName = normalizeDisplayName(source.identity?.displayName ?? source.displayName);
+  const validAppearances = new Set(AVATAR_APPEARANCES.map((item) => item.id));
+  const identity = {
+    created: Boolean(source.identity?.created ?? legacyProfile),
+    displayName: displayName || (legacyProfile ? "Ace Nova" : ""),
+    jerseyNumber: Math.round(clamp(source.identity?.jerseyNumber ?? source.jerseyNumber ?? 1, 0, 99)),
+    appearanceId: validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic",
+    selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
+  };
+  if (!identity.displayName) identity.created = false;
+  const entitlements = {
+    dev: source.entitlements?.dev === true,
+    tester: source.entitlements?.tester === true,
+    owner: source.entitlements?.owner === true,
+  };
+  const normalized = {
     version: PROFILE_SCHEMA_VERSION,
     selectedPosition,
     credits: Math.max(0, Math.floor(Number(source.credits ?? defaults.credits) || 0)),
@@ -182,9 +254,52 @@ export function normalizeProfile(candidate) {
       normalizeBuild(source.builds?.[position] || (source.position === position ? source : null), position),
     ])),
     cosmetics: { owned, equipped },
+    identity,
+    entitlements,
     rewardedMatches: [...new Set(Array.isArray(source.rewardedMatches) ? source.rewardedMatches.map(String) : [])].slice(-80),
     updatedAt: Math.max(0, Math.floor(Number(source.updatedAt) || 0)),
   };
+  const availableTitleIds = new Set(getAvailableTitles(normalized).map((title) => title.id));
+  if (!availableTitleIds.has(normalized.identity.selectedTitle)) normalized.identity.selectedTitle = "ovr-25";
+  return normalized;
+}
+
+export function getAvailableTitles(profile) {
+  const source = profile && typeof profile === "object" ? profile : createDefaultProfile();
+  const selectedPosition = POSITION_PRESETS[source.selectedPosition] ? source.selectedPosition : "PG";
+  const build = normalizeBuild(source.builds?.[selectedPosition], selectedPosition);
+  const overall = calculateOverall(build);
+  return TITLE_DEFINITIONS.filter((title) => title.kind === "overall"
+    ? overall >= title.requiredOverall
+    : source.entitlements?.[title.entitlement] === true);
+}
+
+export function updatePlayerIdentity(profile, changes = {}) {
+  const next = normalizeProfile(profile);
+  const displayName = normalizeDisplayName(changes.displayName ?? next.identity.displayName);
+  if (!displayName) return { ok: false, reason: "invalid-display-name", profile: next };
+  if (changes.appearanceId !== undefined
+      && !AVATAR_APPEARANCES.some((item) => item.id === changes.appearanceId)) {
+    return { ok: false, reason: "invalid-appearance", profile: next };
+  }
+  next.identity = {
+    ...next.identity,
+    created: true,
+    displayName,
+    jerseyNumber: Math.round(clamp(changes.jerseyNumber ?? next.identity.jerseyNumber, 0, 99)),
+    appearanceId: changes.appearanceId ?? next.identity.appearanceId,
+  };
+  return { ok: true, profile: next };
+}
+
+export function selectTitle(profile, titleId) {
+  const next = normalizeProfile(profile);
+  const available = getAvailableTitles(next);
+  if (!available.some((title) => title.id === titleId)) {
+    return { ok: false, reason: "title-locked", profile: next };
+  }
+  next.identity.selectedTitle = titleId;
+  return { ok: true, profile: next };
 }
 
 export function loadProfile(storage = globalThis.localStorage) {
@@ -259,7 +374,9 @@ export function awardMatch(profile, match = {}) {
   const won = Boolean(match.won);
   const difficultyBonus = { rookie: 0, pro: 20, legend: 45 }[match.difficulty] || 0;
   const modeBonus = { street: 25, two: 35, team: 45, five: 70, threePoint: 18, practice: 0 }[match.mode] || 20;
-  const credits = 70 + modeBonus + difficultyBonus + (won ? 115 : 0);
+  const baseCredits = 70 + modeBonus + difficultyBonus;
+  const winCredits = won ? WIN_CREDIT_BONUS : 0;
+  const credits = baseCredits + winCredits;
   const xp = 90 + modeBonus + Math.floor(difficultyBonus * 1.5) + (won ? 150 : 25);
   next.credits += credits;
   build.games += 1;
@@ -268,7 +385,7 @@ export function awardMatch(profile, match = {}) {
   build.level = levelFromXp(build.xp);
   next.rewardedMatches.push(matchId);
   next.rewardedMatches = next.rewardedMatches.slice(-80);
-  return { ok: true, profile: next, credits, xp, level: build.level };
+  return { ok: true, profile: next, credits, baseCredits, winCredits, xp, level: build.level };
 }
 
 export function getEnginePlayerConfig(profile) {
@@ -277,6 +394,7 @@ export function getEnginePlayerConfig(profile) {
   const attributes = build.attributes;
   const preset = POSITION_PRESETS[build.position];
   const palette = COSMETIC_PALETTES.find((item) => item.id === normalized.cosmetics.equipped) || COSMETIC_PALETTES[0];
+  const appearance = AVATAR_APPEARANCES.find((item) => item.id === normalized.identity.appearanceId) || AVATAR_APPEARANCES[0];
   const average = (...keys) => keys.reduce((total, key) => total + attributes[key], 0) / keys.length / 100;
   const ratingsMap = { ...attributes };
   return {
@@ -300,13 +418,19 @@ export function getEnginePlayerConfig(profile) {
     primary: palette.colors.primary,
     accent: palette.colors.accent,
     shoeColor: palette.colors.shoes,
-    skinColor: palette.colors.skin,
+    skinColor: appearance.skin,
+    name: normalized.identity.displayName || "Ace Nova",
+    jerseyNumber: normalized.identity.jerseyNumber,
+    appearanceId: appearance.id,
+    hairStyle: appearance.hair,
+    headShape: appearance.headShape,
   };
 }
 
 export function getProfileSummary(profile) {
   const normalized = normalizeProfile(profile);
   const build = normalized.builds[normalized.selectedPosition];
+  const title = TITLE_DEFINITIONS.find((item) => item.id === normalized.identity.selectedTitle) || TITLE_DEFINITIONS[0];
   return {
     position: normalized.selectedPosition,
     positionName: POSITION_PRESETS[normalized.selectedPosition].name,
@@ -319,6 +443,12 @@ export function getProfileSummary(profile) {
     wins: build.wins,
     credits: normalized.credits,
     cosmetic: COSMETIC_PALETTES.find((item) => item.id === normalized.cosmetics.equipped) || COSMETIC_PALETTES[0],
+    displayName: normalized.identity.displayName || "UNNAMED PLAYER",
+    jerseyNumber: normalized.identity.jerseyNumber,
+    appearance: AVATAR_APPEARANCES.find((item) => item.id === normalized.identity.appearanceId) || AVATAR_APPEARANCES[0],
+    title,
+    availableTitles: getAvailableTitles(normalized),
+    needsOnboarding: !normalized.identity.created,
   };
 }
 

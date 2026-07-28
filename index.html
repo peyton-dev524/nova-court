@@ -33,6 +33,21 @@
       <p id="loader-copy">Lacing up the lights…</p>
     </section>
 
+    <section id="create-player-screen" class="screen screen--onboarding is-hidden" aria-labelledby="create-player-title">
+      <form id="create-player-form" class="onboarding-card">
+        <span class="overline">FIRST RUN</span>
+        <h2 id="create-player-title">CREATE YOUR PLAYER</h2>
+        <p>Build an original court identity. Your name, number, appearance, progression, and title stay saved in this browser.</p>
+        <label>Display name<input id="create-player-name" name="displayName" maxlength="18" autocomplete="nickname" required placeholder="ACE NOVA"></label>
+        <div class="onboarding-fields">
+          <label>Jersey number<input id="create-player-number" name="jerseyNumber" type="number" min="0" max="99" value="1" required></label>
+          <label>Appearance<select id="create-player-appearance" name="appearance"><option value="classic">Classic</option><option value="highTop">High Top</option><option value="braided">Braided</option><option value="fade">Fade</option></select></label>
+        </div>
+        <p id="create-player-error" class="form-error" role="alert"></p>
+        <button class="button button--primary" type="submit"><strong>ENTER NOVA COURT</strong></button>
+      </form>
+    </section>
+
     <section id="main-menu" class="screen screen--menu is-hidden" aria-labelledby="game-title">
       <div class="menu-rail">
         <div class="brand-lockup brand-lockup--menu">
@@ -82,6 +97,8 @@
         <div class="profile-dashboard">
           <aside class="build-card">
             <div class="overall-orbit" aria-label="Overall rating"><span>OVR</span><strong id="profile-overall">64</strong></div>
+            <span id="profile-title" class="profile-title">PROSPECT</span>
+            <h3 id="profile-display-name">ACE NOVA</h3>
             <span id="profile-position-name" class="build-card__position">POINT GUARD</span><h3 id="profile-archetype">TEMPO CREATOR</h3>
             <div class="build-record"><span><b id="profile-level">1</b> LEVEL</span><span><b id="profile-games">0</b> GAMES</span><span><b id="profile-wins">0</b> WINS</span></div>
             <div class="profile-xp"><div><span>PROGRESS</span><b id="profile-xp-label">0 / 120 XP</b></div><i><b id="profile-xp-fill"></b></i></div>
@@ -91,7 +108,14 @@
             <div class="profile-section-title"><div><span class="overline">PERFORMANCE LAB</span><h3 id="attribute-title">ATTRIBUTES</h3></div><p>Earn credits from completed runs. Higher ratings cost more and respect each position's cap.</p></div>
             <div id="attribute-groups" class="attribute-groups"></div>
           </main>
-          <aside class="style-locker" aria-labelledby="locker-title"><div class="profile-section-title"><div><span class="overline">CODE-NATIVE COLORWAYS</span><h3 id="locker-title">STYLE LOCKER</h3></div></div><div id="cosmetic-grid" class="cosmetic-grid"></div></aside>
+          <aside class="style-locker" aria-labelledby="locker-title">
+            <div class="profile-section-title"><div><span class="overline">ORIGINAL IDENTITY</span><h3 id="locker-title">STYLE LOCKER</h3></div></div>
+            <div class="identity-fields"><label>Name<input id="identity-name" maxlength="18"></label><label>Jersey #<input id="jersey-number" type="number" min="0" max="99"></label><button id="save-identity" class="button" type="button">SAVE IDENTITY</button></div>
+            <h4 class="locker-subhead">APPEARANCE</h4><div id="appearance-grid" class="appearance-grid"></div>
+            <h4 class="locker-subhead">COLORWAY</h4><div id="cosmetic-grid" class="cosmetic-grid"></div>
+            <h4 class="locker-subhead">TITLES</h4><div id="title-grid" class="title-grid"></div>
+            <p class="title-note">Overall titles unlock every five OVR. LEGEND unlocks at 99. DEV, TESTER, and OWNER require explicit entitlements.</p>
+          </aside>
         </div>
         <p id="profile-status" class="profile-status" role="status" aria-live="polite">Choose a position, upgrade a rating, or equip a colorway.</p>
       </div>
@@ -273,6 +297,20 @@
           <article><span>CAMERA</span><strong><kbd>C</kbd></strong><p>Cycle follow, broadcast, and cinematic views at any time.</p></article>
         </div>
         <p class="assist-note">Gamepad: left stick move · right stick aim · A pass/steal · X shoot/context dunk/block · RT sprint · LT protect · Start pause</p>
+        <button id="open-tutorial" class="button button--primary" type="button"><strong>WATCH BOT TUTORIAL</strong></button>
+      </div>
+    </section>
+
+    <section id="tutorial-screen" class="screen screen--tutorial is-hidden" aria-labelledby="tutorial-step-label">
+      <div class="tutorial-card">
+        <header><span class="overline">GUIDED BOT DEMONSTRATION</span><strong id="tutorial-step-count">1 / 6</strong></header>
+        <div class="tutorial-progress"><i id="tutorial-progress-fill"></i></div>
+        <div class="tutorial-dots" aria-hidden="true"><i class="tutorial-step-dot is-active"></i><i class="tutorial-step-dot"></i><i class="tutorial-step-dot"></i><i class="tutorial-step-dot"></i><i class="tutorial-step-dot"></i><i class="tutorial-step-dot"></i></div>
+        <h2 id="tutorial-step-label">MOVE</h2>
+        <strong id="tutorial-step-control" class="tutorial-control">WASD / LEFT STICK</strong>
+        <p id="tutorial-step-copy">Create an angle, change pace, and keep the defender on your hip.</p>
+        <div class="tutorial-actions"><button id="tutorial-replay" class="button" type="button" hidden>REPLAY</button><button id="tutorial-skip" class="button button--primary" type="button">SKIP / DONE</button></div>
+        <small>DEMO ONLY · NO CREDITS, XP, OR RECORD CHANGES</small>
       </div>
     </section>
 
