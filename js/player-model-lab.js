@@ -238,8 +238,10 @@ const toDegrees = (radians) => Math.round(T.MathUtils.radToDeg(radians) * 10) / 
 const toRadians = (degrees) => T.MathUtils.degToRad(Number(degrees) || 0);
 const roundCoordinate = (value) => Math.round(value * 1000) / 1000;
 const DEFENSIVE_POSE_ROTATIONS = Object.freeze({
-  shoulder: Object.freeze([-80, -180, -52]),
-  elbow: Object.freeze([-17, 0, 22]),
+  leftShoulder: Object.freeze([-80, -180, -52]),
+  rightShoulder: Object.freeze([-80, 180, 52]),
+  leftElbow: Object.freeze([-17, 0, 22]),
+  rightElbow: Object.freeze([-17, 0, -22]),
   hip: Object.freeze([-21, -11, -8]),
   knee: Object.freeze([30, 0, 0]),
 });
@@ -354,14 +356,12 @@ function applyPose(player, pose) {
   if (pose === "defense") {
     player.hips.position.y -= 0.12;
     player.hips.rotation.x = -0.08;
-    const shoulderRotation = DEFENSIVE_POSE_ROTATIONS.shoulder.map(toRadians);
-    const elbowRotation = DEFENSIVE_POSE_ROTATIONS.elbow.map(toRadians);
     const hipRotation = DEFENSIVE_POSE_ROTATIONS.hip.map(toRadians);
     const kneeRotation = DEFENSIVE_POSE_ROTATIONS.knee.map(toRadians);
-    for (const arm of [leftArm, rightArm]) {
-      arm.shoulder.rotation.set(...shoulderRotation);
-      arm.elbow.rotation.set(...elbowRotation);
-    }
+    leftArm.shoulder.rotation.set(...DEFENSIVE_POSE_ROTATIONS.leftShoulder.map(toRadians));
+    leftArm.elbow.rotation.set(...DEFENSIVE_POSE_ROTATIONS.leftElbow.map(toRadians));
+    rightArm.shoulder.rotation.set(...DEFENSIVE_POSE_ROTATIONS.rightShoulder.map(toRadians));
+    rightArm.elbow.rotation.set(...DEFENSIVE_POSE_ROTATIONS.rightElbow.map(toRadians));
     for (const leg of [leftLeg, rightLeg]) {
       leg.hip.rotation.set(...hipRotation);
       leg.knee.rotation.set(...kneeRotation);
