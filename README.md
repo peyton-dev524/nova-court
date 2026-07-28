@@ -1,0 +1,96 @@
+# NOVA COURT
+
+NOVA COURT is an original, full-featured Three.js basketball game for desktop browsers. It combines deliberate ball handling, coverage-aware timing shots, contextual layups and dunks, live steals and blocks, capable team AI, persistent player progression, and six complete modes across a neon street park, half court, and full-court arena.
+
+No NBA/2K trademarks, teams, logos, player likenesses, signature animations, music, models, or other unlicensed sports assets are used.
+
+## Run locally
+
+Requirements: a current desktop browser and Node.js 20 or newer.
+
+```powershell
+cd C:\Users\Peyton\.codex\worktrees\50d7\Projects\nova-court
+npm run serve
+```
+
+Open `http://127.0.0.1:4174/`. The game must be served over HTTP; opening `index.html` directly will not reliably load ES modules.
+
+```powershell
+npm test
+npm run check
+npm run build
+```
+
+The build task writes the deployable static game to `dist/`.
+
+## Modes
+
+- **Park Duel (1v1):** first to 11, win by two, live street possession and a reactive crowd.
+- **NOVA Duos (2v2):** first to 13 with teammate spacing, passing, control handoff, help defense, and live rebounds.
+- **Night Threes (3v3):** first to 15, win by two, with off-ball cuts, rotations, shot selection, and teammate control switching.
+- **NOVA Five (5v5):** a true two-basket full court with ten players, transition offense/defense, a game clock, 2/3-point scoring, and both backcourts.
+- **Arc Run:** a timed five-rack three-point contest with standard and money balls.
+- **Open Gym:** unlimited practice reps, automatic ball return, make/attempt and streak tracking, every dribble move, finishes, camera testing, and no loss condition.
+
+Every mode has its own rules, HUD/objective, difficulty tuning where applicable, restart/rematch or return flow, and a complete finish state. Replay playback pauses live game flow until the replay and camera restoration are finished.
+
+## Controls
+
+| Action | Keyboard | Gamepad |
+| --- | --- | --- |
+| Move / aim | `W A S D` or arrows | Left stick |
+| Sprint | `Shift` | Right trigger |
+| Protect ball / defensive stance | `Ctrl` | Left trigger |
+| Shoot / layup / dunk; contest / block | Hold and release `Space` or `K`; `Space` or `L` on defense | Hold and release `X` |
+| Pass and switch to receiving teammate / steal | `E` or `J`; `E` or `I` on defense | `A` |
+| Signature dribble | `Q` plus direction; double-tap or `Shift+Q` variants | Left trigger plus left stick |
+| Cycle follow / broadcast / cinematic camera | `C` | View / Share |
+| Pause | `Escape` or `P` | Start |
+| Restart current run | `R` | — |
+
+The nine code-native moves are hesitation, crossover, behind-the-back, between-the-legs, in-and-out, double crossover, spin, snatch-back, and shamgod-style push cross. They use continuous hand paths, transition blending, grounded footwork, slower possession cadence, combo timing, ball trails, and contextual defender reactions.
+
+For jump shots, hold to gather and rise, then release while the moving meter tip is inside the white window. The player automatically squares to the active basket, so backward-facing jump shots are not possible. The shot HUD shows make percentage and coverage. A perfect-window release is guaranteed only while genuinely wide open; a nearby contest keeps a real miss chance even with perfect timing. Near the basket, the same input selects an original one-hand, two-hand, reverse, or high-power finish; layups use the glass, dunks can hang briefly, and misses can hit the backboard or bounce around/off the rim. Reach attempts can knock the ball loose instead of resetting possession, mistimed steals can foul, and a defender reaching into a well-timed move can be ankle-broken and stunned for 1.5 seconds.
+
+## My Player and progression
+
+My Player stores progress locally in the browser. Choose PG, SG, SF, PF, or C; each position has a distinct archetype, base ratings, attribute weights, and caps. Completed matches award credits and XP, wins pay a bonus, difficulty and mode affect rewards, and duplicate match rewards are rejected. Spend credits on applied attribute upgrades or original colorway cosmetics. Each selected build drives movement, shooting, passing, finishing, defense, rebounding, stamina, size, and colors the next time it enters a game. Overall and level are capped at 99.
+
+Progress is device/browser-local rather than account-synced. Clearing site data resets it.
+
+## Settings and accessibility
+
+Music, effects, and announcer/crowd presentation are original Web Audio synthesis and independently mixed. Settings include master mute, sound captions, reduced motion, camera-shake strength, high contrast, color-vision palettes, quality scaling, keyboard focus states, screen-reader announcements, and scalable desktop layouts. Browsers unlock audio only after user interaction.
+
+## Architecture
+
+- `js/app.js` — application lifecycle, six-mode integration, HUD, profile UI, rewards, pass/control handoff, and announcer orchestration.
+- `js/engine.js` — Three.js scene, bounded 60 Hz simulation, players, animation, dribbles, coverage shots, rim/backboard/net contacts, finishes, live-ball defense, cameras, VFX, and replay state restoration.
+- `js/shot-coverage.js` and `js/live-ball-duels.js` — deterministic coverage/make-odds and steal/block/foul/ankle-break resolution.
+- `js/ai.js` — perception-driven opponents and teammates with spacing, help, transition, shot, pass, contest, and rebound decisions.
+- `js/team-formats.js`, `js/half-court-duos-mode.js`, `js/full-court-mode.js`, and `js/court-runtime.js` — rosters, team rules, possession, clocks, full-court direction, and two-basket runtime data.
+- `js/player-progression.js` — five builds, applied ratings, rewards, upgrades, cosmetics, normalization, and persistence.
+- `js/full-court-visuals.js` and `js/park-visuals.js` — original code-native arena, full court, park, crowd, lighting, and signage.
+- `js/announcer-runtime.js`, `js/audio.js`, and `js/ui.js` — original synthesized announcer motifs, music/SFX, captions, menus, HUD, settings, and accessibility.
+- `tests/` — deterministic gameplay, rules, integration, persistence, animation, replay, performance, and interface tests.
+
+## Performance
+
+The renderer targets 60 FPS with a bounded 60 Hz simulation, three-step catch-up cap, throttled AI/HUD work, instanced crowds, pooled VFX, capped pixel ratio, shadow/character tiers, and an adaptive quality governor. Team modes reduce distant-player detail, while 1v1 and solo modes keep the highest character tier. All runtime assets are local and no media is hotlinked. Actual frame rate depends on GPU, browser throttling, display and viewport; use **Performance** quality or reduce camera shake on slower devices.
+
+## Validation
+
+The complete test suite contains 150 tests covering all six mode flows, scoring, clocks, progression/persistence, applied position ratings, coverage odds, white-window timing, basket-facing shot alignment, wide-open guarantees, all nine dribbles, 1.5-second ankle breaks, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, AI decisions, team formats, pass handoff, full-court direction, replay freeze/restoration, controls, UI/audio, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
+
+Final browser QA results are recorded in the completion handoff after exercising all six modes, My Player navigation/persistence, desktop and compact viewports, local resource loading, console output, and performance telemetry.
+
+## Honest limitations
+
+- Players and motion are intentionally stylized and procedural; they are not scanned humans or commercial motion capture.
+- Physics is purpose-built for responsive basketball and deterministic testing, not a general rigid-body solver.
+- The announcer uses original synthesized cues/captions rather than recorded speech.
+- Progress is local-only and has no account/cloud sync or online multiplayer.
+- Desktop keyboard/gamepad is the target; touch-only play is not fully supported.
+- Browser gamepad labels vary by controller and OS, and final performance depends on the local GPU/browser.
+
+See [ASSET_LICENSES.md](./ASSET_LICENSES.md) for the complete provenance, inspection, and license record.

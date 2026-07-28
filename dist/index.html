@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05070b">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="NOVA COURT">
+  <meta property="og:description" content="Own the arc. Rule the night. Play six original browser basketball modes.">
+  <meta property="og:image" content="./og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="NOVA COURT">
+  <meta name="twitter:description" content="Own the arc. Rule the night. Play six original browser basketball modes.">
+  <meta name="twitter:image" content="./og.png">
+  <meta name="description" content="NOVA COURT — an original browser basketball experience built in Three.js.">
+  <title>NOVA COURT</title>
+  <link rel="stylesheet" href="./styles.css?v=5.0">
+</head>
+<body>
+  <div id="app" class="app-shell" data-state="loading">
+    <div id="game-root" class="game-root" aria-label="NOVA COURT basketball game">
+      <canvas id="game-canvas" tabindex="0" aria-label="3D basketball court"></canvas>
+      <div class="court-vignette" aria-hidden="true"></div>
+      <div id="flash-layer" aria-hidden="true"></div>
+    </div>
+
+    <section id="loading-screen" class="screen screen--loading" aria-live="polite">
+      <div class="brand-lockup">
+        <span class="brand-kicker">THE NIGHT LEAGUE</span>
+        <h1><span>NOVA</span> COURT</h1>
+      </div>
+      <div class="loader-track"><span id="loader-fill"></span></div>
+      <p id="loader-copy">Lacing up the lights…</p>
+    </section>
+
+    <section id="main-menu" class="screen screen--menu is-hidden" aria-labelledby="game-title">
+      <div class="menu-rail">
+        <div class="brand-lockup brand-lockup--menu">
+          <span class="brand-kicker">ORIGINAL BROWSER BASKETBALL</span>
+          <h1 id="game-title"><span>NOVA</span> COURT</h1>
+          <p>Own the arc. Rule the night.</p>
+        </div>
+
+        <div class="menu-actions">
+          <button id="quick-play" class="button button--primary">
+            <span class="button__eyebrow">Instant matchup</span>
+            <strong>PLAY 1V1</strong>
+          </button>
+          <button id="open-modes" class="button"><strong>CHOOSE MODE</strong></button>
+          <button id="open-my-player" class="button button--profile">
+            <span class="button__eyebrow" id="menu-player-summary">PG / 64 OVR / 600 CR</span>
+            <strong>MY PLAYER</strong>
+          </button>
+          <button id="open-controls" class="button"><strong>HOW TO PLAY</strong></button>
+          <button id="open-settings" class="button"><strong>SETTINGS</strong></button>
+        </div>
+
+        <div class="menu-footer">
+          <span>v1.0 NIGHT ONE</span>
+          <span>KEYBOARD + GAMEPAD</span>
+        </div>
+      </div>
+
+      <aside class="menu-feature" aria-hidden="true">
+        <span class="feature-number">01</span>
+        <div>
+          <span class="feature-label">FEATURED RUN</span>
+          <strong>FIRST TO 11</strong>
+          <p>Street rules. Win by two. Keep the ball after a make.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section id="my-player-screen" class="screen screen--profile is-hidden" aria-labelledby="my-player-title">
+      <div class="profile-shell">
+        <header class="panel-header profile-header">
+          <button id="close-my-player" class="icon-button" type="button" data-action="back-menu" aria-label="Back to menu">&larr;</button>
+          <div><span class="overline">BUILD YOUR OWN LEGACY</span><h2 id="my-player-title">MY PLAYER</h2></div>
+          <div class="profile-wallet" aria-label="Player balance"><span>CREDITS</span><strong id="profile-credits">600 CR</strong></div>
+        </header>
+        <nav id="position-tabs" class="position-tabs" aria-label="Choose a position"></nav>
+        <div class="profile-dashboard">
+          <aside class="build-card">
+            <div class="overall-orbit" aria-label="Overall rating"><span>OVR</span><strong id="profile-overall">64</strong></div>
+            <span id="profile-position-name" class="build-card__position">POINT GUARD</span><h3 id="profile-archetype">TEMPO CREATOR</h3>
+            <div class="build-record"><span><b id="profile-level">1</b> LEVEL</span><span><b id="profile-games">0</b> GAMES</span><span><b id="profile-wins">0</b> WINS</span></div>
+            <div class="profile-xp"><div><span>PROGRESS</span><b id="profile-xp-label">0 / 120 XP</b></div><i><b id="profile-xp-fill"></b></i></div>
+            <p>Every upgraded rating is applied to this build the next time you take the court.</p>
+          </aside>
+          <main class="attribute-lab" aria-labelledby="attribute-title">
+            <div class="profile-section-title"><div><span class="overline">PERFORMANCE LAB</span><h3 id="attribute-title">ATTRIBUTES</h3></div><p>Earn credits from completed runs. Higher ratings cost more and respect each position's cap.</p></div>
+            <div id="attribute-groups" class="attribute-groups"></div>
+          </main>
+          <aside class="style-locker" aria-labelledby="locker-title"><div class="profile-section-title"><div><span class="overline">CODE-NATIVE COLORWAYS</span><h3 id="locker-title">STYLE LOCKER</h3></div></div><div id="cosmetic-grid" class="cosmetic-grid"></div></aside>
+        </div>
+        <p id="profile-status" class="profile-status" role="status" aria-live="polite">Choose a position, upgrade a rating, or equip a colorway.</p>
+      </div>
+    </section>
+
+    <section id="mode-select" class="screen screen--panel is-hidden" aria-labelledby="mode-title">
+      <header class="panel-header">
+        <button class="icon-button" data-action="back-menu" aria-label="Back to menu">←</button>
+        <div>
+          <span class="overline">SELECT YOUR RUN</span>
+          <h2 id="mode-title">GAME MODES</h2>
+        </div>
+        <span class="panel-index">01 / 06</span>
+      </header>
+
+      <div class="mode-grid">
+        <button class="mode-card is-selected" data-mode="street">
+          <span class="mode-card__number">01</span>
+          <span class="mode-card__tag">HEAD-TO-HEAD</span>
+          <strong>PARK<br>DUEL</strong>
+          <p>Outdoor 1v1 · First to 11 · Live crowd</p>
+          <span class="mode-card__cta">SELECT MODE →</span>
+        </button>
+        <button class="mode-card" data-mode="threePoint">
+          <span class="mode-card__number">02</span>
+          <span class="mode-card__tag">SOLO PRESSURE</span>
+          <strong>ARC<br>RUN</strong>
+          <p>60 seconds · 5 racks · Money balls</p>
+          <span class="mode-card__cta">SELECT MODE →</span>
+        </button>
+        <button class="mode-card" data-mode="team">
+          <span class="mode-card__number">03</span>
+          <span class="mode-card__tag">TACTICAL</span>
+          <strong>NIGHT<br>THREES</strong>
+          <p>3v3 half-court · First to 15</p>
+          <span class="mode-card__cta">SELECT MODE →</span>
+        </button>
+        <button class="mode-card" data-mode="duos">
+          <span class="mode-card__number">04</span>
+          <span class="mode-card__tag">TWO-MAN GAME</span>
+          <strong>NOVA<br>DUOS</strong>
+          <p>2v2 half-court / First to 13 / Win by two</p>
+          <span class="mode-card__cta">SELECT MODE -&gt;</span>
+        </button>
+        <button class="mode-card" data-mode="fives">
+          <span class="mode-card__number">05</span>
+          <span class="mode-card__tag">FULL COURT</span>
+          <strong>NOVA<br>FIVE</strong>
+          <p>True 5v5 / Two baskets / 6-minute regulation</p>
+          <span class="mode-card__cta">SELECT MODE -&gt;</span>
+        </button>
+        <button class="mode-card mode-card--practice" data-mode="practice">
+          <span class="mode-card__number">06</span>
+          <span class="mode-card__tag">SOLO LAB</span>
+          <strong>OPEN<br>GYM</strong>
+          <p>Unlimited reps / Auto return / All nine handles</p>
+          <span class="mode-card__cta">ENTER THE LAB -&gt;</span>
+        </button>
+      </div>
+
+      <div class="setup-strip">
+        <label>Difficulty
+          <select id="difficulty-select">
+            <option value="rookie">Rookie</option>
+            <option value="pro" selected>Pro</option>
+            <option value="legend">Legend</option>
+          </select>
+        </label>
+        <label>Quarter target
+          <select id="target-select">
+            <option value="quick">Quick</option>
+            <option value="standard" selected>Standard</option>
+            <option value="extended">Extended</option>
+          </select>
+        </label>
+        <button id="start-selected-mode" class="button button--primary"><strong>TAKE THE COURT</strong></button>
+      </div>
+    </section>
+
+    <div id="hud" class="hud is-hidden" aria-live="polite">
+      <div class="scoreboard">
+        <div class="score-side score-side--home">
+          <span id="home-label">NOVA</span>
+          <strong id="home-score">0</strong>
+        </div>
+        <div class="score-center">
+          <span id="mode-label">STREET DUEL</span>
+          <strong id="game-clock">FIRST TO 11</strong>
+          <small id="possession-label">YOUR BALL</small>
+        </div>
+        <div class="score-side score-side--away">
+          <strong id="away-score">0</strong>
+          <span id="away-label">ECLIPSE</span>
+        </div>
+      </div>
+
+      <div id="three-point-progress" class="rack-progress is-hidden" aria-label="Three-point rack progress"></div>
+      <div id="teammate-hints" class="teammate-hints is-hidden"></div>
+      <div class="status-stack">
+        <div class="stamina"><span>ENERGY</span><i><b id="stamina-fill"></b></i></div>
+        <div id="takeover" class="takeover"><span>MOMENTUM</span><i><b id="takeover-fill"></b></i></div>
+      </div>
+
+      <div id="shot-meter" class="shot-meter" aria-hidden="true">
+        <span class="shot-meter__label">RELEASE</span>
+        <div class="shot-meter__track">
+          <i class="shot-meter__window"></i>
+          <b id="shot-meter-fill"></b>
+        </div>
+        <div id="shot-readout" class="shot-readout" aria-live="polite">
+          <strong id="shot-chance">--%</strong>
+          <span id="shot-coverage">READING DEFENSE</span>
+        </div>
+      </div>
+
+      <div id="control-hints" class="control-hints">
+        <span><kbd>WASD</kbd> MOVE</span>
+        <span><kbd>SPACE</kbd> SHOOT</span>
+        <span><kbd>E</kbd> PASS</span>
+        <span><kbd>SHIFT</kbd> SPRINT</span>
+      </div>
+      <button id="pause-button" class="icon-button hud-pause" aria-label="Pause game">Ⅱ</button>
+    </div>
+
+    <div id="feedback" class="feedback" aria-live="assertive"></div>
+    <div id="subtitles" class="subtitles" aria-live="polite"></div>
+    <div id="toast" class="toast" role="status"></div>
+
+    <section id="pause-screen" class="screen screen--overlay is-hidden" aria-labelledby="pause-title">
+      <div class="modal modal--pause">
+        <span class="overline">TIMEOUT</span>
+        <h2 id="pause-title">PAUSED</h2>
+        <button id="resume-game" class="button button--primary">RESUME</button>
+        <button id="restart-game" class="button">RESTART RUN</button>
+        <button data-action="open-settings" class="button">SETTINGS</button>
+        <button data-action="quit-menu" class="button button--quiet">QUIT TO MENU</button>
+      </div>
+    </section>
+
+    <section id="game-over" class="screen screen--overlay is-hidden" aria-labelledby="result-title">
+      <div class="result-card">
+        <span id="result-kicker" class="overline">FINAL</span>
+        <h2 id="result-title">COURT CLEARED</h2>
+        <p id="result-summary">11 — 7</p>
+        <div id="result-stats" class="result-stats"></div>
+        <div id="result-reward" class="result-reward" aria-live="polite"></div>
+        <div class="result-actions">
+          <button id="rematch" class="button button--primary">RUN IT BACK</button>
+          <button data-action="back-modes" class="button">CHANGE MODE</button>
+          <button data-action="quit-menu" class="button button--quiet">MAIN MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="controls-screen" class="screen screen--overlay is-hidden" aria-labelledby="controls-title">
+      <div class="modal modal--wide">
+        <header>
+          <div><span class="overline">GET OPEN. STAY READY.</span><h2 id="controls-title">HOW TO PLAY</h2></div>
+          <button class="icon-button" data-action="close-overlay" aria-label="Close controls">×</button>
+        </header>
+        <div class="controls-grid">
+          <article><span>MOVE</span><strong><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></strong><p>Use the left stick on gamepad. Sprint with Shift / RT.</p></article>
+          <article><span>SHOOT</span><strong><kbd>SPACE</kbd></strong><p>Hold to rise and release while the meter tip is inside the white window. Shooters automatically square to the basket; contests can still make a perfect release miss.</p></article>
+          <article><span>HANDLE</span><strong><kbd>Q</kbd> + MOVE</strong><p>Basic: hesi, crossover, between-the-legs, behind-back, or double-tap in-and-out. Hold Shift for spin, double-cross, snatch-back, and push-cross.</p></article>
+          <article><span>PASS</span><strong><kbd>E</kbd></strong><p>Hit the open teammate and instantly switch control to the receiver.</p></article>
+          <article><span>DEFEND</span><strong><kbd>SPACE</kbd> / <kbd>I</kbd></strong><p>Contest or block with Space. Reach with I or E; steals knock the ball live and mistimed reaches can stun you.</p></article>
+          <article><span>FINISH</span><strong><kbd>SPACE</kbd> NEAR RIM</strong><p>Sprint into the lane for a context layup or open-lane dunk.</p></article>
+          <article><span>CAMERA</span><strong><kbd>C</kbd></strong><p>Cycle follow, broadcast, and cinematic views at any time.</p></article>
+        </div>
+        <p class="assist-note">Gamepad: left stick move · right stick aim · A pass/steal · X shoot/block · RT sprint · LT protect · Start pause</p>
+      </div>
+    </section>
+
+    <section id="settings-screen" class="screen screen--overlay is-hidden" aria-labelledby="settings-title">
+      <div class="modal">
+        <header>
+          <div><span class="overline">MAKE IT YOURS</span><h2 id="settings-title">SETTINGS</h2></div>
+          <button class="icon-button" data-action="close-overlay" aria-label="Close settings">×</button>
+        </header>
+        <div class="settings-list">
+          <label>Music <input id="music-volume" type="range" min="0" max="100" value="38"><output>38</output></label>
+          <label>Sound effects <input id="sfx-volume" type="range" min="0" max="100" value="75"><output>75</output></label>
+          <label>Camera shake <input id="camera-shake" type="range" min="0" max="100" value="65"><output>65</output></label>
+          <label>Visual preset
+            <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
+          </label>
+          <label class="toggle">Reduce motion <input id="reduced-motion" type="checkbox"><span></span></label>
+          <label class="toggle">High contrast <input id="high-contrast" type="checkbox"><span></span></label>
+          <label class="toggle">Sound captions <input id="captions-enabled" type="checkbox" checked><span></span></label>
+          <label class="toggle">Mute all <input id="mute-all" type="checkbox"><span></span></label>
+        </div>
+      </div>
+    </section>
+
+    <section id="fatal-error" class="screen screen--overlay is-hidden" role="alert">
+      <div class="modal">
+        <span class="overline">WE HIT THE RIM</span>
+        <h2>THE COURT COULDN’T LOAD</h2>
+        <p id="error-message">Your browser may not support WebGL. Try updating it or enabling hardware acceleration.</p>
+        <button onclick="location.reload()" class="button button--primary">TRY AGAIN</button>
+      </div>
+    </section>
+  </div>
+
+  <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/app.js?v=6.0"></script>
+</body>
+</html>
