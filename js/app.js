@@ -96,9 +96,9 @@ compat.rel = "stylesheet";
 compat.href = "./js/compat.css?v=7.0";
 document.head.append(compat);
 for (const href of [
-  "./js/ui-menu-polish.css?v=1.0",
-  "./js/ui-hud-polish.css?v=1.0",
-  "./js/ui-profile-polish.css?v=1.0",
+  "./js/ui-menu-polish.css?v=1.1",
+  "./js/ui-hud-polish.css?v=1.1",
+  "./js/ui-profile-polish.css?v=1.1",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";

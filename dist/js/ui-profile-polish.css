@@ -1,0 +1,732 @@
+/* Final-loaded My Player, help, and settings polish. */
+
+/* Profile frame ---------------------------------------------------------- */
+.screen--profile {
+  padding:
+    max(10px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+}
+
+.profile-shell {
+  width: min(1480px, 100%);
+  padding-bottom: 0;
+}
+
+.profile-header {
+  top: max(0px, env(safe-area-inset-top));
+  min-height: 58px;
+  margin: -2px 0 6px;
+  padding: 8px 2px;
+  gap: 12px;
+  background: linear-gradient(to bottom, rgba(3, 7, 10, .99) 82%, rgba(3, 7, 10, .86));
+  border-bottom: 1px solid rgba(141, 230, 243, .1);
+}
+
+.profile-header > div:nth-child(2) {
+  display: grid;
+  gap: 1px;
+}
+
+.profile-header .overline {
+  font-size: .55rem;
+}
+
+.profile-header h2 {
+  margin-top: 0;
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  line-height: .82;
+}
+
+.profile-header .icon-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+}
+
+.profile-wallet {
+  min-width: 118px;
+  padding: 7px 11px;
+}
+
+.profile-wallet strong {
+  font-size: 1rem;
+}
+
+/* Position selection stays legible without becoming a second header. */
+.position-tabs {
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.position-tab {
+  min-height: 52px;
+  padding: 7px 10px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0 8px;
+}
+
+.position-tab b {
+  font-size: 1.25rem;
+}
+
+.position-tab span {
+  overflow: hidden;
+  font-size: .58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-tab small {
+  font-size: .55rem;
+}
+
+/* Summary, ratings, and identity have distinct jobs and visual weight. */
+.profile-dashboard {
+  grid-template-columns: 218px minmax(440px, 1fr) 260px;
+  gap: 10px;
+}
+
+.build-card,
+.attribute-lab,
+.style-locker {
+  border-radius: 10px;
+}
+
+.build-card {
+  top: 70px;
+  padding: 16px 14px;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(56, 232, 255, .11), transparent 36%),
+    rgba(8, 20, 25, .92);
+}
+
+.overall-orbit {
+  width: 92px;
+  margin-bottom: 10px;
+}
+
+.overall-orbit span {
+  font-size: .52rem;
+}
+
+.overall-orbit strong {
+  font-size: 2.8rem;
+}
+
+.profile-title {
+  margin-bottom: 3px;
+  padding: 4px 8px;
+}
+
+.build-card .profile-title {
+  justify-self: center;
+}
+
+.build-card h3 {
+  margin-block: 3px;
+  font-size: 1.05rem;
+  line-height: 1.12;
+}
+
+.build-card > p {
+  margin: 12px 0 0;
+  font-size: .65rem;
+}
+
+.build-record {
+  margin: 12px 0;
+}
+
+.build-record span {
+  padding: 8px 2px;
+}
+
+.build-record b {
+  font-size: .95rem;
+}
+
+.attribute-lab,
+.style-locker {
+  padding: 14px;
+}
+
+.attribute-lab {
+  border-top: 2px solid rgba(56, 232, 255, .58);
+}
+
+.style-locker {
+  border-top: 2px solid rgba(255, 209, 102, .65);
+  background:
+    linear-gradient(180deg, rgba(255, 209, 102, .035), transparent 150px),
+    rgba(8, 20, 25, .9);
+}
+
+.profile-section-title {
+  margin-bottom: 9px;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-section-title h3 {
+  margin-block: 2px;
+  font-size: 1rem;
+}
+
+.profile-section-title p {
+  max-width: 42ch;
+  font-size: .6rem;
+  line-height: 1.35;
+}
+
+/* Dense enough to scan, with the rating and action forming a clear endpoint. */
+.attribute-groups {
+  gap: 8px;
+}
+
+.attribute-group {
+  padding: 8px 10px;
+  border-radius: 7px;
+}
+
+.attribute-group h4 {
+  margin: 1px 0 4px;
+  font-size: .62rem;
+}
+
+.attribute-row {
+  min-height: 34px;
+  grid-template-columns: minmax(104px, 1fr) 28px minmax(58px, .72fr) 74px;
+  gap: 7px;
+}
+
+.attribute-row__copy span {
+  font-size: .62rem;
+}
+
+.attribute-row__copy small {
+  font-size: .46rem;
+}
+
+.attribute-row > strong {
+  font-size: .88rem;
+}
+
+.attribute-upgrade {
+  min-height: 27px;
+  font-size: .49rem;
+}
+
+.attribute-upgrade:not(:disabled):hover,
+.attribute-upgrade:not(:disabled):focus-visible {
+  border-color: var(--cyan);
+  background: rgba(56, 232, 255, .16);
+}
+
+/* Locker controls are grouped by explicit subheads rather than one long wall. */
+.identity-fields {
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(141, 230, 243, .12);
+  border-radius: 7px;
+  background: rgba(2, 8, 11, .35);
+}
+
+.identity-fields label {
+  gap: 4px;
+  font-size: .55rem;
+}
+
+.identity-fields input {
+  min-height: 36px;
+  padding: 7px 9px;
+}
+
+.identity-fields .button {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: .58rem;
+}
+
+.locker-subhead {
+  display: flex;
+  margin: 13px 0 6px;
+  align-items: center;
+  gap: 8px;
+  font-size: .57rem;
+}
+
+.locker-subhead::after {
+  height: 1px;
+  flex: 1;
+  background: rgba(141, 230, 243, .13);
+  content: "";
+}
+
+.appearance-grid {
+  gap: 5px;
+}
+
+.identity-choice {
+  min-height: 34px;
+  padding: 5px;
+  gap: 6px;
+}
+
+.identity-choice i {
+  width: 21px;
+  height: 21px;
+  border-width: 4px;
+}
+
+.identity-choice span {
+  font-size: .55rem;
+}
+
+.cosmetic-grid {
+  gap: 6px;
+}
+
+.cosmetic-card {
+  min-height: 48px;
+  padding: 6px;
+  grid-template-columns: 34px 1fr;
+  gap: 8px;
+}
+
+.cosmetic-card > i {
+  width: 32px;
+}
+
+.title-grid {
+  gap: 5px;
+}
+
+.title-chip {
+  padding: 5px 7px;
+}
+
+.title-note {
+  margin: 8px 0 0;
+  font-size: .54rem;
+  line-height: 1.35;
+}
+
+/* Feedback belongs after the content; it must never cover upgrade/locker UI. */
+.profile-status {
+  position: static;
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-color: rgba(141, 230, 243, .18);
+  border-radius: 7px;
+  background: rgba(8, 20, 25, .94);
+  font-size: .62rem;
+}
+
+/* Secondary overlays ----------------------------------------------------- */
+.modal {
+  padding: clamp(22px, 3.2vw, 38px);
+}
+
+.modal header {
+  gap: 12px;
+}
+
+.modal h2,
+.result-card h2 {
+  margin: 4px 0 18px;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+}
+
+.modal--pause {
+  width: min(390px, calc(100vw - 32px));
+  gap: 8px;
+}
+
+.modal--pause h2 {
+  margin-bottom: 10px;
+}
+
+.modal--pause .button {
+  min-height: 42px;
+}
+
+.settings-list {
+  gap: 12px;
+}
+
+.settings-list label {
+  gap: 11px;
+}
+
+.settings-list label.toggle {
+  position: relative;
+  width: auto;
+  height: auto;
+  min-height: 34px;
+  grid-template-columns: 1fr auto;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-list label.toggle::after {
+  content: none;
+}
+
+.settings-list label.toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-list label.toggle span {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--ink-3);
+  transition: border-color .18s ease, background .18s ease;
+}
+
+.settings-list label.toggle span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+  transition: transform .18s ease, background .18s ease;
+}
+
+.settings-list label.toggle input:checked + span {
+  border-color: var(--cyan);
+  background: rgba(56, 232, 255, .16);
+}
+
+.settings-list label.toggle input:checked + span::after {
+  background: var(--cyan);
+  box-shadow: 0 0 10px rgba(56, 232, 255, .5);
+  transform: translateX(18px);
+}
+
+.settings-list label.toggle input:focus-visible + span {
+  outline: 3px solid var(--cyan-bright);
+  outline-offset: 3px;
+}
+
+.controls-grid {
+  gap: 8px;
+}
+
+.controls-grid article {
+  padding: 12px;
+}
+
+.controls-grid article strong {
+  margin: 7px 0;
+}
+
+.controls-grid p,
+.assist-note {
+  margin-block: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Laptop-height layout: prioritize the actionable body over decoration. */
+@media (max-height: 760px) and (min-width: 761px) {
+  .profile-header {
+    min-height: 50px;
+    padding-block: 5px;
+  }
+
+  .profile-header h2 {
+    font-size: 2rem;
+  }
+
+  .position-tabs {
+    margin-bottom: 8px;
+  }
+
+  .position-tab {
+    min-height: 46px;
+  }
+
+  .modal {
+    max-height: calc(100dvh - 28px);
+    padding: 20px 24px;
+  }
+
+  .modal--wide {
+    width: min(1060px, calc(100vw - 28px));
+  }
+
+  .modal h2 {
+    margin-bottom: 13px;
+    font-size: 2.65rem;
+  }
+
+  .controls-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .controls-grid article {
+    min-height: 112px;
+  }
+
+  .settings-list {
+    gap: 9px;
+  }
+
+  .settings-list label {
+    min-height: 32px;
+  }
+}
+
+/* Keep all three profile jobs visible until the viewport genuinely narrows. */
+@media (max-width: 1180px) and (min-width: 981px) {
+  .profile-dashboard {
+    grid-template-columns: 198px minmax(410px, 1fr) 240px;
+  }
+
+  .style-locker {
+    grid-column: auto;
+  }
+
+  .cosmetic-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .profile-dashboard {
+    grid-template-columns: 198px minmax(0, 1fr);
+  }
+
+  .style-locker {
+    grid-column: 1 / -1;
+  }
+
+  .style-locker .identity-fields {
+    grid-template-columns: minmax(0, 1fr) 90px auto;
+    align-items: end;
+  }
+
+  .style-locker .identity-fields .button {
+    grid-column: auto;
+    min-height: 36px;
+  }
+
+  .style-locker .cosmetic-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .screen--profile {
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
+  .profile-header {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    min-height: 50px;
+  }
+
+  .profile-header .overline {
+    display: none;
+  }
+
+  .profile-header h2 {
+    font-size: 1.65rem;
+  }
+
+  .profile-wallet {
+    min-width: 86px;
+    padding: 6px 8px;
+  }
+
+  .profile-wallet strong {
+    font-size: .85rem;
+  }
+
+  .position-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding: 2px 2px 7px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .position-tab {
+    min-width: 88px;
+    min-height: 48px;
+    flex: 0 0 88px;
+    grid-template-columns: 1fr;
+    scroll-snap-align: start;
+    text-align: center;
+  }
+
+  .position-tab span {
+    display: none;
+  }
+
+  .profile-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .build-card {
+    position: static;
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    text-align: left;
+  }
+
+  .overall-orbit {
+    width: 72px;
+    margin: 0;
+    grid-row: 1 / 7;
+  }
+
+  .overall-orbit strong {
+    font-size: 2.1rem;
+  }
+
+  .build-card .profile-title {
+    justify-self: start;
+  }
+
+  .build-record,
+  .profile-xp,
+  .build-card > p {
+    grid-column: 1 / -1;
+  }
+
+  .build-record {
+    margin-block: 9px;
+  }
+
+  .attribute-lab,
+  .style-locker {
+    padding: 11px;
+  }
+
+  .profile-section-title {
+    align-items: flex-start;
+  }
+
+  .attribute-row {
+    grid-template-columns: minmax(96px, 1fr) 27px 64px;
+  }
+
+  .style-locker .identity-fields {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .style-locker .identity-fields .button {
+    grid-column: 1 / -1;
+  }
+
+  .style-locker .cosmetic-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-list label {
+    grid-template-columns: 1fr minmax(110px, 1fr) auto;
+  }
+
+  .controls-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-section-title {
+    flex-direction: column;
+  }
+
+  .profile-section-title p {
+    max-width: none;
+  }
+
+  .appearance-grid,
+  .style-locker .cosmetic-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .attribute-row {
+    grid-template-columns: minmax(92px, 1fr) 25px 62px;
+    padding-block: 3px;
+  }
+
+  .attribute-row > i {
+    grid-column: 1 / 3;
+  }
+
+  .attribute-upgrade {
+    grid-column: 3;
+  }
+
+  .settings-list label {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settings-list label > input[type="range"],
+  .settings-list label > select {
+    grid-column: 1 / 2;
+  }
+
+  .controls-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Accessibility states must remain explicit over the final-loaded skin. */
+.high-contrast .build-card,
+.high-contrast .attribute-lab,
+.high-contrast .style-locker,
+.high-contrast .profile-status,
+.high-contrast .attribute-group,
+.high-contrast .identity-fields {
+  background: #000;
+}
+
+.high-contrast .profile-section-title p,
+.high-contrast .title-note,
+.high-contrast .build-card > p {
+  color: var(--muted);
+}
+
+.high-contrast .settings-list label.toggle span {
+  border-color: currentColor;
+  background: #000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .position-tab,
+  .attribute-upgrade,
+  .identity-choice,
+  .cosmetic-card,
+  .title-chip,
+  .settings-list label.toggle span,
+  .settings-list label.toggle span::after {
+    transition: none;
+  }
+}

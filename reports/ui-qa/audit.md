@@ -17,3 +17,14 @@ Baseline captures were taken at 1280×720 on the local production-style server.
 3. **My Player and settings:** denser profile layout, unobscured feedback, clearer panel grouping, and compact-height behavior.
 
 Each workstream owns a separate final-loaded stylesheet under `js/` to minimize merge conflicts.
+
+## Integrated result
+
+- `final/menu-main.jpg`: the primary 1v1 action now leads with a filled treatment, mode selection is the clear secondary path, utility actions are compact, and the featured panel stays in a dedicated right-side safe area.
+- `final/menu-modes.jpg`: all seven modes, difficulty, quarter target, and the start action fit inside a 1280×720 viewport with no page scrolling.
+- `final/gameplay-park.jpg`: the scoreboard has a safe top inset, the broadcast bug and pause button share one visual rail, the player lower-third is more legible, and controls are a quieter compact strip.
+- `final/gameplay-fives.jpg`: the same HUD hierarchy survives the denser team-mode hints without covering the playable court.
+- `final/menu-my-player.jpg`: the title and position tabs are compact, attributes use the center focus column, identity remains visible at right, and status feedback no longer covers upgrades.
+- `final/gameplay-ui.mp4`: four-second post-merge gameplay capture used to verify the HUD during live camera and action changes.
+
+Integrated browser checks passed at 1280×720 and 600×720. The compact mode screen intentionally scrolls vertically while retaining zero horizontal overflow. The final browser console contained no warnings or errors.

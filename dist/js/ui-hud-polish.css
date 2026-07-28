@@ -1,0 +1,667 @@
+/* Final-loaded gameplay HUD polish.
+   Keeps the court readable while presenting game state as one broadcast system. */
+
+#hud {
+  --hud-edge: max(18px, env(safe-area-inset-left));
+  --hud-top: max(30px, calc(env(safe-area-inset-top) + 14px));
+  --hud-panel: rgba(5, 10, 16, 0.9);
+  --hud-panel-soft: rgba(5, 11, 17, 0.76);
+  --hud-rule: rgba(215, 239, 245, 0.18);
+}
+
+/* Score, network bug, and pause control share one deliberate top rail. */
+#hud .scoreboard {
+  top: var(--hud-top);
+  width: min(680px, calc(100vw - 390px));
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(188px, auto) minmax(0, 1fr);
+  overflow: visible;
+  border: 1px solid var(--hud-rule);
+  border-top: 0;
+  border-radius: 4px;
+  background: var(--hud-panel);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.5),
+    inset 0 -1px rgba(255, 255, 255, 0.08);
+  clip-path: none;
+}
+
+#hud .scoreboard::before {
+  content: "NOVA COURT NETWORK · LIVE";
+  top: -14px;
+  min-width: 180px;
+  padding: 3px 12px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  color: rgba(241, 248, 250, 0.88);
+  background: #111a24;
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-align: center;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+#app[data-replay="queued"] #hud .scoreboard::before,
+#app[data-replay="playing"] #hud .scoreboard::before,
+#app[data-replay="restoring"] #hud .scoreboard::before {
+  content: "NOVA REPLAY · CINEMATIC";
+  color: #071018;
+  background: var(--gold);
+}
+
+#hud .score-side {
+  min-width: 0;
+  min-height: 62px;
+  gap: 12px;
+  padding: 9px 20px;
+}
+
+#hud .score-side span {
+  overflow: hidden;
+  color: rgba(241, 248, 250, 0.88);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hud .score-side strong {
+  min-width: 34px;
+  font-size: 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+#hud .score-side::after {
+  inset: auto 18px 5px;
+  opacity: 0.6;
+}
+
+#hud .score-center {
+  min-width: 188px;
+  padding: 7px 16px 6px;
+  background: #09111a;
+  clip-path: polygon(5% 0, 95% 0, 100% 50%, 95% 100%, 5% 100%, 0 50%);
+}
+
+#hud .score-center span {
+  color: #aebdc4;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.16em;
+}
+
+#hud .score-center strong {
+  margin: 2px 0;
+  color: #fffaf0;
+  font-size: 18px;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+#hud .score-center small {
+  color: #e2ecef;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#hud .broadcast-bug {
+  top: var(--hud-top);
+  left: var(--hud-edge);
+  min-height: 44px;
+  border-color: var(--hud-rule);
+  border-top: 3px solid var(--cyan);
+  background: var(--hud-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+}
+
+#hud .broadcast-bug b {
+  min-width: 48px;
+  padding: 7px 9px;
+  font-size: 19px;
+}
+
+#hud .broadcast-bug span {
+  padding: 4px 9px 0;
+  font-size: 7px;
+}
+
+#hud .broadcast-bug small {
+  padding: 0 9px 4px;
+  font-size: 6px;
+}
+
+#hud .hud-pause {
+  top: var(--hud-top);
+  right: max(18px, env(safe-area-inset-right));
+  width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--hud-rule);
+  border-top: 3px solid var(--cyan);
+  border-radius: 4px;
+  color: transparent;
+  background: var(--hud-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  font-size: 0;
+}
+
+#hud .hud-pause::before {
+  content: "\2161";
+  color: var(--paper);
+  font-family: "Arial Narrow", Impact, sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+#hud .hud-pause:hover {
+  border-color: rgba(166, 247, 255, 0.7);
+  background: rgba(12, 28, 36, 0.96);
+}
+
+#hud .hud-pause:focus-visible {
+  outline: 3px solid var(--cyan-bright);
+  outline-offset: 4px;
+}
+
+/* Player identity and physical state read as one compact lower third. */
+#hud .player-card-hud {
+  left: var(--hud-edge);
+  bottom: max(18px, env(safe-area-inset-bottom));
+  min-width: 260px;
+  max-width: min(300px, calc(100vw - 36px));
+  border-left-width: 3px;
+  background:
+    linear-gradient(90deg, rgba(5, 10, 16, 0.97), rgba(12, 20, 28, 0.86)),
+    repeating-linear-gradient(105deg, transparent 0 14px, rgba(84, 224, 235, 0.035) 14px 15px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+}
+
+#hud .player-card-hud__number {
+  min-width: 48px;
+  min-height: 50px;
+  font-size: 21px;
+}
+
+#hud .player-card-hud div {
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 12px 10px;
+}
+
+#hud .player-card-hud b {
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hud .player-card-hud small {
+  overflow: hidden;
+  color: #c2cdd2;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hud .player-card-hud::after {
+  right: 10px;
+  bottom: 3px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#hud .status-stack {
+  left: var(--hud-edge);
+  bottom: max(78px, calc(env(safe-area-inset-bottom) + 76px));
+  width: 260px;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(5, 10, 16, 0.88), rgba(5, 10, 16, 0.48));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+#hud .stamina,
+#hud .takeover {
+  grid-template-columns: 62px 1fr;
+  gap: 8px;
+  color: rgba(236, 246, 249, 0.88);
+  font-size: 8px;
+}
+
+#hud .stamina i,
+#hud .takeover i {
+  height: 5px;
+  border-color: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+#hud .stamina b {
+  background: linear-gradient(90deg, #2ec8de, #8bf2ff);
+}
+
+#hud .takeover b {
+  background: linear-gradient(90deg, #ff7a45, #ffd166);
+}
+
+/* Controls become a quiet, unified discovery strip during live play. */
+#hud .control-hints {
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  gap: 0;
+  overflow: hidden;
+  padding: 3px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(5, 10, 16, 0.72);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  opacity: 0.72;
+  transition: opacity 0.22s ease;
+}
+
+#app[data-state="playing"] #hud .control-hints {
+  opacity: 0.5;
+}
+
+#hud:has(.shot-meter.is-active) .control-hints,
+#hud:has(.shot-meter.is-result) .control-hints {
+  opacity: 0.2;
+}
+
+#hud .control-hints span {
+  gap: 5px;
+  padding: 3px 7px;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0;
+  color: #aebbc1;
+  background: transparent;
+  box-shadow: none;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+#hud .control-hints span:last-child {
+  border-right: 0;
+}
+
+#hud .control-hints span:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: transparent;
+  transform: none;
+}
+
+#hud .control-hints kbd {
+  min-width: 25px;
+  min-height: 21px;
+  padding: 2px 6px;
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #f7faf7;
+  background: #16212b;
+  font-size: 8px;
+}
+
+/* Secondary team and rack state stays beneath the top rail, not over the court. */
+#hud .teammate-hints {
+  top: calc(var(--hud-top) + 76px);
+  right: max(18px, env(safe-area-inset-right));
+  bottom: auto;
+  gap: 4px;
+}
+
+#hud .teammate-hints span {
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #dce7ea;
+  background: rgba(5, 10, 16, 0.78);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  font-size: 8px;
+}
+
+#hud .rack-progress {
+  top: calc(var(--hud-top) + 76px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(5, 10, 16, 0.78);
+}
+
+/* Center notifications form a small broadcast ticker instead of covering play. */
+#feedback {
+  top: calc(max(30px, calc(env(safe-area-inset-top) + 14px)) + 82px);
+  width: fit-content;
+  max-width: min(760px, calc(100vw - 72px));
+  padding: 7px 24px 8px;
+  border-block-width: 1px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, rgba(4, 8, 12, 0.9) 12% 88%, transparent);
+  font-size: clamp(20px, 2.8vw, 36px);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+#app:has(#three-point-progress:not(.is-hidden)) #feedback {
+  top: calc(max(30px, calc(env(safe-area-inset-top) + 14px)) + 124px);
+}
+
+/* Captions, contextual prompts, and the curved meter occupy separate lanes. */
+.caption-bubble,
+#subtitles {
+  bottom: max(116px, calc(env(safe-area-inset-bottom) + 112px));
+  max-width: min(580px, calc(100vw - 500px));
+  padding: 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 10, 0.84);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+
+#subtitles:empty {
+  display: none;
+}
+
+.game-prompt {
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 60px));
+  max-width: min(520px, calc(100vw - 40px));
+  min-height: 38px;
+  padding: 7px 12px;
+  border-color: rgba(166, 247, 255, 0.35);
+  background: rgba(4, 11, 16, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+}
+
+#hud .shot-meter {
+  left: auto;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 88px));
+  width: min(214px, 32vw);
+  transform: none;
+}
+
+#hud .shot-meter.is-active,
+#hud .shot-meter.is-result {
+  transform: none;
+}
+
+#hud .shot-meter__label {
+  padding-right: 4px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+#hud .shot-readout {
+  min-height: 31px;
+  padding: 5px 10px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(4, 11, 16, 0.94);
+}
+
+#hud .shot-readout span {
+  font-size: 9px;
+}
+
+/* High-contrast mode preserves the hierarchy without translucent ambiguity. */
+.high-contrast #hud .scoreboard,
+.high-contrast #hud .broadcast-bug,
+.high-contrast #hud .hud-pause,
+.high-contrast #hud .player-card-hud,
+.high-contrast #hud .status-stack,
+.high-contrast #hud .control-hints,
+.high-contrast #hud .teammate-hints span,
+.high-contrast #feedback,
+.high-contrast .caption-bubble,
+.high-contrast .game-prompt {
+  border-color: #fff;
+  background-color: #000;
+  backdrop-filter: none;
+}
+
+.high-contrast #hud .score-center,
+.high-contrast #hud .control-hints kbd,
+.high-contrast #hud .shot-readout {
+  color: #fff;
+  background: #000;
+}
+
+.high-contrast #app[data-state="playing"] #hud .control-hints {
+  opacity: 0.86;
+}
+
+/* Width compaction: keep scores, pause, and action prompts readable first. */
+@media (max-width: 1100px) {
+  #hud .scoreboard {
+    width: min(650px, calc(100vw - 150px));
+  }
+
+  #hud .broadcast-bug {
+    display: none;
+  }
+
+  .caption-bubble,
+  #subtitles {
+    max-width: min(560px, calc(100vw - 300px));
+  }
+}
+
+@media (max-width: 900px) {
+  #hud .score-side {
+    padding-inline: 12px;
+  }
+
+  #hud .score-center {
+    min-width: 154px;
+    padding-inline: 10px;
+  }
+
+  #hud .score-center strong {
+    font-size: 15px;
+  }
+
+  #hud .control-hints span {
+    font-size: 0;
+  }
+
+  #hud .control-hints span::after {
+    font-size: 7px;
+    letter-spacing: 0.04em;
+  }
+
+  #hud .control-hints span:nth-child(1)::after { content: "MOVE"; }
+  #hud .control-hints span:nth-child(2)::after { content: "SHOT"; }
+  #hud .control-hints span:nth-child(3)::after { content: "DUNK"; }
+  #hud .control-hints span:nth-child(4)::after { content: "PASS"; }
+  #hud .control-hints span:nth-child(5)::after { content: "RUN"; }
+
+  .caption-bubble,
+  #subtitles {
+    max-width: min(480px, calc(100vw - 40px));
+  }
+}
+
+@media (max-width: 640px) {
+  #hud {
+    --hud-edge: max(12px, env(safe-area-inset-left));
+    --hud-top: max(18px, calc(env(safe-area-inset-top) + 10px));
+  }
+
+  #hud .scoreboard {
+    left: var(--hud-edge);
+    width: calc(100vw - 88px);
+    grid-template-columns: minmax(52px, 1fr) minmax(108px, 1.35fr) minmax(52px, 1fr);
+    transform: none;
+  }
+
+  #hud .scoreboard::before {
+    content: "NCN · LIVE";
+    top: -12px;
+    min-width: 100px;
+    font-size: 6px;
+  }
+
+  #app[data-replay="queued"] #hud .scoreboard::before,
+  #app[data-replay="playing"] #hud .scoreboard::before,
+  #app[data-replay="restoring"] #hud .scoreboard::before {
+    content: "NOVA REPLAY";
+  }
+
+  #hud .score-side {
+    min-height: 54px;
+    padding: 7px 8px;
+  }
+
+  #hud .score-side span {
+    display: none;
+  }
+
+  #hud .score-side strong {
+    min-width: 0;
+    font-size: 28px;
+  }
+
+  #hud .score-center {
+    min-width: 108px;
+    padding: 5px 4px;
+  }
+
+  #hud .score-center span,
+  #hud .score-center small {
+    font-size: 6px;
+    letter-spacing: 0.08em;
+  }
+
+  #hud .score-center strong {
+    font-size: 12px;
+  }
+
+  #hud .hud-pause {
+    top: var(--hud-top);
+    right: max(12px, env(safe-area-inset-right));
+    width: 42px;
+    min-height: 42px;
+  }
+
+  #hud .player-card-hud {
+    min-width: 220px;
+    transform: scale(0.88) skewX(-6deg);
+    transform-origin: left bottom;
+  }
+
+  #hud .status-stack {
+    bottom: max(68px, calc(env(safe-area-inset-bottom) + 66px));
+    width: 220px;
+    transform: scale(0.88);
+    transform-origin: left bottom;
+  }
+
+  #hud .control-hints {
+    display: none;
+  }
+
+  #hud .teammate-hints {
+    top: calc(var(--hud-top) + 66px);
+    max-width: calc(100vw - 24px);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  #feedback {
+    top: calc(max(18px, calc(env(safe-area-inset-top) + 10px)) + 70px);
+    max-width: calc(100vw - 24px);
+    padding-inline: 14px;
+    font-size: clamp(17px, 6vw, 25px);
+  }
+
+  .caption-bubble,
+  #subtitles {
+    bottom: max(90px, calc(env(safe-area-inset-bottom) + 86px));
+    max-width: calc(100vw - 24px);
+  }
+
+  #hud .shot-meter {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(92px, calc(env(safe-area-inset-bottom) + 88px));
+    width: min(168px, 48vw);
+  }
+
+  #hud:has(.shot-meter.is-active) .status-stack,
+  #hud:has(.shot-meter.is-result) .status-stack {
+    opacity: 0.24;
+  }
+}
+
+/* Height compaction for 720p browser chrome and shorter play windows. */
+@media (max-height: 640px) {
+  #hud {
+    --hud-top: max(20px, calc(env(safe-area-inset-top) + 10px));
+  }
+
+  #hud .score-side {
+    min-height: 52px;
+    padding-block: 6px;
+  }
+
+  #hud .score-side strong {
+    font-size: 32px;
+  }
+
+  #hud .score-center {
+    padding-block: 4px;
+  }
+
+  #hud .broadcast-bug small {
+    display: none;
+  }
+
+  #hud .player-card-hud {
+    transform: scale(0.88) skewX(-6deg);
+    transform-origin: left bottom;
+  }
+
+  #hud .status-stack {
+    bottom: max(67px, calc(env(safe-area-inset-bottom) + 65px));
+    transform: scale(0.88);
+    transform-origin: left bottom;
+  }
+
+  #hud .control-hints {
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  #hud .shot-meter {
+    bottom: max(72px, calc(env(safe-area-inset-bottom) + 68px));
+    width: min(184px, 30vw);
+  }
+
+  #feedback {
+    top: calc(max(20px, calc(env(safe-area-inset-top) + 10px)) + 66px);
+    font-size: clamp(18px, 2.6vw, 30px);
+  }
+
+  .caption-bubble,
+  #subtitles {
+    bottom: max(82px, calc(env(safe-area-inset-bottom) + 78px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hud .control-hints,
+  #hud .player-card-hud,
+  #hud .status-stack,
+  #hud .shot-meter,
+  #feedback,
+  .caption-bubble,
+  .game-prompt {
+    animation: none !important;
+    transition: none !important;
+  }
+}
