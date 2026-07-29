@@ -3,15 +3,17 @@
 ## Capture
 
 - `open-gym-gameplay-1280x720.png`
-- Route: `/index.html?qa=1&captureHeight=720&openGymCapture=gameplay`
+- Route: `/index.html?qa=1&captureHeight=720&gameplayHudCapture=practice`
 - Viewport: 1280 × 720
-- Scene: genuine in-game Open Gym controller, player, hoop, base court, and HUD.
+- Scene: genuine in-game Open Gym controller, player, hoop, Montgomery
+  Fieldhouse venue, and HUD.
+- Camera: deterministic Open Gym QA camera derived from the 15 m × 14 m court
+  extents.
 - Console result: zero warnings and zero errors.
 
-The capture route intentionally uses the engine's genuine base court without
-optional venue groups. Browser QA found that the currently integrated
-production-venue loader can occlude the settled Open Gym camera. This report
-does not hide that limitation or present a venue-lab render as gameplay.
+The integrated capture waits for production venue loading, then freezes the
+normal Open Gym scene and applies the named QA camera. This avoids the former
+wall-occluded view without omitting or disguising venue geometry.
 
 ## Minimal HUD proof
 

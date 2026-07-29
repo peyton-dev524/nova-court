@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT, ProceduralPlayer } from "./engine.js?v=6.2";
+import { NovaCourtEngine, PLAYER_STATES, COURT, ProceduralPlayer } from "./engine.js?v=6.3";
 import { createAIDirector } from "./ai.js?v=5.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -70,6 +70,11 @@ import {
   VENUE_OPTIONS,
 } from "./venue-selection.js?v=1.0";
 import { createProductionVenueLoader } from "./production-venue-loader.js?v=1.0";
+import {
+  getGameplayHudPolicy,
+  getPlayerCardContent,
+} from "./hud-presentation.js?v=1.0";
+import { applyGameplayHudVisibility } from "./gameplay-hud-visibility.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -149,7 +154,7 @@ compat.href = "./js/compat.css?v=7.0";
 document.head.append(compat);
 for (const href of [
   "./js/ui-menu-polish.css?v=1.1",
-  "./js/ui-hud-polish.css?v=1.1",
+  "./js/ui-hud-polish.css?v=1.2",
   "./js/ui-profile-polish.css?v=1.1",
   "./js/ui-shooting-settings.css?v=1.0",
   "./js/ui-ball-selection.css?v=1.4",
@@ -244,6 +249,7 @@ function showGame() {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#hud"), false);
+  app.dataset.gameMode = currentModeKey;
   app.dataset.state = "playing";
   engine?.renderer?.domElement?.focus?.();
 }
@@ -977,6 +983,8 @@ function createEngine(modeKey, preview = false, roster = null, venueOverride = "
       setArcRunGrab: (progress = 0.5, rackIndex = 0, ballIndex = 0) =>
         setArcRunGrabForQA(progress, rackIndex, ballIndex),
       snapThreePointCamera: () => engine?.snapArcRunCameraForQA?.() || null,
+      snapCourtWideCamera: () => engine?.snapCourtWideCameraForQA?.() || null,
+      snapOpenGymCamera: () => engine?.snapOpenGymCameraForQA?.() || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
       sceneLoading: () => ({
         ...sceneLoadState,
@@ -1116,6 +1124,7 @@ async function startMode(modeKey = selectedModeKey) {
   hudAccumulator = 0;
   currentModeKey = MODE_META[modeKey] ? modeKey : "street";
   selectedModeKey = currentModeKey;
+  app.dataset.gameMode = currentModeKey;
   audio.setMusicMode(currentModeKey);
   unlockAudio().catch(() => {});
   currentDifficulty = $("#difficulty-select")?.value || "pro";
@@ -1183,6 +1192,7 @@ async function startMode(modeKey = selectedModeKey) {
   setHidden($("#teammate-hints"), !isTeamModeKey(currentModeKey));
   setHidden($("#restart-game"), !allowsRestart(currentModeKey));
   setHidden($("#rematch"), !allowsRestart(currentModeKey));
+  applyGameplayHudVisibility(document, currentModeKey);
   if (currentModeKey === "threePoint") buildRackProgress();
   if (isTeamModeKey(currentModeKey)) {
     $("#teammate-hints").innerHTML = "<span>J / E <b>PASS + SWITCH</b></span><span>I <b>STEAL</b></span><span>C <b>CAMERA</b></span>";
@@ -1215,10 +1225,16 @@ function buildRackProgress() {
   const node = $("#three-point-progress");
   if (!node) return;
   node.replaceChildren();
+  node.dataset.layout = "left-rail";
   const rules = mode?.getRules?.() || {};
   const rackCount = rules.rackCount || 5;
   const ballsPerRack = rules.ballsPerRack || 5;
   const moneyBallSlot = rules.moneyBallSlot ?? ballsPerRack - 1;
+  const heading = document.createElement("span");
+  heading.className = "rack-progress__heading";
+  heading.innerHTML = "<b>ARC RUN</b><small>ALL RACKS</small>";
+  const balls = document.createElement("div");
+  balls.className = "rack-progress__balls";
   for (let i = 0; i < rackCount * ballsPerRack; i += 1) {
     const dot = document.createElement("i");
     const rackIndex = Math.floor(i / ballsPerRack);
@@ -1231,8 +1247,9 @@ function buildRackProgress() {
       `Rack ${rackIndex + 1}, ball ${ballIndex + 1}${ballIndex === moneyBallSlot ? ", money ball" : ""}`,
     );
     if (ballIndex === moneyBallSlot) dot.classList.add("is-money");
-    node.append(dot);
+    balls.append(dot);
   }
+  node.append(heading, balls);
 }
 
 function handleModeEvent(type, payload = {}) {
@@ -2005,11 +2022,14 @@ function updateHUD() {
   const playerName = $("#player-card-name");
   const playerMeta = $("#player-card-meta");
   const playerCard = $("#player-card-hud");
-  if (playerName) playerName.textContent = owner?.name || "LOOSE BALL";
-  if (playerMeta) playerMeta.textContent = owner
-    ? (owner.controlled ? "USER CONTROL" : "CPU") + " · " + String(owner.state || "LIVE").replaceAll("_", " ").toUpperCase()
-    : "LIVE BALL · CRASH THE GLASS";
-  if (playerCard) playerCard.dataset.team = owner?.team || "neutral";
+  const hudPolicy = getGameplayHudPolicy(currentModeKey);
+  const playerCardContent = getPlayerCardContent(currentModeKey, owner);
+  setHidden($(".scoreboard", $("#hud")), !hudPolicy.showScoreboard);
+  setHidden($("#three-point-progress"), !hudPolicy.showRackTracker);
+  setHidden(playerCard, playerCardContent.hidden);
+  if (playerName) playerName.textContent = playerCardContent.name;
+  if (playerMeta) playerMeta.textContent = playerCardContent.meta;
+  if (playerCard) playerCard.dataset.team = playerCardContent.team;
   const state = mode.getState();
   const uiState = mode.getUIState();
   if (currentModeKey === "practice") {
@@ -2137,18 +2157,32 @@ function ensurePracticeCard() {
 
 function ensureBroadcastChrome() {
   const hud = $("#hud");
-  if (!hud || $("#broadcast-bug")) return;
-  const bug = document.createElement("div");
-  bug.id = "broadcast-bug";
-  bug.className = "broadcast-bug";
-  bug.innerHTML = '<b>NCN</b><span>LIVE</span><small>NOVA COURT NETWORK</small>';
-  hud.append(bug);
+  if (!hud || $("#player-card-hud")) return;
   const playerCard = document.createElement("div");
   playerCard.id = "player-card-hud";
   playerCard.className = "player-card-hud";
   playerCard.dataset.team = "home";
   playerCard.innerHTML = '<span class="player-card-hud__number">01</span><div><b id="player-card-name">ACE NOVA</b><small id="player-card-meta">USER CONTROL · BALL HANDLER</small></div>';
   hud.append(playerCard);
+}
+
+function prepareGameplayHudCaptureState(modeKey = "street") {
+  gameActive = false;
+  engine?.controls?.setEnabled(false);
+  if (engine) {
+    engine.paused = true;
+    if (modeKey === "practice") engine.snapOpenGymCameraForQA?.();
+    else engine.render();
+  }
+  app.dataset.state = "hud-capture";
+  app.dataset.hudCapture = modeKey;
+  for (const id of ["feedback", "subtitles", "toast"]) setHidden($(`#${id}`), true);
+  setHidden($(".caption-bubble"), true);
+  return {
+    mode: currentModeKey,
+    policy: getGameplayHudPolicy(currentModeKey),
+    scoreboard: $(".scoreboard", $("#hud"))?.getBoundingClientRect?.().toJSON?.() || null,
+  };
 }
 
 function bindUI() {
@@ -2493,12 +2527,18 @@ async function boot() {
     const captureName = bootQuery.get("arcRunCapture");
     const venueSelectCapture = bootQuery.get("venueSelectCapture");
     const gameplayVenueCapture = bootQuery.get("gameplayVenueCapture");
+    const gameplayHudCapture = bootQuery.get("gameplayHudCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
     } else if (venueSelectCapture) {
       pendingModeKey = MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "street";
       showVenueSelection(venueSelectCapture);
+      setHidden($("#loading-screen"), true);
+    } else if (gameplayHudCapture) {
+      const captureMode = MODE_META[gameplayHudCapture] ? gameplayHudCapture : "street";
+      await startMode(captureMode);
+      prepareGameplayHudCaptureState(captureMode);
       setHidden($("#loading-screen"), true);
     } else if (gameplayVenueCapture) {
       pendingVenueId = getVenueOption(gameplayVenueCapture).id;

@@ -88,11 +88,17 @@ test("Open Gym DOM state is explicit, reversible, and scoped away from competiti
   assert.equal(doc.selectors.get("#app").dataset.gameMode, "practice");
 
   applyGameplayHudVisibility(doc, "street");
-  for (const selector of [".scoreboard", "#broadcast-bug", "#player-card-hud", "#takeover", "#control-hints"]) {
+  for (const selector of [".scoreboard", "#player-card-hud", "#takeover"]) {
     const node = doc.selectors.get(selector);
     assert.equal(node.hidden, false, selector);
     assert.equal(node.classList.contains("is-hidden"), false, selector);
     assert.equal(node.attributes.get("aria-hidden"), "false", selector);
+  }
+  for (const selector of ["#broadcast-bug", "#control-hints"]) {
+    const node = doc.selectors.get(selector);
+    assert.equal(node.hidden, true, selector);
+    assert.equal(node.classList.contains("is-hidden"), true, selector);
+    assert.equal(node.attributes.get("aria-hidden"), "true", selector);
   }
   assert.equal(doc.selectors.get("#app").dataset.gameMode, "street");
 });
@@ -133,9 +139,14 @@ test("Open Gym proof camera remains inside the half-court venue envelope", () =>
   assert.ok(camera.target[2] < 0, "target points toward the attacking basket");
 });
 
-test("app applies the mode visibility contract and exposes deterministic Open Gym capture routes", async () => {
+test("app applies the visibility contract and captures Open Gym through the production venue", async () => {
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   assert.match(app, /applyGameplayHudVisibility\(document, currentModeKey\)/);
-  assert.match(app, /openGymCapture/);
+  assert.match(app, /gameplayHudCapture/);
+  assert.match(
+    app,
+    /if \(modeKey === "practice"\) engine\.snapOpenGymCameraForQA\?\.\(\)/,
+  );
   assert.match(app, /snapCourtWideCameraForQA/);
+  assert.doesNotMatch(app, /loadVenueDetails|baseCourtOnly|openGymCapture/);
 });

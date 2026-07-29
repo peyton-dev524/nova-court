@@ -1114,7 +1114,7 @@ function createModeController(modeKey) {
   return createGameMode(MODE_MAP[modeKey], config);
 }
 
-async function startMode(modeKey = selectedModeKey, { loadVenueDetails = true } = {}) {
+async function startMode(modeKey = selectedModeKey) {
   stopPresentation();
   resetShotMeter();
   runToken += 1;
@@ -1154,9 +1154,7 @@ async function startMode(modeKey = selectedModeKey, { loadVenueDetails = true } 
       );
     },
   });
-  const venueLoadPromise = loadVenueDetails
-    ? activeVenueLoader.load()
-    : Promise.resolve({ cancelled: false, baseCourtOnly: true });
+  const venueLoadPromise = activeVenueLoader.load();
   engine.setCameraMode(currentModeKey === "threePoint"
     ? "arc-run"
     : cameraPresetForTeamMode(currentModeKey).mode);
@@ -1177,16 +1175,7 @@ async function startMode(modeKey = selectedModeKey, { loadVenueDetails = true } 
   });
   const venueLoadResult = await venueLoadPromise;
   if (token !== runToken || venueLoadResult.cancelled) return;
-  const venueLoadSnapshot = loadVenueDetails
-    ? activeVenueLoader.snapshot()
-    : {
-        ...activeVenueLoader.snapshot(),
-        sceneId: `${currentModeKey}:base-court`,
-        phase: "ready",
-        progress: 1,
-        loadedIds: ["court-fallback", "court", "hoops", "players"],
-        errors: [],
-      };
+  const venueLoadSnapshot = activeVenueLoader.snapshot();
   sceneLoadState = {
     ...sceneLoadState,
     ...venueLoadSnapshot,
@@ -2182,7 +2171,8 @@ function prepareGameplayHudCaptureState(modeKey = "street") {
   engine?.controls?.setEnabled(false);
   if (engine) {
     engine.paused = true;
-    engine.render();
+    if (modeKey === "practice") engine.snapOpenGymCameraForQA?.();
+    else engine.render();
   }
   app.dataset.state = "hud-capture";
   app.dataset.hudCapture = modeKey;
@@ -2538,7 +2528,6 @@ async function boot() {
     const venueSelectCapture = bootQuery.get("venueSelectCapture");
     const gameplayVenueCapture = bootQuery.get("gameplayVenueCapture");
     const gameplayHudCapture = bootQuery.get("gameplayHudCapture");
-    const openGymCapture = bootQuery.get("openGymCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
@@ -2554,13 +2543,6 @@ async function boot() {
     } else if (gameplayVenueCapture) {
       pendingVenueId = getVenueOption(gameplayVenueCapture).id;
       await startMode(MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "practice");
-      setHidden($("#loading-screen"), true);
-    } else if (openGymCapture) {
-      pendingVenueId = getVenueOption(bootQuery.get("venue") || "montgomery").id;
-      await startMode("practice", { loadVenueDetails: false });
-      engine.paused = true;
-      engine.controls.setEnabled(false);
-      app.dataset.openGymCapture = openGymCapture;
       setHidden($("#loading-screen"), true);
     } else {
       const forceOnboarding = bootQuery.get("onboarding") === "1";
