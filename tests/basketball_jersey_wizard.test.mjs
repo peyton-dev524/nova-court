@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import {
+  BASKETBALL_JERSEY_PART_NAMES,
   JERSEY_REFERENCE_DIMENSIONS,
+  REMOVED_JERSEY_ARTIFACT_PART_NAMES,
   estimateBasketballJerseyCost,
   jerseyCrossSection,
   normalizeBasketballJerseyParameters,
@@ -73,17 +75,51 @@ test("jersey fabric spring is bounded under pathological motion inputs", () => {
 test("strict per-player jersey budget stays below the authored runtime ceiling", () => {
   const cost = estimateBasketballJerseyCost();
   assert.deepEqual(cost, {
-    drawCalls: 5,
+    drawCalls: 1,
     shellTriangles: 432,
-    bindingTriangles: 448,
-    totalTriangles: 880,
+    bindingTriangles: 0,
+    totalTriangles: 432,
     dynamicVertices: 240,
     collisionTestsPerFrame: 240,
     textures: 0,
     maxDynamicOffsetM: 0.042,
   });
-  assert.ok(cost.drawCalls <= 5);
-  assert.ok(cost.totalTriangles <= 900);
+  assert.ok(cost.drawCalls <= 1);
+  assert.ok(cost.totalTriangles <= 450);
+});
+
+test("shared jersey manifest contains only the cloth shell and excludes cord-like overlays", async () => {
+  assert.deepEqual(BASKETBALL_JERSEY_PART_NAMES, ["dimensioned-loose-jersey-shell"]);
+  assert.deepEqual(REMOVED_JERSEY_ARTIFACT_PART_NAMES, [
+    "front-v-neck-binding",
+    "back-neck-binding",
+    "left-armhole-binding",
+    "right-armhole-binding",
+  ]);
+  assert.equal(
+    BASKETBALL_JERSEY_PART_NAMES.some((name) =>
+      REMOVED_JERSEY_ARTIFACT_PART_NAMES.includes(name)),
+    false,
+  );
+
+  const source = await readFile(new URL("js/basketball-jersey.js", root), "utf8");
+  assert.doesNotMatch(source, /new T\.TubeGeometry/);
+  assert.match(source, /const bindings = Object\.freeze\(\[\]\)/);
+  assert.match(source, /root\.userData\.namedParts = BASKETBALL_JERSEY_PART_NAMES/);
+});
+
+test("production, My Player preview, and Player Model Lab all consume the same corrected rig", async () => {
+  const [engine, app, lab] = await Promise.all([
+    readFile(new URL("js/engine.js", root), "utf8"),
+    readFile(new URL("js/app.js", root), "utf8"),
+    readFile(new URL("js/player-model-lab.js", root), "utf8"),
+  ]);
+  assert.match(engine, /createBasketballJerseyRig\(T,/);
+  assert.match(app, /new ProceduralPlayer\(onboardingPreview\.engine/);
+  assert.match(lab, /new ProceduralPlayer\(harnessEngine,/);
+  assert.doesNotMatch(engine, /front-v-neck-binding|back-neck-binding|armhole-binding/);
+  assert.doesNotMatch(app, /front-v-neck-binding|back-neck-binding|armhole-binding/);
+  assert.doesNotMatch(lab, /front-v-neck-binding|back-neck-binding|armhole-binding/);
 });
 
 test("current profile migration persists jersey fit and reaches production player config", () => {

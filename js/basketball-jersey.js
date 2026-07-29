@@ -8,6 +8,17 @@ export const JERSEY_REFERENCE_DIMENSIONS = Object.freeze({
   sidePanelMaxM: 4 * 0.0254,
 });
 
+export const BASKETBALL_JERSEY_PART_NAMES = Object.freeze([
+  "dimensioned-loose-jersey-shell",
+]);
+
+export const REMOVED_JERSEY_ARTIFACT_PART_NAMES = Object.freeze([
+  "front-v-neck-binding",
+  "back-neck-binding",
+  "left-armhole-binding",
+  "right-armhole-binding",
+]);
+
 const DEFAULTS = Object.freeze({
   fit: 1.04,
   length: JERSEY_REFERENCE_DIMENSIONS.bodyLengthM,
@@ -50,9 +61,9 @@ export function normalizeBasketballJerseyParameters(value = {}) {
 
 export function estimateBasketballJerseyCost() {
   const shellTriangles = SEGMENTS * ROWS * 2;
-  const bindingTriangles = 4 * 14 * 4 * 2;
+  const bindingTriangles = 0;
   return Object.freeze({
-    drawCalls: 5,
+    drawCalls: 1,
     shellTriangles,
     bindingTriangles,
     totalTriangles: shellTriangles + bindingTriangles,
@@ -189,15 +200,6 @@ function createShellGeometry(T, params, mainColor, panelColor, trimColor) {
   return { geometry, position, basePosition, metadata };
 }
 
-function createBinding(T, points, material, name) {
-  const curve = new T.CatmullRomCurve3(points.map((point) => new T.Vector3(...point)));
-  const mesh = new T.Mesh(new T.TubeGeometry(curve, 14, 0.0095, 4, false), material);
-  mesh.name = name;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
 export function createBasketballJerseyRig(T, {
   mainColor = 0x32e6c4,
   panelColor = 0x123f57,
@@ -217,13 +219,6 @@ export function createBasketballJerseyRig(T, {
     sheenColor: new T.Color(mainColor).offsetHSL(0, -0.08, 0.18),
     side: T.DoubleSide,
   });
-  const bindingMaterial = new T.MeshPhysicalMaterial({
-    color: trimColor,
-    roughness: 0.68,
-    metalness: 0,
-    sheen: 0.28,
-    sheenRoughness: 0.78,
-  });
   const data = createShellGeometry(T, params, mainColor, panelColor, trimColor);
   const shell = new T.Mesh(data.geometry, material);
   shell.name = "dimensioned-loose-jersey-shell";
@@ -231,13 +226,11 @@ export function createBasketballJerseyRig(T, {
   shell.receiveShadow = true;
   root.add(shell);
 
-  const bindings = [
-    createBinding(T, [[-0.225, 0.925, 0.19], [0, 0.82, 0.215], [0.225, 0.925, 0.19]], bindingMaterial, "front-v-neck-binding"),
-    createBinding(T, [[-0.225, 0.925, -0.19], [0, 0.895, -0.205], [0.225, 0.925, -0.19]], bindingMaterial, "back-neck-binding"),
-    createBinding(T, [[-0.215, 0.84, 0.19], [-0.305, 0.955, 0], [-0.215, 0.84, -0.19]], bindingMaterial, "left-armhole-binding"),
-    createBinding(T, [[0.215, 0.84, 0.19], [0.305, 0.955, 0], [0.215, 0.84, -0.19]], bindingMaterial, "right-armhole-binding"),
-  ];
-  root.add(...bindings);
+  // The shell's sculpted shoulder taper and vertex-color trim provide the
+  // sleeveless silhouette. Separate TubeGeometry bindings read as shoulder
+  // straps and a cord across the chest, so the shared production rig keeps no
+  // decorative overlay meshes.
+  const bindings = Object.freeze([]);
 
   let swayState = { position: 0, velocity: 0 };
   let flutterState = { position: 0, velocity: 0 };
@@ -262,11 +255,13 @@ export function createBasketballJerseyRig(T, {
     budget: estimateBasketballJerseyCost(),
   });
   root.userData.sculptRuntime = runtime;
+  root.userData.namedParts = BASKETBALL_JERSEY_PART_NAMES;
+  root.userData.removedArtifactParts = REMOVED_JERSEY_ARTIFACT_PART_NAMES;
 
   return Object.freeze({
     root,
     shell,
-    bindings: Object.freeze(bindings),
+    bindings,
     setParameters(next = {}) {
       rebuild({ ...params, ...next });
       return Object.freeze({ ...params });
