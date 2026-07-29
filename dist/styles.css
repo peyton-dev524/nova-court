@@ -1651,8 +1651,17 @@ select {
 }
 
 .button--profile .button__eyebrow {
+  min-width: 0;
+  overflow: hidden;
   color: var(--gold);
   font-size: .58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.button--profile strong {
+  flex: none;
+  white-space: nowrap;
 }
 
 .screen--profile {
@@ -2286,6 +2295,18 @@ select {
   border-bottom: 1px solid var(--line);
 }
 .onboarding-wizard__header h2 { font-size: clamp(2rem, 4.5vw, 4.2rem); }
+.wizard-progress {
+  display: grid;
+  gap: 10px;
+}
+.wizard-skip {
+  min-height: 38px;
+  padding: 8px 14px;
+  justify-self: end;
+  border-color: rgba(255, 255, 255, .22);
+  color: var(--muted);
+  font-size: .58rem;
+}
 .wizard-steps {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

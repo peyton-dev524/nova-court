@@ -33,21 +33,24 @@
       <p id="loader-copy">Lacing up the lights…</p>
     </section>
 
-    <section id="create-player-screen" class="screen screen--onboarding is-hidden" aria-labelledby="create-player-title">
+    <section id="create-player-screen" class="screen screen--onboarding is-hidden" aria-labelledby="create-player-title" hidden>
       <form id="create-player-form" class="onboarding-card onboarding-wizard">
         <header class="onboarding-wizard__header">
-          <div><span class="overline">FIRST RUN</span><h2 id="create-player-title">CREATE YOUR PLAYER</h2></div>
-          <ol id="create-player-steps" class="wizard-steps" aria-label="Player creation progress">
-            <li aria-current="step"><b>1</b><span>Identity</span></li>
-            <li><b>2</b><span>Appearance</span></li>
-            <li><b>3</b><span>Attributes</span></li>
-            <li><b>4</b><span>Review</span></li>
-          </ol>
+          <div><span class="overline">OPTIONAL CUSTOMIZATION</span><h2 id="create-player-title">CREATE YOUR PLAYER</h2></div>
+          <div class="wizard-progress">
+            <ol id="create-player-steps" class="wizard-steps" aria-label="Player creation progress">
+              <li aria-current="step"><b>1</b><span>Identity</span></li>
+              <li><b>2</b><span>Appearance</span></li>
+              <li><b>3</b><span>Attributes</span></li>
+              <li><b>4</b><span>Review</span></li>
+            </ol>
+            <button id="skip-create-player" class="button wizard-skip" type="button">NOT NOW · MAIN MENU</button>
+          </div>
         </header>
 
         <fieldset class="wizard-panel" data-wizard-step="identity">
           <legend>Identity</legend>
-          <p>Start with the name and number that will follow your player onto every court.</p>
+          <p>Optional: customize the name and number that follow your player onto every court, or return to the menu and play immediately with the default athlete.</p>
           <div class="onboarding-fields">
             <label>Display name<input id="create-player-name" name="displayName" maxlength="18" autocomplete="nickname" required placeholder="ACE NOVA"></label>
             <label>Jersey number<input id="create-player-number" name="jerseyNumber" type="number" min="0" max="99" value="1" required></label>
@@ -111,8 +114,8 @@
           </button>
           <button id="open-modes" class="button"><strong>CHOOSE MODE</strong></button>
           <button id="open-my-player" class="button button--profile">
-            <span class="button__eyebrow" id="menu-player-summary">PG / 64 OVR / 600 CR</span>
-            <strong>MY PLAYER</strong>
+            <span class="button__eyebrow" id="menu-player-summary">OPTIONAL · DEFAULT READY</span>
+            <strong id="menu-player-action">CREATE MY PLAYER</strong>
           </button>
           <button id="open-controls" class="button"><strong>HOW TO PLAY</strong></button>
           <button id="open-settings" class="button"><strong>SETTINGS</strong></button>
@@ -375,7 +378,7 @@
     </div>
 
     <div id="feedback" class="feedback" aria-live="assertive"></div>
-    <div id="arc-run-countdown" class="countdown arc-run-countdown is-hidden" aria-live="assertive" aria-hidden="true">
+    <div id="arc-run-countdown" class="countdown arc-run-countdown is-hidden" aria-live="assertive" aria-hidden="true" hidden>
       <span id="arc-run-countdown-number">3</span>
       <small>ARC RUN STARTS</small>
     </div>

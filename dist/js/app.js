@@ -33,6 +33,11 @@ import {
   getThreePointRackPresentation,
 } from "./three-point-contest.js?v=1.8";
 import {
+  getMyPlayerMenuPresentation,
+  resolveStartupDestination,
+  STARTUP_DESTINATIONS,
+} from "./startup-flow.js?v=1.0";
+import {
   BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLES,
 } from "./basketball-shoes.js?v=1.3";
@@ -224,6 +229,34 @@ function showMainMenu() {
   setHidden($("#main-menu"), false);
   app.dataset.state = "menu";
   renderPlayerProfile();
+}
+
+function showCreatePlayer(step = "identity") {
+  gameActive = false;
+  engine?.setPaused(true);
+  engine?.controls?.setEnabled(false);
+  ballSelectionPreview?.setVisible(false);
+  venueSelectionPreview?.setVisible(false);
+  setHidden($("#loading-screen"), true);
+  for (const id of [
+    "main-menu",
+    "my-player-screen",
+    "mode-select",
+    "ball-select",
+    "venue-select",
+    "pause-screen",
+    "game-over",
+    "controls-screen",
+    "settings-screen",
+    "tutorial-screen",
+    "hud",
+  ]) {
+    setHidden($(`#${id}`), true);
+  }
+  showArcRunCountdown();
+  setHidden($("#create-player-screen"), false);
+  app.dataset.state = "player-creation";
+  setOnboardingStep(ONBOARDING_STEPS.includes(step) ? step : "identity");
 }
 
 function showModeSelect() {
@@ -711,6 +744,7 @@ function setOnboardingStep(step, { focus = true } = {}) {
 
 function renderPlayerProfile() {
   const summary = getProfileSummary(playerProfile);
+  const menuPresentation = getMyPlayerMenuPresentation(summary);
   const build = playerProfile.builds[summary.position];
   const preset = POSITION_PRESETS[summary.position];
   const nextXp = summary.nextLevelXp;
@@ -725,7 +759,9 @@ function renderPlayerProfile() {
   $("#profile-wins").textContent = summary.wins;
   $("#profile-xp-label").textContent = nextXp ? `${summary.xp} / ${nextXp} XP` : "MAX LEVEL";
   $("#profile-xp-fill").style.width = `${Math.round(xpProgress * 100)}%`;
-  $("#menu-player-summary").textContent = `${summary.displayName} · ${summary.title.name} · ${summary.overall} OVR`;
+  $("#menu-player-summary").textContent = menuPresentation.summary;
+  $("#menu-player-action").textContent = menuPresentation.action;
+  $("#open-my-player").setAttribute("aria-label", menuPresentation.ariaLabel);
   $("#profile-display-name").textContent = summary.displayName.toUpperCase();
   $("#profile-title").textContent = summary.title.name;
   $("#player-card-name").textContent = summary.displayName.toUpperCase();
@@ -863,6 +899,10 @@ function renderPlayerProfile() {
 }
 
 function showMyPlayer() {
+  if (getProfileSummary(playerProfile).needsOnboarding) {
+    showCreatePlayer();
+    return;
+  }
   gameActive = false;
   engine?.setPaused(true);
   engine?.controls?.setEnabled(false);
@@ -2235,6 +2275,7 @@ function bindUI() {
   $("#quick-play")?.addEventListener("click", () => showBallSelection("street", "menu"));
   $("#open-modes")?.addEventListener("click", showModeSelect);
   $("#open-my-player")?.addEventListener("click", showMyPlayer);
+  $("#skip-create-player")?.addEventListener("click", showMainMenu);
   $("#open-controls")?.addEventListener("click", () => showOverlay("controls-screen"));
   $("#open-tutorial")?.addEventListener("click", () => {
     hideOverlay("controls-screen");
@@ -2583,21 +2624,11 @@ async function boot() {
       await startMode(MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "practice");
       setHidden($("#loading-screen"), true);
     } else {
-      const forceOnboarding = bootQuery.get("onboarding") === "1";
-      if (forceOnboarding || getProfileSummary(playerProfile).needsOnboarding) {
-        setHidden($("#loading-screen"), true);
-        hideOverlay("pause-screen");
-        hideOverlay("game-over");
-        setHidden($("#main-menu"), true);
-        setHidden($("#mode-select"), true);
-        setHidden($("#ball-select"), true);
-        setHidden($("#venue-select"), true);
-        setHidden($("#create-player-screen"), false);
-        app.dataset.state = "onboarding";
-        const requestedStep = ONBOARDING_STEPS.includes(bootQuery.get("step"))
-          ? bootQuery.get("step")
-          : "identity";
-        setOnboardingStep(requestedStep);
+      const destination = resolveStartupDestination({
+        forcePlayerCreation: bootQuery.get("onboarding") === "1",
+      });
+      if (destination === STARTUP_DESTINATIONS.PLAYER_CREATION) {
+        showCreatePlayer(bootQuery.get("step"));
       } else {
         startAttractMode();
         showMainMenu();
