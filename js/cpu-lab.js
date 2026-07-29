@@ -1,11 +1,14 @@
 import { createAIDirector, AI_TRACE_LIMIT, DIFFICULTY_PRESETS } from "./ai.js?v=5.0";
 import { NovaCourtEngine } from "./engine.js?v=6.1";
+import {
+  CPU_LAB_RENDER_BUDGET,
+  cpuLabWithinRenderBudget,
+} from "./cpu-lab-budget.js?v=1.0";
 
 const T = globalThis.THREE;
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 const query = new URLSearchParams(location.search);
-
 export const CPU_LAB_SCENARIOS = Object.freeze({
   "open-jumper": { label: "Open jumper", clock: 14, holder: [0, .2], defender: [3.5, 1.2], mate: [4.1, .2], help: [4.15, -.1] },
   "light-contest": { label: "Lightly contested", clock: 11, holder: [0, .3], defender: [1.85, .2], mate: [-4.3, .2], help: [4.5, -.5] },
@@ -29,31 +32,66 @@ const state = {
 const roster = [
   { id:"cpu-handler",name:"Axiom",team:"away",isAI:true,role:"handler",shooting:.86,jerseyNumber:1,primary:0xff6438,accent:0xffca62 },
   { id:"cpu-wing",name:"Vector",team:"away",isAI:true,role:"wing",shooting:.9,jerseyNumber:7,primary:0xff6438,accent:0xffca62 },
-  { id:"cpu-big",name:"Atlas",team:"away",isAI:true,role:"big",shooting:.67,jerseyNumber:33,primary:0xff6438,accent:0xffca62 },
   { id:"defender",name:"Nova",team:"home",controlled:true,isAI:false,role:"handler",jerseyNumber:4,primary:0x35d5ea,accent:0xffffff },
   { id:"help",name:"Orbit",team:"home",isAI:false,role:"wing",jerseyNumber:8,primary:0x35d5ea,accent:0xffffff },
 ];
-const engine = new NovaCourtEngine({ container:$("#cpu-stage"),players:roster,mode:"cpu-lab",cameraMode:"broadcast",shadows:true,pixelRatio:1,visualQuality:"balanced",venue:"arena" });
+const engine = new NovaCourtEngine({ container:$("#cpu-stage"),players:roster,mode:"cpu-lab",cameraMode:"broadcast",shadows:false,pixelRatio:1,visualQuality:"performance",venue:"arena" });
 engine.start();
 engine.setPaused(true);
+engine.renderer.shadowMap.enabled=false;
+engine.scene.traverse((node)=>{node.castShadow=false;node.receiveShadow=false});
+const productionGlass=engine.backboard.material;
+engine.backboard.material=new T.MeshStandardMaterial({color:0xd8edf2,roughness:.28,transparent:true,opacity:.42});
+productionGlass.dispose();
+engine.arenaCrowd.visible=false;
+engine.arenaCrowdHeads.visible=false;
+for(const node of engine.worldRoot.children){
+  if(node===engine.ballMesh||node===engine.rim||node===engine.backboard||engine.netLines.includes(node))continue;
+  const {x,y,z}=node.position;
+  if(Math.abs(x)>7.55||z>7.15||z<-7.25||y>4.45)node.visible=false;
+}
+for(const athlete of engine.players){
+  athlete.setVisualQuality("performance");
+  const hairRoot=athlete.hips.children.find((node)=>node.name.startsWith("hair-"));
+  const hairSilhouette=hairRoot?.children.find((node)=>node.isMesh);
+  if(hairSilhouette)hairSilhouette.visible=true;
+  for(const arm of athlete.arms){
+    for(const digit of Object.values(arm.handRig?.digits||{}))digit.root.visible=false;
+  }
+  for(const leg of athlete.legs){
+    leg.shoe.traverse((node)=>{if(node.isMesh)node.visible=false});
+    leg.shoe.traverse((node)=>{
+      if(node.isMesh&&/(outsole|midsole|upper)$/.test(node.name))node.visible=true;
+    });
+  }
+}
 engine.camera.position.set(10.8,8.7,13.5);
 engine.camera.lookAt(0,1.1,0);
 engine.cameraTarget.set(0,1.1,0);
 let director;
 let latestIntents=[];
 
-const overlayRoot=new T.Group();
+const overlayPositions=new Float32Array(engine.players.length*2*2*3);
+const overlayColors=new Float32Array(engine.players.length*2*2*3);
+const targetColor=new T.Color(0xffca62),faceColor=new T.Color(0x63eaff);
+for(let playerIndex=0;playerIndex<engine.players.length;playerIndex+=1){
+  for(let vertex=0;vertex<2;vertex+=1){
+    targetColor.toArray(overlayColors,(playerIndex*4+vertex)*3);
+    faceColor.toArray(overlayColors,(playerIndex*4+2+vertex)*3);
+  }
+}
+const overlayGeometry=new T.BufferGeometry();
+overlayGeometry.setAttribute("position",new T.BufferAttribute(overlayPositions,3));
+overlayGeometry.setAttribute("color",new T.BufferAttribute(overlayColors,3));
+const overlayRoot=new T.LineSegments(overlayGeometry,new T.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.9,depthTest:false}));
 engine.worldRoot.add(overlayRoot);
-function segment(color){return new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color,transparent:true,opacity:.9,depthTest:false}))}
-const targetLines=new Map();
-for(const item of engine.players){const target=segment(0xffca62),face=segment(0x63eaff);overlayRoot.add(target,face);targetLines.set(item.id,{target,face})}
 function player(id){return engine.players.find((item)=>item.id===id)}
 function setXZ(id,coordinates){const item=player(id);item.root.position.set(coordinates[0],0,coordinates[1]);item.velocity.set(0,0,0);item.desiredVelocity.set(0,0,0)}
 function buildSnapshot(){
   const scenario=CPU_LAB_SCENARIOS[state.scenario],helpDefense=state.scenario==="help-defense";
   const holder=helpDefense?player("defender"):scenario.holder?player("cpu-handler"):null;
   return {
-    players:engine.players.filter((item)=>!(helpDefense&&item.id==="cpu-big")).map((item)=>({id:item.id,teamId:item.team,position:{x:item.root.position.x,z:item.root.position.z},velocity:{x:item.velocity.x,z:item.velocity.z},hasBall:item===holder,role:item.metadata.role,shooting:item.metadata.shooting??(item.id==="cpu-wing"?.9:.75),stamina:item.stamina,isHuman:false,aiEnabled:item.team==="away",canDunk:item.metadata.role==="big"})),
+    players:engine.players.map((item)=>({id:item.id,teamId:item.team,position:{x:item.root.position.x,z:item.root.position.z},velocity:{x:item.velocity.x,z:item.velocity.z},hasBall:item===holder,role:item.metadata.role,shooting:item.metadata.shooting??(item.id==="cpu-wing"?.9:.75),stamina:item.stamina,isHuman:false,aiEnabled:item.team==="away",canDunk:item.metadata.role==="big"})),
     ball:{holderId:holder?.id||null,position:{x:engine.ball.position.x,z:engine.ball.position.z},velocity:{x:0,z:-.4},isLoose:!holder,airborne:state.scenario==="rebound",isShotResolved:state.scenario!=="rebound"},
     offenseTeamId:helpDefense?"home":"away",phase:"live",possessionId:1,shotClock:state.shotClock,attackBaskets:{away:{x:0,z:-5.7},home:{x:0,z:5.7}},court:{halfWidth:7.5,halfLength:7,threePointRadius:6.15},
   };
@@ -61,9 +99,9 @@ function buildSnapshot(){
 function reset(){
   const scenario=CPU_LAB_SCENARIOS[state.scenario];state.playing=false;state.shotClock=scenario.clock;
   if(state.scenario==="help-defense"){
-    setXZ("cpu-handler",scenario.defender);setXZ("cpu-wing",scenario.help);setXZ("cpu-big",[-3.2,-2.3]);setXZ("defender",scenario.holder);setXZ("help",scenario.mate);
+    setXZ("cpu-handler",scenario.defender);setXZ("cpu-wing",scenario.help);setXZ("defender",scenario.holder);setXZ("help",scenario.mate);
   }else{
-    setXZ("cpu-handler",scenario.holder||[-.2,-4.5]);setXZ("cpu-wing",scenario.mate);setXZ("cpu-big",[-3.2,-2.3]);setXZ("defender",scenario.defender);setXZ("help",scenario.help);
+    setXZ("cpu-handler",scenario.holder||[-.2,-4.5]);setXZ("cpu-wing",scenario.mate);setXZ("defender",scenario.defender);setXZ("help",scenario.help);
   }
   engine.ball.owner=null;for(const item of engine.players)item.hasBall=false;
   if(state.scenario==="help-defense")engine.givePossession(player("defender"),true);
@@ -84,7 +122,14 @@ function step(seconds=.18){
 }
 function updateWorldOverlays(){
   overlayRoot.visible=state.overlays.targets;
-  for(const intent of latestIntents){const item=player(intent.playerId),lines=targetLines.get(intent.playerId);if(!item||!lines)continue;lines.target.geometry.setFromPoints([item.root.position.clone().setY(.06),new T.Vector3(intent.move.target.x,.06,intent.move.target.z)]);lines.face.geometry.setFromPoints([item.root.position.clone().setY(.13),new T.Vector3(intent.face.x,.13,intent.face.z)])}
+  overlayPositions.fill(0);
+  for(const intent of latestIntents){
+    const item=player(intent.playerId),index=engine.players.indexOf(item);
+    if(!item||index<0)continue;
+    const offset=index*12;
+    overlayPositions.set([item.root.position.x,.06,item.root.position.z,intent.move.target.x,.06,intent.move.target.z,item.root.position.x,.13,item.root.position.z,intent.face.x,.13,intent.face.z],offset);
+  }
+  overlayGeometry.attributes.position.needsUpdate=true;
 }
 function selectedTrace(){const own=director.getDecisionTraces(state.tracePlayer);return own.at(-1)||director.getDecisionTraces("cpu-handler").at(-1)}
 function syncUI(){
@@ -107,4 +152,4 @@ for(const [id,key] of [["targets","targets"],["scores","scores"],["timeline-togg
 let last=performance.now(),metricAt=last,frames=0,accumulator=0;
 function frame(now){const dt=Math.min(.05,(now-last)/1e3);last=now;if(state.playing){accumulator+=dt;if(accumulator>=.18){step(.18);accumulator=0}}engine.render();frames++;if(now-metricAt>=500){$("#fps").textContent=Math.round(frames*1e3/(now-metricAt));$("#draws").textContent=engine.renderer.info.render.calls;$("#tris").textContent=engine.renderer.info.render.triangles.toLocaleString();frames=0;metricAt=now}requestAnimationFrame(frame)}
 reset();requestAnimationFrame(frame);
-globalThis.__NOVA_CPU_LAB__=Object.freeze({setScenario,step,reset,setPlaying(value){state.playing=Boolean(value);syncUI();return true},getState(){return Object.freeze({scenario:state.scenario,difficulty:state.difficulty,seed:state.seed,shotClock:state.shotClock,playing:state.playing,overlays:{...state.overlays},metrics:{fps:Number($("#fps").textContent),draws:engine.renderer.info.render.calls,triangles:engine.renderer.info.render.triangles,textures:engine.renderer.info.memory.textures},assetLoadStatus:"production-engine-court-and-procedural-players-ready"})},getTrace(playerId=state.tracePlayer){return director.getDecisionTraces(playerId)}});
+globalThis.__NOVA_CPU_LAB__=Object.freeze({setScenario,step,reset,setPlaying(value){state.playing=Boolean(value);syncUI();return true},getState(){const metrics={fps:Number($("#fps").textContent),draws:engine.renderer.info.render.calls,triangles:engine.renderer.info.render.triangles,textures:engine.renderer.info.memory.textures};return Object.freeze({scenario:state.scenario,difficulty:state.difficulty,seed:state.seed,shotClock:state.shotClock,playing:state.playing,overlays:{...state.overlays},metrics,budget:CPU_LAB_RENDER_BUDGET,withinBudget:cpuLabWithinRenderBudget(metrics),assetLoadStatus:"production-engine-court-and-procedural-players-ready"})},getTrace(playerId=state.tracePlayer){return director.getDecisionTraces(playerId)}});

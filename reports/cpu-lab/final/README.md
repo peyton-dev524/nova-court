@@ -1,9 +1,9 @@
 # CPU Decision Lab — deterministic visual QA
 
-Captured at `1280×720` from the production `NovaCourtEngine` arena, player
-rigs, basketball, lights, and renderer. The cyan lines are facing vectors and
-the gold lines are movement targets. All captures use difficulty `pro` and
-seed `41`.
+Captured at `1280×720` from the production `NovaCourtEngine` court, player
+rigs, basketball, hoop, lights, and renderer. The cyan lines are facing
+vectors and the gold lines are movement targets. All captures use difficulty
+`pro` and seed `41`.
 
 ## Reproduction
 
@@ -52,10 +52,22 @@ physics, possession, and rules.
 
 ## Renderer and debug cost
 
-The reference Chrome capture reported 48–60 FPS after warm-up, 930 draw calls,
-196,282 triangles, and no console warnings or errors. This is the complete
-balanced production arena rather than a lightweight mock. The lab intentionally
-keeps a fixed one-device-pixel render ratio for stable screenshots.
+The final reference Chrome captures report a stable 60 FPS after warm-up,
+170–173 draw calls, and 41,774–43,354 triangles with no console warnings or
+errors. The enforced lab ceiling is 180 calls and 100,000 triangles. The
+budget is exposed by `__NOVA_CPU_LAB__.getState()` as `budget` and
+`withinBudget`, and has a headless boundary regression test.
+
+The harness keeps the production engine, authored court/hoop, ball, procedural
+athlete rigs, and real AI director. Lab-only presentation removes crowd,
+bleachers, wall architecture, shadow passes, finger micro-geometry, and shoe
+micro-detail. Hair silhouettes and the primary anatomical volumes remain
+visible. Movement targets and facing vectors share one `LineSegments` draw.
+The backboard retains a transparent glass appearance without the expensive
+transmission pre-pass that previously rendered the scene twice.
+
+The lab intentionally keeps a fixed one-device-pixel render ratio for stable
+screenshots.
 
 With debugging disabled, the scoring pass retains only the active per-player
 decision memory and accumulates zero trace records. With debugging enabled,
@@ -69,5 +81,5 @@ target/facing coordinates.
 - The lab advances deterministic high-level intents in discrete steps and
   moves preview actors toward targets, but it does not execute a full game or
   bypass authoritative rules.
-- Renderer counts include the complete arena crowd and are deliberately
-  higher than a minimal diagnostic scene.
+- The lab uses a performance review LOD, so production finger articulation,
+  shoe detailing, crowds, shadows, and architecture are intentionally absent.

@@ -7,6 +7,10 @@ import {
   createAIDirector,
   scoreOffensiveCandidates,
 } from "../js/ai.js";
+import {
+  CPU_LAB_RENDER_BUDGET,
+  cpuLabWithinRenderBudget,
+} from "../js/cpu-lab-budget.js";
 
 const court = { halfWidth: 7.5, halfLength: 7, threePointRadius: 6.15 };
 const basket = { x: 0, z: -5.7 };
@@ -117,4 +121,11 @@ test("CPU lab hook, production renderer integration, build copy, and aiDebug QA 
   assert.match(build, /cpu-lab\.html/);
   assert.match(app, /qaQuery\.has\("aiDebug"\)/);
   assert.match(app, /getDecisionSnapshot/);
+});
+
+test("CPU lab render budget rejects regressions above 180 calls or 100k triangles", () => {
+  assert.deepEqual(CPU_LAB_RENDER_BUDGET, { calls: 180, triangles: 100000 });
+  assert.equal(cpuLabWithinRenderBudget({ draws: 180, triangles: 100000 }), true);
+  assert.equal(cpuLabWithinRenderBudget({ draws: 181, triangles: 99999 }), false);
+  assert.equal(cpuLabWithinRenderBudget({ draws: 179, triangles: 100001 }), false);
 });
