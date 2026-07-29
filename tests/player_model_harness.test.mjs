@@ -53,16 +53,11 @@ test("player model lab maps anatomical sides and defensive rotations correctly",
   assert.match(source, /const \[rightArm, leftArm\] = player\.arms;/);
   assert.match(source, /const \[rightLeg, leftLeg\] = player\.legs;/);
 
-  assert.match(source, /leftShoulder: Object\.freeze\(\[-80, -180, -52\]\)/);
-  assert.match(source, /rightShoulder: Object\.freeze\(\[-80, 180, 52\]\)/);
-  assert.match(source, /leftElbow: Object\.freeze\(\[-17, 0, 22\]\)/);
-  assert.match(source, /rightElbow: Object\.freeze\(\[-17, 0, -22\]\)/);
+  assert.match(source, /const DEFENSIVE_POSE_ROTATIONS = BALL_HANDLER_GUARD_POSE;/);
   assert.match(source, /leftArm\.shoulder\.rotation\.set\(\.\.\.DEFENSIVE_POSE_ROTATIONS\.leftShoulder\.map\(toRadians\)\)/);
   assert.match(source, /rightArm\.shoulder\.rotation\.set\(\.\.\.DEFENSIVE_POSE_ROTATIONS\.rightShoulder\.map\(toRadians\)\)/);
   assert.match(source, /leftArm\.elbow\.rotation\.set\(\.\.\.DEFENSIVE_POSE_ROTATIONS\.leftElbow\.map\(toRadians\)\)/);
   assert.match(source, /rightArm\.elbow\.rotation\.set\(\.\.\.DEFENSIVE_POSE_ROTATIONS\.rightElbow\.map\(toRadians\)\)/);
-  assert.match(source, /hip: Object\.freeze\(\[-21, -11, -8\]\)/);
-  assert.match(source, /knee: Object\.freeze\(\[30, 0, 0\]\)/);
 });
 
 test("production build includes the player model lab entry point", async () => {

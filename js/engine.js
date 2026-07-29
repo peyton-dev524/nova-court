@@ -137,6 +137,15 @@ export const PLAYER_STATES = Object.freeze({
   CELEBRATE: "celebrate",
 });
 
+export const BALL_HANDLER_GUARD_POSE = Object.freeze({
+  leftShoulder: Object.freeze([-80, -180, -52]),
+  rightShoulder: Object.freeze([-80, 180, 52]),
+  leftElbow: Object.freeze([-17, 0, 22]),
+  rightElbow: Object.freeze([-17, 0, -22]),
+  hip: Object.freeze([-21, -11, -8]),
+  knee: Object.freeze([30, 0, 0]),
+});
+
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const damp = (a, b, lambda, dt) => lerp(a, b, animationDampingFactor(lambda, dt));
@@ -145,6 +154,43 @@ const smoothstep = (min, max, v) => {
   return x * x * (3 - 2 * x);
 };
 const rand = (min, max) => min + Math.random() * (max - min);
+const guardPoseRadians = Object.freeze(Object.fromEntries(
+  Object.entries(BALL_HANDLER_GUARD_POSE).map(([key, rotation]) => [
+    key,
+    Object.freeze(rotation.map((degrees) => degrees * Math.PI / 180)),
+  ]),
+));
+
+export function isGuardingBallHandler(
+  player,
+  players = [],
+  ballOwner = null,
+  maxDistance = 2.8,
+) {
+  if (!player || !ballOwner || player === ballOwner || player.team === ballOwner.team) return false;
+  const position = player.root?.position || player.position;
+  const ownerPosition = ballOwner.root?.position || ballOwner.position;
+  if (!position || !ownerPosition) return false;
+
+  const guardDistanceSq = (position.x - ownerPosition.x) ** 2
+    + (position.z - ownerPosition.z) ** 2;
+  if (guardDistanceSq > Math.max(0, maxDistance) ** 2) return false;
+
+  let closestDefender = null;
+  let closestDistanceSq = Infinity;
+  for (const candidate of players) {
+    if (!candidate || candidate === ballOwner || candidate.team === ballOwner.team) continue;
+    const candidatePosition = candidate.root?.position || candidate.position;
+    if (!candidatePosition) continue;
+    const distanceSq = (candidatePosition.x - ownerPosition.x) ** 2
+      + (candidatePosition.z - ownerPosition.z) ** 2;
+    if (distanceSq < closestDistanceSq) {
+      closestDistanceSq = distanceSq;
+      closestDefender = candidate;
+    }
+  }
+  return closestDefender === player;
+}
 
 export function getDribbleMovePath(type, progress, startHand = 1) {
   const p = clamp(progress, 0, 1);
@@ -286,6 +332,7 @@ export class ProceduralPlayer {
     this.locomotionBlend = 0;
     this.sprintBlend = 0;
     this.defenseBlend = 0;
+    this.ballHandlerGuardBlend = 0;
     this.airborneBlend = 0;
     this.metadata = {
       ...(options.metadata || {}),
@@ -642,6 +689,23 @@ export class ProceduralPlayer {
     this.locomotionBlend = damp(this.locomotionBlend, smoothstep(0.035, 0.32, this.smoothedSpeed), 9, dt);
     this.sprintBlend = damp(this.sprintBlend, action === PLAYER_STATES.SPRINT ? 1 : 0, 7.5, dt);
     this.defenseBlend = damp(this.defenseBlend, action === PLAYER_STATES.DEFEND ? 1 : 0, 9, dt);
+    const guardingBallHandler = this.grounded
+      && ![
+        PLAYER_STATES.SHOOT,
+        PLAYER_STATES.LAYUP,
+        PLAYER_STATES.DUNK,
+        PLAYER_STATES.BLOCK,
+        PLAYER_STATES.STUMBLE,
+        PLAYER_STATES.CELEBRATE,
+      ].includes(action)
+      && isGuardingBallHandler(this, this.engine.players, this.engine.ball.owner);
+    this.ballHandlerGuardBlend = damp(
+      this.ballHandlerGuardBlend,
+      guardingBallHandler ? 1 : 0,
+      guardingBallHandler ? 12 : 9,
+      dt,
+    );
+    const guardBlend = this.ballHandlerGuardBlend;
     this.airborneBlend = damp(this.airborneBlend, this.grounded ? 0 : 1, this.grounded ? 13 : 16, dt);
     const locomotion = Math.min(1, this.smoothedSpeed) * this.locomotionBlend;
     const airborne = !this.grounded;
@@ -787,9 +851,14 @@ export class ProceduralPlayer {
           kneeTarget += 0.18 * moveWave;
         }
       }
-      leg.hip.rotation.x = damp(leg.hip.rotation.x, hipTarget, 17, dt);
-      leg.hip.rotation.z = damp(leg.hip.rotation.z, spread, 15, dt);
-      leg.knee.rotation.x = damp(leg.knee.rotation.x, kneeTarget, 18, dt);
+      const guardHip = guardPoseRadians.hip;
+      const guardKnee = guardPoseRadians.knee;
+      leg.hip.rotation.x = damp(leg.hip.rotation.x, lerp(hipTarget, guardHip[0], guardBlend), 17, dt);
+      leg.hip.rotation.y = damp(leg.hip.rotation.y, guardHip[1] * guardBlend, 15, dt);
+      leg.hip.rotation.z = damp(leg.hip.rotation.z, lerp(spread, guardHip[2], guardBlend), 15, dt);
+      leg.knee.rotation.x = damp(leg.knee.rotation.x, lerp(kneeTarget, guardKnee[0], guardBlend), 18, dt);
+      leg.knee.rotation.y = damp(leg.knee.rotation.y, guardKnee[1] * guardBlend, 18, dt);
+      leg.knee.rotation.z = damp(leg.knee.rotation.z, guardKnee[2] * guardBlend, 18, dt);
     }
 
     for (let i = 0; i < this.arms.length; i++) {
@@ -903,9 +972,38 @@ export class ProceduralPlayer {
           elbow = lerp(elbow, elbowTarget, reachWeight * 0.82);
         }
       }
-      arm.shoulder.rotation.x = damp(arm.shoulder.rotation.x, swing, 19, dt);
-      arm.shoulder.rotation.z = damp(arm.shoulder.rotation.z, out, 18, dt);
-      arm.elbow.rotation.x = damp(arm.elbow.rotation.x, elbow, 19, dt);
+      const guardShoulder = i === 0
+        ? guardPoseRadians.rightShoulder
+        : guardPoseRadians.leftShoulder;
+      const guardElbow = i === 0
+        ? guardPoseRadians.rightElbow
+        : guardPoseRadians.leftElbow;
+      arm.shoulder.rotation.x = damp(
+        arm.shoulder.rotation.x,
+        lerp(swing, guardShoulder[0], guardBlend),
+        19,
+        dt,
+      );
+      arm.shoulder.rotation.y = damp(
+        arm.shoulder.rotation.y,
+        guardShoulder[1] * guardBlend,
+        18,
+        dt,
+      );
+      arm.shoulder.rotation.z = damp(
+        arm.shoulder.rotation.z,
+        lerp(out, guardShoulder[2], guardBlend),
+        18,
+        dt,
+      );
+      arm.elbow.rotation.x = damp(
+        arm.elbow.rotation.x,
+        lerp(elbow, guardElbow[0], guardBlend),
+        19,
+        dt,
+      );
+      arm.elbow.rotation.y = damp(arm.elbow.rotation.y, guardElbow[1] * guardBlend, 19, dt);
+      arm.elbow.rotation.z = damp(arm.elbow.rotation.z, guardElbow[2] * guardBlend, 19, dt);
       arm.hand.rotation.x = damp(arm.hand.rotation.x, wristX, 21, dt);
       arm.hand.rotation.z = damp(arm.hand.rotation.z, wristZ, 21, dt);
     }
@@ -4074,6 +4172,7 @@ export class NovaCourtEngine {
       player.locomotionBlend = 0;
       player.sprintBlend = 0;
       player.defenseBlend = 0;
+      player.ballHandlerGuardBlend = 0;
       player.airborneBlend = 0;
       player.gaitPhase = player.animationPhaseOffset;
       player.setState(PLAYER_STATES.IDLE, true);

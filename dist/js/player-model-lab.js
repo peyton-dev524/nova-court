@@ -1,4 +1,7 @@
-import { ProceduralPlayer } from "./engine.js?v=6.0";
+import {
+  BALL_HANDLER_GUARD_POSE,
+  ProceduralPlayer,
+} from "./engine.js?v=6.0";
 import {
   createBasketballMesh,
   normalizeBasketballStyle,
@@ -264,14 +267,7 @@ let poseDrafts = loadPoseDrafts();
 const toDegrees = (radians) => Math.round(T.MathUtils.radToDeg(radians) * 10) / 10;
 const toRadians = (degrees) => T.MathUtils.degToRad(Number(degrees) || 0);
 const roundCoordinate = (value) => Math.round(value * 1000) / 1000;
-const DEFENSIVE_POSE_ROTATIONS = Object.freeze({
-  leftShoulder: Object.freeze([-80, -180, -52]),
-  rightShoulder: Object.freeze([-80, 180, 52]),
-  leftElbow: Object.freeze([-17, 0, 22]),
-  rightElbow: Object.freeze([-17, 0, -22]),
-  hip: Object.freeze([-21, -11, -8]),
-  knee: Object.freeze([30, 0, 0]),
-});
+const DEFENSIVE_POSE_ROTATIONS = BALL_HANDLER_GUARD_POSE;
 
 function activeEntry() {
   return playerEntries[athleteIds.indexOf(state.athlete)] || playerEntries[0];
