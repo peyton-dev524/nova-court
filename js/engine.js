@@ -50,6 +50,7 @@ import {
   userShotPerfectHalfWidth,
 } from "./shooting-assist.js";
 import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
+import { createBasketballJerseyRig } from "./basketball-jersey.js?v=1.0";
 import {
   basketballShoeLowerLegFit,
   createBasketballShoe,
@@ -379,6 +380,7 @@ export class ProceduralPlayer {
       shoeColorwayId: normalizeBasketballShoeColorway(
         options.shoeColorwayId ?? options.metadata?.shoeColorwayId,
       ),
+      jerseyStyle: options.jerseyStyle ?? options.metadata?.jerseyStyle ?? {},
     };
     this.colors = {
       jersey: options.jerseyColor ?? options.primary ?? (this.team === "home" ? 0x32e6c4 : 0xff5a76),
@@ -448,21 +450,18 @@ export class ProceduralPlayer {
     });
     this.hips.add(this.shortsRig.root);
 
-    const torso = this._mesh(new T.CylinderGeometry(0.305, 0.238, 0.59, 14), jersey);
+    const torso = this._mesh(new T.CylinderGeometry(0.281, 0.222, 0.59, 14), skin);
     torso.position.y = 0.63;
     torso.scale.z = 0.72;
     this.hips.add(torso);
-    const collar = this._mesh(new T.TorusGeometry(0.14, 0.022, 6, 20, Math.PI), trim);
-    collar.position.set(0, 0.935, 0.205);
-    collar.rotation.set(Math.PI / 2, 0, Math.PI);
-    this.hips.add(collar);
-    this.detailMeshes.push(collar);
-    for (const side of [-1, 1]) {
-      const sidePanel = this._mesh(new T.BoxGeometry(0.035, 0.47, 0.22), trim);
-      sidePanel.position.set(side * 0.254, 0.6, 0);
-      this.hips.add(sidePanel);
-      this.detailMeshes.push(sidePanel);
-    }
+    this.jerseyRig = createBasketballJerseyRig(T, {
+      mainColor: this.colors.jersey,
+      panelColor: this.colors.trim,
+      trimColor: this.colors.trim,
+      parameters: this.metadata.jerseyStyle,
+    });
+    this.hips.add(this.jerseyRig.root);
+    this.detailMeshes.push(...this.jerseyRig.bindings);
 
     const numberTexture = this._jerseyNumberTexture();
     const numberMaterial = new T.MeshBasicMaterial({
@@ -472,9 +471,14 @@ export class ProceduralPlayer {
       side: T.DoubleSide,
       toneMapped: false,
     });
-    for (const z of [-0.224, 0.224]) {
-      const numberPlate = this._mesh(new T.PlaneGeometry(0.23, 0.29), numberMaterial, false);
-      numberPlate.position.set(0, 0.69, z);
+    for (const z of [-0.214, 0.219]) {
+      const isBack = z < 0;
+      const numberPlate = this._mesh(
+        new T.PlaneGeometry(isBack ? 0.23 : 0.16, isBack ? 0.29 : 0.2),
+        numberMaterial,
+        false,
+      );
+      numberPlate.position.set(0, isBack ? 0.68 : 0.69, z);
       if (z < 0) numberPlate.rotation.y = Math.PI;
       this.hips.add(numberPlate);
       this.detailMeshes.push(numberPlate);
@@ -533,12 +537,6 @@ export class ProceduralPlayer {
     mouth.position.set(0, 1.195, 0.187);
     this.hips.add(mouth);
     this.detailMeshes.push(mouth);
-    const jerseyHem = this._mesh(new T.CylinderGeometry(0.24, 0.24, 0.025, 14), jersey);
-    jerseyHem.position.y = 0.33;
-    jerseyHem.scale.z = 0.72;
-    this.hips.add(jerseyHem);
-    this.detailMeshes.push(jerseyHem);
-
     this.arms = [];
     for (const side of [-1, 1]) {
       const shoulder = new T.Group();
@@ -706,6 +704,14 @@ export class ProceduralPlayer {
 
   shortsMetrics() {
     return this.shortsRig?.getMetrics();
+  }
+
+  setJerseyParameters(parameters = {}) {
+    return this.jerseyRig?.setParameters(parameters);
+  }
+
+  jerseyMetrics() {
+    return this.jerseyRig?.getMetrics();
   }
 
   updateAnimation(dt, speedRatio) {
@@ -932,6 +938,11 @@ export class ProceduralPlayer {
       rightHipYaw: this.legs[1]?.hip.rotation.y || 0,
       leftHipRoll: this.legs[0]?.hip.rotation.z || 0,
       rightHipRoll: this.legs[1]?.hip.rotation.z || 0,
+    });
+    this.jerseyRig?.update(dt, {
+      lateralSpeed: this.velocity.x,
+      forwardSpeed: this.velocity.z,
+      torsoYaw: moveTurn,
     });
 
     for (let i = 0; i < this.arms.length; i++) {

@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=6.1";
+import { NovaCourtEngine, PLAYER_STATES, COURT, ProceduralPlayer } from "./engine.js?v=6.2";
 import { createAIDirector } from "./ai.js?v=5.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -60,6 +60,7 @@ import {
   HAIR_STYLES,
   SKIN_TONES,
 } from "./player-appearance.js?v=1.0";
+import { normalizeBasketballJerseyParameters } from "./basketball-jersey.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -124,6 +125,9 @@ let sceneLoadState = {
   loadedIds: [],
   loadErrors: [],
 };
+const ONBOARDING_STEPS = Object.freeze(["identity", "appearance", "attributes", "review"]);
+let onboardingStep = "identity";
+let onboardingPreview = null;
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
@@ -372,6 +376,242 @@ function commitProfile(nextProfile, message = "Build saved.", tone = "good") {
   profileMessage(message, tone);
 }
 
+function onboardingJerseyStyle() {
+  return normalizeBasketballJerseyParameters({
+    fit: $("#create-player-jersey-fit")?.value,
+    length: $("#create-player-jersey-length")?.value,
+    hemFlare: $("#create-player-jersey-hem")?.value,
+    sidePanelWidth: $("#create-player-jersey-panel")?.value,
+    fabricResponse: $("#create-player-jersey-fabric")?.value,
+  });
+}
+
+function updateJerseyControlOutputs(root = document) {
+  const mappings = [
+    ["#create-player-jersey-length", (value) => `${(value / 0.0254).toFixed(1)} IN`],
+    ["#create-player-jersey-hem", (value) => `${(value * 100).toFixed(1)} CM`],
+    ["#create-player-jersey-panel", (value) => `${(value * 100).toFixed(1)} CM`],
+    ["#create-player-jersey-fabric", (value) => `${Math.round(value * 100)}%`],
+    ["#jersey-fit", (value) => `${Math.round(value * 100)}%`],
+    ["#jersey-length", (value) => `${(value / 0.0254).toFixed(1)} IN`],
+    ["#jersey-hem", (value) => `${(value * 100).toFixed(1)} CM`],
+    ["#jersey-panel", (value) => `${(value * 100).toFixed(1)} CM`],
+    ["#jersey-fabric", (value) => `${Math.round(value * 100)}%`],
+  ];
+  for (const [selector, formatter] of mappings) {
+    const input = root.querySelector?.(selector);
+    if (input?.nextElementSibling) input.nextElementSibling.value = formatter(Number(input.value));
+  }
+}
+
+function disposePreviewPlayer(preview) {
+  if (!preview?.player) return;
+  preview.player.root.traverse((node) => {
+    node.geometry?.dispose?.();
+    if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose?.());
+    else node.material?.dispose?.();
+  });
+  preview.player.root.removeFromParent();
+  preview.player = null;
+  preview.engine.generatedTextures.splice(0).forEach((texture) => texture.dispose?.());
+}
+
+function rebuildOnboardingPreview() {
+  if (!onboardingPreview) return;
+  disposePreviewPlayer(onboardingPreview);
+  const hairStyle = $("#create-player-hair")?.value || "crop";
+  const skinTone = SKIN_TONES.find((item) => item.id === $("#create-player-skin")?.value)
+    || SKIN_TONES.find((item) => item.id === "warm-brown")
+    || SKIN_TONES[0];
+  const palette = COSMETIC_PALETTES.find((item) => item.id === playerProfile.cosmetics.equipped)
+    || COSMETIC_PALETTES[0];
+  const player = new ProceduralPlayer(onboardingPreview.engine, {
+    id: "onboarding-preview-player",
+    name: $("#create-player-name")?.value || "Ace Nova",
+    team: "home",
+    position: new globalThis.THREE.Vector3(),
+    height: $("#create-player-height")?.value,
+    jerseyNumber: $("#create-player-number")?.value,
+    hairStyle,
+    skinColor: skinTone.color,
+    shoeStyleId: $("#create-player-shoe-style")?.value,
+    shoeColorwayId: $("#create-player-shoe-colorway")?.value,
+    jerseyStyle: onboardingJerseyStyle(),
+    primary: palette.colors.primary,
+    accent: palette.colors.accent,
+    shoeColor: palette.colors.shoes,
+    controlled: false,
+    isAI: false,
+  });
+  player.marker.visible = false;
+  onboardingPreview.player = player;
+}
+
+function ensureOnboardingPreview() {
+  if (onboardingPreview || !$("#create-player-preview") || !globalThis.THREE) return;
+  const T = globalThis.THREE;
+  const stage = $("#create-player-preview");
+  const scene = new T.Scene();
+  scene.background = new T.Color(0x03090d);
+  const camera = new T.PerspectiveCamera(34, 1, 0.05, 30);
+  camera.position.set(2.25, 1.45, 4.35);
+  camera.lookAt(0, 1.02, 0);
+  const renderer = new T.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.outputColorSpace = T.SRGBColorSpace;
+  renderer.toneMapping = T.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.08;
+  renderer.shadowMap.enabled = true;
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+  renderer.domElement.setAttribute("aria-label", "Live three-dimensional player preview");
+  stage.append(renderer.domElement);
+  const playerRoot = new T.Group();
+  scene.add(playerRoot);
+  const previewEngine = {
+    T,
+    _nextPlayerId: 1,
+    playerRoot,
+    generatedTextures: [],
+    elapsed: 0,
+    fixedAccumulator: 0,
+    ball: { owner: null, position: new T.Vector3() },
+    events: { emit() {} },
+  };
+  const floor = new T.Mesh(
+    new T.CircleGeometry(1.5, 48),
+    new T.MeshStandardMaterial({ color: 0x0b1820, roughness: 0.62, metalness: 0.1 }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  scene.add(new T.HemisphereLight(0xcaf4ff, 0x111015, 1.55));
+  const key = new T.DirectionalLight(0xffe8d8, 3.2);
+  key.position.set(3.5, 6, 4);
+  key.castShadow = true;
+  scene.add(key);
+  const rim = new T.DirectionalLight(0x4fe9ff, 1.9);
+  rim.position.set(-4, 3, -2);
+  scene.add(rim);
+  onboardingPreview = {
+    stage,
+    scene,
+    camera,
+    renderer,
+    engine: previewEngine,
+    player: null,
+    elapsed: 0,
+  };
+  const resize = () => {
+    const width = Math.max(1, stage.clientWidth);
+    const height = Math.max(1, stage.clientHeight);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  };
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  rebuildOnboardingPreview();
+  let previous = performance.now();
+  const renderPreview = (now) => {
+    if (!onboardingPreview) return;
+    const dt = Math.min(0.05, (now - previous) / 1000);
+    previous = now;
+    if (onboardingStep === "appearance" && !$("#create-player-screen")?.classList.contains("is-hidden")) {
+      onboardingPreview.elapsed += dt;
+      const wave = Math.sin(onboardingPreview.elapsed * 2.3);
+      onboardingPreview.player?.jerseyRig?.update(dt, {
+        lateralSpeed: wave * 2.2,
+        forwardSpeed: 1.1,
+        torsoYaw: wave * 0.24,
+      });
+      if (onboardingPreview.player) onboardingPreview.player.root.rotation.y = wave * 0.13;
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(renderPreview);
+  };
+  requestAnimationFrame(renderPreview);
+}
+
+function renderOnboardingAttributes() {
+  const root = $("#create-player-attribute-summary");
+  if (!root) return;
+  const build = playerProfile.builds.PG;
+  const groups = Object.entries(ATTRIBUTE_GROUPS).slice(0, 6);
+  root.replaceChildren(...groups.map(([name, keys]) => {
+    const article = document.createElement("article");
+    const rows = keys.slice(0, 4).map((key) =>
+      `<div><dt>${ATTRIBUTE_LABELS[key]}</dt><dd>${build.attributes[key]}</dd></div>`).join("");
+    article.innerHTML = `<h3>${name}</h3><dl>${rows}</dl>`;
+    return article;
+  }));
+}
+
+function renderOnboardingReview() {
+  const root = $("#create-player-review");
+  if (!root) return;
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  })[character]);
+  const jerseyStyle = onboardingJerseyStyle();
+  const hair = HAIR_STYLES.find((item) => item.id === $("#create-player-hair")?.value)?.name || "Close Crop";
+  const skin = SKIN_TONES.find((item) => item.id === $("#create-player-skin")?.value)?.name || "Warm Brown";
+  const shoe = BASKETBALL_SHOE_STYLES.find((item) => item.id === $("#create-player-shoe-style")?.value)?.name || "NOVA Flight";
+  root.innerHTML = `
+    <article><h3>Identity</h3><dl>
+      <div><dt>Name</dt><dd>${escapeHtml($("#create-player-name")?.value || "Ace Nova")}</dd></div>
+      <div><dt>Number</dt><dd>#${$("#create-player-number")?.value || 1}</dd></div>
+      <div><dt>Height</dt><dd>${formatPlayerHeight($("#create-player-height")?.value)}</dd></div>
+    </dl></article>
+    <article><h3>Appearance</h3><dl>
+      <div><dt>Hair</dt><dd>${hair}</dd></div>
+      <div><dt>Skin</dt><dd>${skin}</dd></div>
+      <div><dt>Shoes</dt><dd>${shoe}</dd></div>
+    </dl></article>
+    <article><h3>Jersey</h3><dl>
+      <div><dt>Fit</dt><dd>${Math.round(jerseyStyle.fit * 100)}%</dd></div>
+      <div><dt>Length</dt><dd>${(jerseyStyle.length / 0.0254).toFixed(1)} in</dd></div>
+      <div><dt>Fabric</dt><dd>${Math.round(jerseyStyle.fabricResponse * 100)}%</dd></div>
+    </dl></article>
+    <article><h3>Starting build</h3><dl>
+      <div><dt>Position</dt><dd>Point Guard</dd></div>
+      <div><dt>Archetype</dt><dd>${POSITION_PRESETS.PG.archetype}</dd></div>
+      <div><dt>Overall</dt><dd>${getProfileSummary(playerProfile).overall}</dd></div>
+    </dl></article>`;
+}
+
+function setOnboardingStep(step, { focus = true } = {}) {
+  if (!ONBOARDING_STEPS.includes(step)) return false;
+  onboardingStep = step;
+  $$("[data-wizard-step]").forEach((panel) => {
+    const active = panel.dataset.wizardStep === step;
+    panel.classList.toggle("is-hidden", !active);
+    panel.hidden = !active;
+    panel.setAttribute("aria-hidden", String(!active));
+  });
+  $$("#create-player-steps li").forEach((item, index) => {
+    const current = ONBOARDING_STEPS.indexOf(step);
+    if (index === current) item.setAttribute("aria-current", "step");
+    else item.removeAttribute("aria-current");
+    item.classList.toggle("is-complete", index < current);
+  });
+  if (step === "appearance") {
+    ensureOnboardingPreview();
+    rebuildOnboardingPreview();
+  } else if (step === "attributes") {
+    renderOnboardingAttributes();
+  } else if (step === "review") {
+    renderOnboardingReview();
+  }
+  if (focus) {
+    const panel = $(`[data-wizard-step="${step}"]`);
+    requestAnimationFrame(() => panel?.querySelector("input, select, button")?.focus());
+  }
+  return true;
+}
+
 function renderPlayerProfile() {
   const summary = getProfileSummary(playerProfile);
   const build = playerProfile.builds[summary.position];
@@ -400,6 +640,18 @@ function renderPlayerProfile() {
   const playerHeight = $("#player-height");
   if (playerHeight && document.activeElement !== playerHeight) playerHeight.value = summary.heightM.toFixed(2);
   if ($("#player-height-output")) $("#player-height-output").textContent = formatPlayerHeight(summary.heightM);
+  const jerseyInputs = {
+    "#jersey-fit": summary.jerseyStyle.fit,
+    "#jersey-length": summary.jerseyStyle.length,
+    "#jersey-hem": summary.jerseyStyle.hemFlare,
+    "#jersey-panel": summary.jerseyStyle.sidePanelWidth,
+    "#jersey-fabric": summary.jerseyStyle.fabricResponse,
+  };
+  for (const [selector, value] of Object.entries(jerseyInputs)) {
+    const input = $(selector);
+    if (input && document.activeElement !== input) input.value = String(value);
+  }
+  updateJerseyControlOutputs();
 
   const positions = $("#position-tabs");
   positions.replaceChildren(...Object.entries(POSITION_PRESETS).map(([key, value]) => {
@@ -548,6 +800,7 @@ function controlledProfileConfig() {
       height: config.height,
       shoeStyleId: config.shoeStyleId,
       shoeColorwayId: config.shoeColorwayId,
+      jerseyStyle: config.jerseyStyle,
       hairStyle: config.hairStyle,
       headShape: config.headShape,
     },
@@ -1828,6 +2081,7 @@ function bindUI() {
       skinToneId: playerProfile.identity.skinToneId,
       heightM: $("#player-height")?.value,
       shoeStyleId: playerProfile.identity.shoeStyleId,
+      jerseyStyle: playerProfile.identity.jerseyStyle,
     });
     if (result.ok) commitProfile(result.profile, "Player identity saved.");
     else profileMessage("Enter a name using letters or numbers.", "warning");
@@ -1888,6 +2142,29 @@ function bindUI() {
       );
     }
   });
+  const jerseyProfileSelectors = [
+    "#jersey-fit",
+    "#jersey-length",
+    "#jersey-hem",
+    "#jersey-panel",
+    "#jersey-fabric",
+  ];
+  jerseyProfileSelectors.forEach((selector) => {
+    $(selector)?.addEventListener("input", updateJerseyControlOutputs);
+    $(selector)?.addEventListener("change", () => {
+      const result = updatePlayerIdentity(playerProfile, {
+        displayName: playerProfile.identity.displayName || "Ace Nova",
+        jerseyStyle: {
+          fit: $("#jersey-fit")?.value,
+          length: $("#jersey-length")?.value,
+          hemFlare: $("#jersey-hem")?.value,
+          sidePanelWidth: $("#jersey-panel")?.value,
+          fabricResponse: $("#jersey-fabric")?.value,
+        },
+      });
+      if (result.ok) commitProfile(result.profile, "Jersey fit saved.");
+    });
+  });
   $("#title-grid")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-title]");
     if (!button) return;
@@ -1904,6 +2181,7 @@ function bindUI() {
       heightM: $("#create-player-height")?.value,
       shoeStyleId: $("#create-player-shoe-style")?.value,
       shoeColorwayId: $("#create-player-shoe-colorway")?.value,
+      jerseyStyle: onboardingJerseyStyle(),
     });
     if (!result.ok) {
       $("#create-player-error").textContent = "Enter a display name using letters or numbers.";
@@ -1915,8 +2193,40 @@ function bindUI() {
     startAttractMode();
     showMainMenu();
   });
-  $("#create-player-height")?.addEventListener("input", (event) => {
-    $("#create-player-height-output").textContent = formatPlayerHeight(event.target.value);
+  $("#create-player-form")?.addEventListener("click", (event) => {
+    const next = event.target.closest("[data-wizard-next]");
+    const back = event.target.closest("[data-wizard-back]");
+    if (next) {
+      if (onboardingStep === "identity" && !$("#create-player-name")?.value.trim()) {
+        $("#create-player-error").textContent = "Enter a display name before continuing.";
+        $("#create-player-name")?.focus();
+        return;
+      }
+      $("#create-player-error").textContent = "";
+      setOnboardingStep(next.dataset.wizardNext);
+    } else if (back) {
+      $("#create-player-error").textContent = "";
+      setOnboardingStep(back.dataset.wizardBack);
+    }
+  });
+  $("#create-player-form")?.addEventListener("input", (event) => {
+    if (event.target.id === "create-player-height") {
+      $("#create-player-height-output").textContent = formatPlayerHeight(event.target.value);
+    }
+    updateJerseyControlOutputs();
+    if (onboardingStep !== "appearance") return;
+    if (event.target.id.startsWith("create-player-jersey-")
+        && event.target.id !== "create-player-jersey-fit") {
+      onboardingPreview?.player?.setJerseyParameters(onboardingJerseyStyle());
+    } else {
+      rebuildOnboardingPreview();
+    }
+  });
+  $("#create-player-form")?.addEventListener("change", (event) => {
+    if (onboardingStep === "appearance"
+        && ["create-player-hair", "create-player-skin", "create-player-shoe-style", "create-player-shoe-colorway", "create-player-jersey-fit"].includes(event.target.id)) {
+      rebuildOnboardingPreview();
+    }
   });
   $("#tutorial-skip")?.addEventListener("click", () => {
     presentationDirector?.skip?.();
@@ -2031,18 +2341,30 @@ async function boot() {
     $("#loader-copy").textContent = "Calibrating ball physics…";
     updateSceneLoading("boot", "optional", 0.92, ["court-fallback", "court", "hoops", "players", "venue-details"]);
     updateSceneLoading("boot", "ready", 1);
-    const captureName = new URLSearchParams(location.search).get("arcRunCapture");
+    const onboardingQuery = new URLSearchParams(location.search);
+    const captureName = onboardingQuery.get("arcRunCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
-    } else if (getProfileSummary(playerProfile).needsOnboarding) {
-      setHidden($("#loading-screen"), true);
-      setHidden($("#create-player-screen"), false);
-      app.dataset.state = "onboarding";
-      $("#create-player-name")?.focus();
     } else {
-      startAttractMode();
-      showMainMenu();
+      const forceOnboarding = onboardingQuery.get("onboarding") === "1";
+      if (forceOnboarding || getProfileSummary(playerProfile).needsOnboarding) {
+        setHidden($("#loading-screen"), true);
+        hideOverlay("pause-screen");
+        hideOverlay("game-over");
+        setHidden($("#main-menu"), true);
+        setHidden($("#mode-select"), true);
+        setHidden($("#ball-select"), true);
+        setHidden($("#create-player-screen"), false);
+        app.dataset.state = "onboarding";
+        const requestedStep = ONBOARDING_STEPS.includes(onboardingQuery.get("step"))
+          ? onboardingQuery.get("step")
+          : "identity";
+        setOnboardingStep(requestedStep);
+      } else {
+        startAttractMode();
+        showMainMenu();
+      }
     }
     requestAnimationFrame(tick);
   } catch (error) {

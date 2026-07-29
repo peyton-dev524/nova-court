@@ -12,6 +12,7 @@ import {
   PLAYER_HEIGHT_RANGE,
   SKIN_TONES,
 } from "./player-appearance.js?v=1.0";
+import { normalizeBasketballJerseyParameters } from "./basketball-jersey.js?v=1.0";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -191,6 +192,7 @@ export function createDefaultProfile() {
       heightM: PLAYER_HEIGHT_RANGE.defaultM,
       shoeStyleId: "nova-flight",
       shoeColorwayId: "summit-silver",
+      jerseyStyle: normalizeBasketballJerseyParameters(),
       selectedTitle: "ovr-25",
     },
     entitlements: { dev: false, tester: false, owner: false },
@@ -272,6 +274,7 @@ export function normalizeProfile(candidate) {
     shoeColorwayId: normalizeBasketballShoeColorway(
       source.identity?.shoeColorwayId ?? source.shoeColorwayId,
     ),
+    jerseyStyle: normalizeBasketballJerseyParameters(source.identity?.jerseyStyle),
     selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
   };
   if (!identity.displayName) identity.created = false;
@@ -350,6 +353,9 @@ export function updatePlayerIdentity(profile, changes = {}) {
     heightM,
     shoeStyleId: changes.shoeStyleId ?? next.identity.shoeStyleId,
     shoeColorwayId: changes.shoeColorwayId ?? next.identity.shoeColorwayId,
+    jerseyStyle: normalizeBasketballJerseyParameters(
+      changes.jerseyStyle ?? next.identity.jerseyStyle,
+    ),
   };
   return { ok: true, profile: next };
 }
@@ -492,6 +498,7 @@ export function getEnginePlayerConfig(profile) {
     hairStyleId: hairStyle,
     skinToneId: skinTone.id,
     headShape: appearance.headShape,
+    jerseyStyle: normalized.identity.jerseyStyle,
   };
 }
 
@@ -517,6 +524,7 @@ export function getProfileSummary(profile) {
     hairStyle: HAIR_STYLES.find((item) => item.id === normalized.identity.hairStyleId) || HAIR_STYLES[0],
     skinTone: skinToneById(normalized.identity.skinToneId),
     heightM: normalized.identity.heightM,
+    jerseyStyle: normalized.identity.jerseyStyle,
     shoeStyle: BASKETBALL_SHOE_STYLES.find((item) => item.id === normalized.identity.shoeStyleId)
       || BASKETBALL_SHOE_STYLES[0],
     shoeColorway: BASKETBALL_SHOE_COLORWAYS.find((item) => item.id === normalized.identity.shoeColorwayId)
