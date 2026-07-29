@@ -68,6 +68,10 @@ const normalize = (value) => {
 };
 
 const dot = (a, b) => finite(a?.x) * finite(b?.x) + finite(a?.z) * finite(b?.z);
+const gameplayRating = (value, fallback = 0.65) => {
+  const resolved = finite(value, fallback);
+  return clamp(resolved > 1 ? resolved / 100 : resolved);
+};
 
 function normalizedCourt(court = DEFAULT_COURT, ballRadius = 0) {
   const halfWidth = Math.max(
@@ -623,12 +627,37 @@ export function evaluateBoxOut({
   });
 }
 
+export function predictReboundLanding(ball = {}, {
+  seconds = 0.42,
+  gravity = 9.81,
+  floorY = 0.12,
+} = {}) {
+  const time = clamp(finite(seconds, 0.42), 0.05, 1.2);
+  const position = {
+    x: finite(ball.position?.x),
+    y: finite(ball.position?.y, floorY),
+    z: finite(ball.position?.z),
+  };
+  const velocity = {
+    x: finite(ball.velocity?.x),
+    y: finite(ball.velocity?.y),
+    z: finite(ball.velocity?.z),
+  };
+  return Object.freeze({
+    x: position.x + velocity.x * time,
+    y: Math.max(floorY, position.y + velocity.y * time - 0.5 * gravity * time * time),
+    z: position.z + velocity.z * time,
+    seconds: time,
+  });
+}
+
 export function scoreReboundCandidate(candidate, {
   landingPoint = { x: 0, z: -5.2 },
   rim = { x: 0, z: -5.7 },
   offenseTeamId = null,
   boxOuts = {},
   maxPursuitDistance = 5.5,
+  predictedLandingSeconds = 0.42,
 } = {}) {
   const position = pointOf(candidate?.position);
   const velocity = pointOf(candidate?.velocity);
@@ -638,12 +667,26 @@ export function scoreReboundCandidate(candidate, {
   };
   const landingDistance = Math.hypot(toLanding.x, toLanding.z);
   const landingDirection = normalize(toLanding);
-  const velocityToward = clamp((dot(velocity, landingDirection) + 4) / 8);
-  const arrival = 1 - clamp(landingDistance / Math.max(1, finite(maxPursuitDistance, 5.5)));
+  const velocityTowardMps = dot(velocity, landingDirection);
+  const velocityToward = clamp((velocityTowardMps + 4) / 8);
+  const speedToward = Math.max(0.35, velocityTowardMps);
+  const arrivalSeconds = landingDistance / speedToward;
+  const arrivalTiming = 1 - clamp(
+    Math.abs(arrivalSeconds - finite(predictedLandingSeconds, 0.42)) / 1.2,
+  );
+  const arrivalDistance = 1 - clamp(landingDistance / Math.max(1, finite(maxPursuitDistance, 5.5)));
+  const arrival = arrivalDistance * 0.68 + arrivalTiming * 0.32;
   const insidePosition = 1 - clamp(distance(position, rim) / 7);
-  const rebounding = clamp(finite(candidate?.rebounding, candidate?.ratings?.rebounding ?? 0.65));
-  const vertical = clamp(finite(candidate?.vertical, candidate?.ratings?.vertical ?? 0.65));
-  const reach = clamp(finite(candidate?.reach, 0.65));
+  const offensive = candidate?.teamId === offenseTeamId;
+  const ratingKey = offensive ? "offensiveRebound" : "defensiveRebound";
+  const rebounding = gameplayRating(
+    candidate?.[ratingKey],
+    candidate?.ratings?.[ratingKey] ?? candidate?.rebounding ?? candidate?.ratings?.rebounding ?? 0.65,
+  );
+  const vertical = gameplayRating(candidate?.vertical, candidate?.ratings?.vertical ?? 0.65);
+  const height = Math.max(1.55, finite(candidate?.height, 1.9));
+  const reach = gameplayRating(candidate?.reach, clamp((height - 1.5) / 0.72, 0.45, 1));
+  const strength = gameplayRating(candidate?.strength, candidate?.ratings?.strength ?? 0.65);
   const groundedReadiness = candidate?.grounded === false ? 0.45 : 1;
   const explicitBoxOut = boxOuts[candidate?.id] || {};
   const boxOutLeverage = clamp(finite(
@@ -658,13 +701,14 @@ export function scoreReboundCandidate(candidate, {
   const defensivePositionBonus = candidate?.teamId !== offenseTeamId ? 2.4 : 0;
   const score =
     arrival * 34
-    + rebounding * 22
-    + vertical * 9
+    + rebounding * 24
+    + vertical * 8
     + reach * 8
-    + velocityToward * 7
-    + insidePosition * 7
-    + boxOutLeverage * 13
-    - boxedOutPenalty * 20
+    + strength * 6
+    + velocityToward * 6
+    + insidePosition * 8
+    + boxOutLeverage * 16
+    - boxedOutPenalty * 24
     + roleBonus
     + defensivePositionBonus
     + groundedReadiness * 2;
@@ -676,9 +720,14 @@ export function scoreReboundCandidate(candidate, {
     breakdown: Object.freeze({
       landingDistance,
       arrival,
+      arrivalSeconds,
+      arrivalTiming,
       rebounding,
+      ratingKey,
       vertical,
       reach,
+      height,
+      strength,
       velocityToward,
       insidePosition,
       boxOutLeverage,
@@ -694,8 +743,31 @@ export function scoreReboundCandidate(candidate, {
  * id so identical simulation snapshots produce identical winners.
  */
 export function rankReboundCandidates(candidates = [], context = {}) {
+  const computedBoxOuts = {};
+  for (const candidate of candidates) {
+    const opponents = candidates
+      .filter((opponent) => opponent?.teamId !== candidate?.teamId)
+      .sort((a, b) => distance(candidate?.position, a?.position) - distance(candidate?.position, b?.position)
+        || String(a?.id).localeCompare(String(b?.id)));
+    const opponent = opponents[0];
+    if (!opponent) continue;
+    const leverage = evaluateBoxOut({ rebounder: candidate, opponent, rim: context.rim });
+    const reverse = evaluateBoxOut({ rebounder: opponent, opponent: candidate, rim: context.rim });
+    computedBoxOuts[candidate?.id] = {
+      leverage: leverage.active ? leverage.leverage : 0,
+      boxedOutByLeverage: reverse.active ? reverse.leverage : 0,
+      opponentId: opponent?.id ?? null,
+    };
+  }
+  const boxOuts = Object.fromEntries(candidates.map((candidate) => [
+    candidate?.id,
+    {
+      ...computedBoxOuts[candidate?.id],
+      ...context.boxOuts?.[candidate?.id],
+    },
+  ]));
   const ranked = candidates
-    .map((candidate) => scoreReboundCandidate(candidate, context))
+    .map((candidate) => scoreReboundCandidate(candidate, { ...context, boxOuts }))
     .filter((entry) => entry.eligible)
     .sort((a, b) => b.score - a.score || String(a.playerId).localeCompare(String(b.playerId)));
   if (!ranked.length) return Object.freeze([]);

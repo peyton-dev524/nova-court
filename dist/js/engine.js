@@ -6,7 +6,7 @@ import {
   sampleReplayPoseEmphasis,
 } from "./park-visuals.js?v=1.0";
 import {
-  estimateStealFoulRisk,
+  predictReboundLanding,
   rankReboundCandidates,
   resolveOutOfBounds,
 } from "./contact-rules.js?v=1.0";
@@ -36,6 +36,7 @@ import {
 import {
   calculateShotCoverage,
   calculateShotMakePercentage,
+  normalizeGameplayRating,
   resolveShotMeterWindow,
   resolveShotAttempt,
   RIM_RESULTS,
@@ -363,6 +364,8 @@ export class ProceduralPlayer {
       height: this.height,
       shooting: options.shooting ?? options.metadata?.shooting,
       rebounding: options.rebounding ?? options.metadata?.rebounding,
+      offensiveRebound: options.offensiveRebound ?? options.metadata?.offensiveRebound,
+      defensiveRebound: options.defensiveRebound ?? options.metadata?.defensiveRebound,
       vertical: options.vertical ?? options.metadata?.vertical,
       finishing: options.finishing ?? options.metadata?.finishing,
       strength: options.strength ?? options.metadata?.strength,
@@ -2846,7 +2849,7 @@ export class NovaCourtEngine {
     });
   }
 
-  _getShotPercentage(player, quality, perfectRelease, releasePosition = null) {
+  _getShotPercentage(player, quality, perfectRelease, releasePosition = null, shotContext = null) {
     const basket = this._basketForTeam(player.team);
     const position = releasePosition || player.root.position;
     const coverageResult = this._getShotCoverage(player, position);
@@ -2861,15 +2864,23 @@ export class NovaCourtEngine {
         shooterPosition: position,
         rimPosition: { x: basket.x, y: basket.y, z: basket.z },
         ratings: {
+          ...ratings,
           shooting,
           finishing: ratings.finishing ?? player.metadata?.finishing ?? shooting,
+          closeShot: ratings.closeShot ?? player.metadata?.closeShot,
+          drivingLayup: ratings.drivingLayup ?? player.metadata?.drivingLayup,
+          drivingDunk: ratings.drivingDunk ?? player.metadata?.drivingDunk,
           midRange: ratings.midRange ?? ratings.mid ?? shooting,
           threePoint: ratings.threePoint ?? ratings.three ?? shooting,
+          freeThrow: ratings.freeThrow ?? player.metadata?.freeThrow,
         },
         stamina: player.stamina,
         difficulty: this.difficulty,
         isAI: player.isAI,
         userControlled: player.controlled === true,
+        shotContext: shotContext || this.shotContext || "jumper",
+        movementSpeed: Math.hypot(player.velocity.x, player.velocity.z),
+        threePointDistance: this.courtRuntime.threePointRadius,
       }),
     };
   }
@@ -2929,7 +2940,7 @@ export class NovaCourtEngine {
     this.aimRing.scale.setScalar(0.82 + this.shotCharge * 0.48);
     const previewPosition = player ? player.worldHandPosition(new this.T.Vector3(), player.shootingHand) : null;
     const preview = player
-      ? this._getShotPercentage(player, quality, perfectRelease, previewPosition)
+      ? this._getShotPercentage(player, quality, perfectRelease, previewPosition, this.shotContext)
       : null;
     this.events.emit("shotmeter", {
       context: this.shotContext,
@@ -3010,7 +3021,7 @@ export class NovaCourtEngine {
       ? player.dunkSelection.finishHand
       : player.shootingHand;
     const start = player.worldHandPosition(new this.T.Vector3(), releaseHand);
-    const shotModel = this._getShotPercentage(player, quality, perfectRelease, start);
+    const shotModel = this._getShotPercentage(player, quality, perfectRelease, start, context);
     const layupPlan = context === "layup"
       ? planLayupBank({
         shooterPosition: player.root.position,
@@ -3024,7 +3035,7 @@ export class NovaCourtEngine {
     const freeThrowResult = context === "free_throw"
       ? this.freeThrowFlow.release({
         charge: this.shotCharge,
-        rating: ratings.freeThrow ?? ratings.shooting ?? 0.7,
+        rating: normalizeGameplayRating(ratings.freeThrow, ratings.shooting ?? 0.7),
         outcomeValue: Math.random(),
         halfWidth: perfectHalfWidth,
       })
@@ -3039,7 +3050,7 @@ export class NovaCourtEngine {
         coverageLabel: "wide_open",
         rangeLabel: "free_throw",
         hud: {
-          makePercent: perfectRelease ? "100%" : `${Math.round(clamp(0.18 + (ratings.freeThrow ?? ratings.shooting ?? 0.7) * 0.5 + quality * 0.25, 0.18, 0.88) * 100)}%`,
+          makePercent: perfectRelease ? "100%" : `${Math.round(clamp(0.18 + normalizeGameplayRating(ratings.freeThrow, ratings.shooting ?? 0.7) * 0.5 + quality * 0.25, 0.18, 0.88) * 100)}%`,
           coverageLabel: "FREE THROW",
           coveragePercent: "0% COVERED",
           releaseLabel: perfectRelease ? "PERFECT" : "TIMED",
@@ -3050,7 +3061,7 @@ export class NovaCourtEngine {
     if (freeThrowPercentage) {
       freeThrowPercentage.makePercent = Math.round(freeThrowPercentage.makeProbability * 100);
     }
-    const forcedFinishPercentage = (context === "layup" || (context === "dunk" && perfectRelease))
+    const forcedFinishPercentage = context === "dunk" && perfectRelease
       ? {
         ...shotModel.percentage,
         makeProbability: 1,
@@ -3060,11 +3071,9 @@ export class NovaCourtEngine {
       : null;
     const shotResult = resolveShotAttempt({
       percentageResult: freeThrowPercentage || forcedFinishPercentage || shotModel.percentage,
-      outcomeValue: context === "layup" || context === "dunk"
-        ? 0
-        : freeThrowResult
-          ? (freeThrowResult.made ? 0 : 1)
-          : Math.random(),
+      outcomeValue: freeThrowResult
+        ? (freeThrowResult.made ? 0 : 1)
+        : Math.random(),
       rimValue: context === "layup" ? 0.05 : Math.random(),
       bankIntent: context === "layup" ? 1 : 0,
       bankAngleQuality: context === "layup" ? 1 : 0.7,
@@ -3293,8 +3302,12 @@ export class NovaCourtEngine {
         teamId: owner.team,
         position: owner.root.position,
         velocity: owner.velocity,
-        handleRating: owner.metadata?.handle ?? owner.metadata?.ballHandling ?? 0.76,
+        handleRating: owner.metadata?.ratings?.ballHandle
+          ?? owner.metadata?.handle
+          ?? owner.metadata?.ballHandling
+          ?? 0.76,
         ballSecurity: owner.metadata?.ballSecurity ?? 0.74,
+        strength: owner.metadata?.strength ?? owner.metadata?.ratings?.strength ?? 0.65,
         stamina: owner.stamina,
       },
       defender: {
@@ -3303,6 +3316,13 @@ export class NovaCourtEngine {
         position: defender.root.position,
         velocity: defender.velocity,
         stealRating: defender.metadata?.steal ?? this._difficultyValue(0.56, 0.72, 0.86),
+        perimeterDefense: defender.metadata?.perimeterDefense
+          ?? defender.metadata?.ratings?.perimeterDefense
+          ?? this._difficultyValue(0.56, 0.7, 0.84),
+        reaction: defender.metadata?.reaction
+          ?? defender.metadata?.ratings?.reaction
+          ?? defender.metadata?.ratings?.acceleration
+          ?? this._difficultyValue(0.58, 0.72, 0.86),
         balance: defender.metadata?.balance ?? 0.7,
         discipline: defender.metadata?.discipline ?? this._difficultyValue(0.62, 0.72, 0.84),
         reach: clamp(defender.height / 2.08, 0.58, 1),
@@ -3776,38 +3796,60 @@ export class NovaCourtEngine {
   _tryPickupOrRebound() {
     const b = this.ball;
     if (b.pickupCooldown > 0 || b.state === "dead") return;
+    const wasShot = ["shot", "blocked"].includes(b.state);
     const highBall = b.position.y > 1.45;
     const reach = highBall ? 0.66 : 0.78;
+    const landing = wasShot
+      ? predictReboundLanding({
+        position: b.position,
+        velocity: b.velocity,
+      }, { seconds: highBall ? 0.48 : 0.28 })
+      : { x: b.position.x, z: b.position.z, seconds: 0.12 };
     const eligible = [];
     for (const player of this.players) {
       const chestY = player.root.position.y + (b.position.y > 1.1 ? 1.35 : 0.35);
-      const distance = Math.hypot(
+      const catchDistance = Math.hypot(
         player.root.position.x - b.position.x,
         chestY - b.position.y,
         player.root.position.z - b.position.z,
       );
-      if (distance < reach && player.actionLock < 0.36) {
+      const pursuitDistance = Math.hypot(
+        player.root.position.x - landing.x,
+        player.root.position.z - landing.z,
+      );
+      const canPursue = wasShot
+        ? pursuitDistance < 2.45 && catchDistance < (highBall ? 1.3 : 1.05)
+        : catchDistance < reach;
+      if (canPursue && player.actionLock < 0.36) {
         eligible.push({
           id: player.id,
           teamId: player.team,
           position: { x: player.root.position.x, z: player.root.position.z },
           velocity: { x: player.velocity.x, z: player.velocity.z },
+          facing: { x: player.facing.x, z: player.facing.z },
           grounded: player.grounded,
           role: player.metadata?.role,
           rebounding: player.metadata?.rebounding ?? (player.metadata?.role === "big" ? 0.88 : 0.68),
+          offensiveRebound: player.metadata?.offensiveRebound
+            ?? player.metadata?.ratings?.offensiveRebound,
+          defensiveRebound: player.metadata?.defensiveRebound
+            ?? player.metadata?.ratings?.defensiveRebound,
           vertical: player.metadata?.vertical ?? (player.height > 2 ? 0.82 : 0.7),
           reach: clamp(player.height / 2.15, 0.55, 1),
+          height: player.height,
+          strength: player.metadata?.strength ?? player.metadata?.ratings?.strength ?? 0.65,
+          ratings: player.metadata?.ratings,
         });
       }
     }
     if (!eligible.length) return;
-    const wasShot = ["shot", "blocked"].includes(b.state);
     const wasFreeThrow = b.freeThrow;
     const ranking = rankReboundCandidates(eligible, {
-      landingPoint: { x: b.position.x, z: b.position.z },
+      landingPoint: { x: landing.x, z: landing.z },
       rim: { x: this._activeBasket().x, z: this._activeBasket().z },
       offenseTeamId: b.shotBy?.team || this.possessionTeam,
-      maxPursuitDistance: 1.4,
+      maxPursuitDistance: wasShot ? 2.45 : 1.4,
+      predictedLandingSeconds: landing.seconds,
     });
     const winner = ranking[0];
     const best = this.players.find((player) => player.id === winner?.playerId) || this.players.find((player) => player.id === eligible[0].id);
@@ -3830,6 +3872,7 @@ export class NovaCourtEngine {
         player: best, team: best.team,
         offensive: best.team === b.shotBy?.team,
         reboundScore: winner?.score || 0,
+        reboundBreakdown: winner?.breakdown || null,
         contested: eligible.length > 1,
       });
       best.setState(PLAYER_STATES.DRIBBLE, true);

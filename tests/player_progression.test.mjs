@@ -37,7 +37,7 @@ test("five independent position builds and six original palettes are available",
   assert.deepEqual(Object.keys(profile.builds), ["PG", "SG", "SF", "PF", "C"]);
   assert.equal(COSMETIC_PALETTES.length, 6);
   assert.equal(profile.cosmetics.equipped, "novaPulse");
-  assert.equal(Object.values(ATTRIBUTE_GROUPS).flat().length, 19);
+  assert.equal(Object.values(ATTRIBUTE_GROUPS).flat().length, 20);
 });
 
 test("overall is weighted by position and cannot exceed 99", () => {
