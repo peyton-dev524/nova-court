@@ -43,7 +43,8 @@
           <label>Jersey number<input id="create-player-number" name="jerseyNumber" type="number" min="0" max="99" value="1" required></label>
           <label>Hair<select id="create-player-hair" name="hair"><option value="crop">Close Crop</option><option value="fade">Fade</option><option value="highTop">High Top</option><option value="braids">Twin Braids</option><option value="waves">Waves</option><option value="afro">Rounded Afro</option><option value="locs">Short Locs</option><option value="bun">Court Bun</option></select></label>
           <label>Skin tone<select id="create-player-skin" name="skinTone"><option value="deep-espresso">Deep Espresso</option><option value="rich-umber">Rich Umber</option><option value="deep-brown">Deep Brown</option><option value="warm-brown" selected>Warm Brown</option><option value="golden-brown">Golden Brown</option><option value="warm-tan">Warm Tan</option><option value="light-beige">Light Beige</option><option value="fair-rose">Fair Rose</option></select></label>
-          <label>Shoes<select id="create-player-shoe-style" name="shoeStyle"><option value="nova-flight">NOVA Flight</option><option value="court-classic">NOVA Court Classic</option><option value="precision-7">Precision 7 Study</option></select></label>
+          <label>Shoes<select id="create-player-shoe-style" name="shoeStyle"><option value="nova-flight">NOVA Flight</option><option value="court-classic">NOVA Court Classic</option><option value="precision-7">Precision 7 Study</option><option value="cut-academy">NOVA Cut Academy</option></select></label>
+          <label>Shoe colors<select id="create-player-shoe-colorway" name="shoeColorway"><option value="summit-silver">Summit Silver</option><option value="photon-navy">Photon Navy</option><option value="black-volt">Black Volt</option><option value="glacier-silver">Glacier Silver</option><option value="ember-ice">Ember Ice</option></select></label>
         </div>
         <label class="height-control">Height <output id="create-player-height-output" for="create-player-height">6'1" / 1.86 m</output><input id="create-player-height" name="height" type="range" min="1.68" max="2.18" step="0.01" value="1.86" aria-describedby="create-player-height-note"><small id="create-player-height-note">Changes your player only; CPU roster heights stay authored by each mode.</small></label>
         <p id="create-player-error" class="form-error" role="alert"></p>
@@ -118,7 +119,8 @@
             <h4 class="locker-subhead">SKIN TONE</h4><div id="skin-tone-grid" class="appearance-grid skin-tone-grid"></div>
             <h4 class="locker-subhead">HEIGHT</h4><label class="height-control"><span>PLAYER STATURE</span><output id="player-height-output" for="player-height">6'1" / 1.86 m</output><input id="player-height" type="range" min="1.68" max="2.18" step="0.01" value="1.86"><small>5'6" to 7'2" · applies to your controlled player, reach, and camera metadata.</small></label>
             <h4 class="locker-subhead">SHOES</h4><div id="shoe-style-grid" class="appearance-grid shoe-style-grid"></div>
-            <h4 class="locker-subhead">COLORWAY</h4><div id="cosmetic-grid" class="cosmetic-grid"></div>
+            <h4 class="locker-subhead">SHOE COLORS</h4><div id="shoe-colorway-grid" class="appearance-grid skin-tone-grid"></div>
+            <h4 class="locker-subhead">JERSEY COLORWAY</h4><div id="cosmetic-grid" class="cosmetic-grid"></div>
             <h4 class="locker-subhead">TITLES</h4><div id="title-grid" class="title-grid"></div>
             <p class="title-note">Overall titles unlock every five OVR. LEGEND unlocks at 99. DEV, TESTER, and OWNER require explicit entitlements.</p>
           </aside>

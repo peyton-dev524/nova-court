@@ -1,5 +1,7 @@
 import {
+  BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLES,
+  normalizeBasketballShoeColorway,
   normalizeBasketballShoeStyle,
 } from "./basketball-shoes.js?v=1.3";
 import {
@@ -14,7 +16,7 @@ import {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 
-export const PROFILE_SCHEMA_VERSION = 5;
+export const PROFILE_SCHEMA_VERSION = 6;
 export const PROFILE_STORAGE_KEY = "nova-court-my-player-v2";
 export const WIN_CREDIT_BONUS = 10;
 export const ATTRIBUTE_GROUPS = Object.freeze({
@@ -188,6 +190,7 @@ export function createDefaultProfile() {
       skinToneId: "warm-brown",
       heightM: PLAYER_HEIGHT_RANGE.defaultM,
       shoeStyleId: "nova-flight",
+      shoeColorwayId: "summit-silver",
       selectedTitle: "ovr-25",
     },
     entitlements: { dev: false, tester: false, owner: false },
@@ -266,6 +269,9 @@ export function normalizeProfile(candidate) {
     skinToneId: normalizeSkinTone(source.identity?.skinToneId, legacyAppearance.skinToneId),
     heightM: normalizePlayerHeight(source.identity?.heightM, POSITION_PRESETS[selectedPosition].height),
     shoeStyleId: normalizeBasketballShoeStyle(source.identity?.shoeStyleId ?? source.shoeStyleId),
+    shoeColorwayId: normalizeBasketballShoeColorway(
+      source.identity?.shoeColorwayId ?? source.shoeColorwayId,
+    ),
     selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
   };
   if (!identity.displayName) identity.created = false;
@@ -315,6 +321,10 @@ export function updatePlayerIdentity(profile, changes = {}) {
       && normalizeBasketballShoeStyle(changes.shoeStyleId) !== changes.shoeStyleId) {
     return { ok: false, reason: "invalid-shoe-style", profile: next };
   }
+  if (changes.shoeColorwayId !== undefined
+      && normalizeBasketballShoeColorway(changes.shoeColorwayId) !== changes.shoeColorwayId) {
+    return { ok: false, reason: "invalid-shoe-colorway", profile: next };
+  }
   if (changes.hairStyleId !== undefined
       && normalizeHairStyle(changes.hairStyleId, "") !== changes.hairStyleId) {
     return { ok: false, reason: "invalid-hair-style", profile: next };
@@ -339,6 +349,7 @@ export function updatePlayerIdentity(profile, changes = {}) {
     skinToneId: changes.skinToneId ?? selectedAppearance?.skinToneId ?? next.identity.skinToneId,
     heightM,
     shoeStyleId: changes.shoeStyleId ?? next.identity.shoeStyleId,
+    shoeColorwayId: changes.shoeColorwayId ?? next.identity.shoeColorwayId,
   };
   return { ok: true, profile: next };
 }
@@ -476,6 +487,7 @@ export function getEnginePlayerConfig(profile) {
     jerseyNumber: normalized.identity.jerseyNumber,
     appearanceId: appearance.id,
     shoeStyleId: normalized.identity.shoeStyleId,
+    shoeColorwayId: normalized.identity.shoeColorwayId,
     hairStyle,
     hairStyleId: hairStyle,
     skinToneId: skinTone.id,
@@ -507,6 +519,8 @@ export function getProfileSummary(profile) {
     heightM: normalized.identity.heightM,
     shoeStyle: BASKETBALL_SHOE_STYLES.find((item) => item.id === normalized.identity.shoeStyleId)
       || BASKETBALL_SHOE_STYLES[0],
+    shoeColorway: BASKETBALL_SHOE_COLORWAYS.find((item) => item.id === normalized.identity.shoeColorwayId)
+      || BASKETBALL_SHOE_COLORWAYS[0],
     title,
     availableTitles: getAvailableTitles(normalized),
     needsOnboarding: !normalized.identity.created,

@@ -10,24 +10,29 @@ import {
 
 const root = new URL("../", import.meta.url);
 
-test("Precision 7 style persists through profile normalization and engine config", () => {
+test("shoe style and independent colorway persist through normalization and engine config", () => {
   const initial = normalizeProfile({
     version: 4,
     identity: {
       created: true,
       displayName: "Shoe Tester",
-      shoeStyleId: "precision-7",
+      shoeStyleId: "cut-academy",
+      shoeColorwayId: "glacier-silver",
     },
   });
-  assert.equal(initial.identity.shoeStyleId, "precision-7");
-  assert.equal(getEnginePlayerConfig(initial).shoeStyleId, "precision-7");
+  assert.equal(initial.identity.shoeStyleId, "cut-academy");
+  assert.equal(initial.identity.shoeColorwayId, "glacier-silver");
+  assert.equal(getEnginePlayerConfig(initial).shoeStyleId, "cut-academy");
+  assert.equal(getEnginePlayerConfig(initial).shoeColorwayId, "glacier-silver");
 
   const changed = updatePlayerIdentity(initial, {
     displayName: "Shoe Tester",
-    shoeStyleId: "precision-7",
+    shoeStyleId: "nova-flight",
+    shoeColorwayId: "ember-ice",
   });
   assert.equal(changed.ok, true);
-  assert.equal(changed.profile.identity.shoeStyleId, "precision-7");
+  assert.equal(changed.profile.identity.shoeStyleId, "nova-flight");
+  assert.equal(changed.profile.identity.shoeColorwayId, "ember-ice");
 });
 
 test("dedicated Shoe Lab exposes deterministic cameras, colorways, metrics, and named capture", async () => {
@@ -66,5 +71,8 @@ test("dedicated Shoe Lab exposes deterministic cameras, colorways, metrics, and 
   assert.match(css, /\.shoe-lab-view-buttons/);
   assert.match(build, /"shoe-lab\.html"/);
   assert.match(playerLab, /value="precision-7"/);
+  assert.match(playerLab, /value="cut-academy"/);
   assert.match(index, /value="precision-7"/);
+  assert.match(index, /value="cut-academy"/);
+  assert.match(index, /id="shoe-colorway-grid"/);
 });

@@ -4,18 +4,26 @@ import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 
 import {
+  BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLE_IDS,
   COURT_CLASSIC_DIMENSIONS,
+  CUT_ACADEMY_DIMENSIONS,
   PRECISION_7_COLORWAYS,
   PRECISION_7_DIMENSIONS,
+  basketballShoeRegistrySnapshot,
   basketballShoeLowerLegFit,
   courtClassicEllipsePoint,
   courtClassicRockerHeight,
   courtClassicToeCapRise,
+  createCutAcademyShoe,
   createBasketballShoe,
   createNovaCourtClassicShoe,
   createNovaFlightShoe,
   createPrecision7Shoe,
+  cutAcademyEllipsePoint,
+  cutAcademyHalfWidth,
+  cutAcademyRockerHeight,
+  normalizeBasketballShoeColorway,
   normalizeBasketballShoeStyle,
   normalizePrecision7Colorway,
   precision7EllipsePoint,
@@ -45,11 +53,12 @@ function dimensionsOf(T, object) {
   return { width: size.x, height: size.y, length: size.z };
 }
 
-test("shoe styles normalize to three canonical IDs with a compatible Flight fallback", () => {
-  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic", "precision-7"]);
+test("shoe styles normalize to four canonical IDs with a compatible Flight fallback", () => {
+  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic", "precision-7", "cut-academy"]);
   assert.equal(normalizeBasketballShoeStyle("court-classic"), "court-classic");
   assert.equal(normalizeBasketballShoeStyle("precision-7"), "precision-7");
   assert.equal(normalizeBasketballShoeStyle("nova-flight"), "nova-flight");
+  assert.equal(normalizeBasketballShoeStyle("cut-academy"), "cut-academy");
   assert.equal(normalizeBasketballShoeStyle("unknown"), "nova-flight");
   assert.equal(normalizeBasketballShoeStyle(undefined), "nova-flight");
 });
@@ -59,6 +68,8 @@ test("Precision 7 colorways and trigonometric profiles stay deterministic and co
     "summit-silver",
     "photon-navy",
     "black-volt",
+    "glacier-silver",
+    "ember-ice",
   ]);
   assert.equal(normalizePrecision7Colorway("black-volt"), "black-volt");
   assert.equal(normalizePrecision7Colorway("missing"), "summit-silver");
@@ -84,6 +95,76 @@ test("Precision 7 colorways and trigonometric profiles stay deterministic and co
   for (let index = 1; index < widthSamples.length; index += 1) {
     assert.ok(Math.abs(widthSamples[index] - widthSamples[index - 1]) < 0.004);
   }
+});
+
+test("Cut Academy study uses continuous trigonometric profiles and measured adult-shoe bounds", async () => {
+  const point = cutAcademyEllipsePoint(0.0545, 0.018, Math.PI * 0.19);
+  const opposite = cutAcademyEllipsePoint(0.0545, 0.018, Math.PI * 1.19);
+  assert.ok(Math.abs(point.x + opposite.x) < 1e-12);
+  assert.ok(Math.abs(point.y + opposite.y) < 1e-12);
+
+  const rocker = Array.from({ length: 65 }, (_, index) => cutAcademyRockerHeight(-1 + index / 32));
+  const width = Array.from({ length: 81 }, (_, index) => cutAcademyHalfWidth(-1 + index / 40));
+  for (let index = 1; index < rocker.length; index += 1) {
+    assert.ok(Math.abs(rocker[index] - rocker[index - 1]) < 0.002);
+  }
+  for (let index = 1; index < width.length; index += 1) {
+    assert.ok(Math.abs(width[index] - width[index - 1]) < 0.004);
+  }
+  assert.ok(cutAcademyRockerHeight(1) > cutAcademyRockerHeight(0));
+  assert.ok(Math.max(...width) <= CUT_ACADEMY_DIMENSIONS.widthMeters * 0.5 + 1e-12);
+
+  const T = await loadThree();
+  const right = createCutAcademyShoe(T, { side: 1, detail: "high", colorwayId: "glacier-silver" });
+  const left = createCutAcademyShoe(T, { side: -1, detail: "high", colorwayId: "ember-ice" });
+  const dimensions = dimensionsOf(T, right.root);
+  const target = CUT_ACADEMY_DIMENSIONS;
+  assert.ok(Math.abs(dimensions.length - target.lengthMeters) <= target.toleranceMeters.length);
+  assert.ok(Math.abs(dimensions.width - target.widthMeters) <= target.toleranceMeters.width);
+  assert.ok(Math.abs(dimensions.height - target.heightMeters) <= target.toleranceMeters.height);
+  assert.deepEqual(dimensionsOf(T, left.root), dimensions);
+  assert.equal(target.sourcedFootLengthMeters, 0.271);
+  assert.equal(right.root.userData.sculptRuntime.sourceEvidence.officialViews, 6);
+  assert.equal(right.root.userData.sculptRuntime.sourceEvidence.referenceOnly, true);
+  assert.match(right.root.userData.sculptRuntime.profileMath.section, /sin/);
+  assert.match(right.root.userData.sculptRuntime.profileMath.rocker, /cos/);
+  assert.ok(right.metrics.triangles <= 18_000);
+  assert.ok(right.metrics.drawCalls <= 26);
+  assert.ok(right.metrics.materials <= 10);
+  assert.equal(right.metrics.textures, 0);
+});
+
+test("every shoe supports color-only schemes without topology or registry growth", async () => {
+  const T = await loadThree();
+  assert.deepEqual(BASKETBALL_SHOE_COLORWAYS.map(({ id }) => id), [
+    "summit-silver",
+    "photon-navy",
+    "black-volt",
+    "glacier-silver",
+    "ember-ice",
+  ]);
+  assert.equal(normalizeBasketballShoeColorway("ember-ice"), "ember-ice");
+  assert.equal(normalizeBasketballShoeColorway("missing"), "summit-silver");
+  const before = basketballShoeRegistrySnapshot();
+  for (const styleId of BASKETBALL_SHOE_STYLE_IDS) {
+    const a = createBasketballShoe(T, { styleId, colorwayId: "glacier-silver", detail: "high" });
+    const b = createBasketballShoe(T, { styleId, colorwayId: "black-volt", detail: "high" });
+    assert.deepEqual(dimensionsOf(T, a.root), dimensionsOf(T, b.root), `${styleId} color changed bounds`);
+    assert.equal(a.metrics.triangles, b.metrics.triangles, `${styleId} color changed triangles`);
+    assert.equal(a.metrics.drawCalls, b.metrics.drawCalls, `${styleId} color changed draws`);
+    const colorsA = [];
+    const colorsB = [];
+    a.root.traverse((object) => object.material?.color && colorsA.push(object.material.color.getHex()));
+    b.root.traverse((object) => object.material?.color && colorsB.push(object.material.color.getHex()));
+    assert.notDeepEqual(colorsA, colorsB, `${styleId} color scheme should change material colors`);
+    for (const model of [a, b]) {
+      model.root.traverse((object) => {
+        object.geometry?.dispose?.();
+        object.material?.dispose?.();
+      });
+    }
+  }
+  assert.deepEqual(basketballShoeRegistrySnapshot(), before);
 });
 
 test("Precision 7 meets measured bounds, mirrored mounting, named-part, and render budgets", async () => {
