@@ -1065,6 +1065,9 @@ export class NovaCourtEngine {
     if (!T) throw new Error("NovaCourtEngine requires THREE on globalThis before engine.js is loaded.");
     this.T = T;
     this.options = options;
+    // Gameplay randomness is injectable so input-to-outcome mechanics can be
+    // reproduced exactly in tests without changing the default runtime behavior.
+    this.random = typeof options.random === "function" ? options.random : Math.random;
     this.container = options.container || document.body;
     this.events = new EventHub(options.onEvent);
     this.controls = options.controls || new CourtControls(options.controlOptions);
@@ -2168,8 +2171,7 @@ export class NovaCourtEngine {
     if (this.chargingShot && this.controls.isDown(chargeAction)) this.holdShot(dt);
     if (this.chargingShot && this.controls.wasReleased(chargeAction)) this.releaseShot(player);
     if (this.controls.wasPressed("pass") && player.hasBall) this.pass(player);
-    if (this.controls.wasPressed("steal")
-        && contextualI.action === CONTEXTUAL_I_ACTIONS.STEAL) this.attemptSteal(player);
+    this._handleControlledStealInput(player, contextualI);
     if (this.controls.wasPressed("defend") && !player.hasBall) this.attemptBlock(player);
     if (this.controls.wasPressed("camera")) this.cycleCamera();
     if (this.controls.wasPressed("restart")) this.events.emit("restartrequest", { mode: this.mode });
@@ -2208,6 +2210,13 @@ export class NovaCourtEngine {
     if (this.difficulty === "rookie") return rookie;
     if (this.difficulty === "legend") return legend;
     return pro;
+  }
+
+  _handleControlledStealInput(player, contextualAction) {
+    if (!this.controls.wasPressed("steal")
+        || contextualAction?.action !== CONTEXTUAL_I_ACTIONS.STEAL) return false;
+    this.attemptSteal(player, { source: "user" });
+    return true;
   }
 
   _integratePlayer(player, dt) {
@@ -3031,7 +3040,7 @@ export class NovaCourtEngine {
     return true;
   }
 
-  attemptSteal(defender) {
+  attemptSteal(defender, { source = defender?.controlled ? "user" : "cpu" } = {}) {
     if (!defender || defender.stealCooldown > 0) return false;
     defender.stealCooldown = 0.62;
     defender.actionLock = 0.28;
@@ -3047,6 +3056,8 @@ export class NovaCourtEngine {
       .setY(0)
       .normalize();
     const alignment = defender.facing.dot(facing);
+    const userTimedReach = source === "user";
+    const proximity = clamp((1.65 - distance) / 1.05, 0, 1);
     const moveActive = !!owner.dribbleMove && owner.dribbleMoveTime > 0;
     const ballExposure = moveActive
       ? clamp(0.2 + Math.abs(owner.dribbleMoveProgress - 0.5) * 0.42, 0.2, 0.48)
@@ -3076,7 +3087,14 @@ export class NovaCourtEngine {
       ball: { position: this.ball.position },
       distance,
       alignment,
-      reachTiming: clamp(0.55 + alignment * 0.18, 0.18, 0.92),
+      // A button press is an intentional timing read. Give it a modest timing
+      // edge when the user is in legal reach without ever guaranteeing a poke.
+      // CPU reaches retain their existing tuning.
+      reachTiming: clamp(
+        0.55 + alignment * 0.18 + (userTimedReach ? 0.08 + proximity * 0.06 : 0),
+        0.18,
+        0.92,
+      ),
       ballExposure,
       handContact: clamp((1.5 - distance) / 0.8, 0, 1) * 0.36,
       bodyContact: distance < 0.62 ? 0.72 : 0.04,
@@ -3087,9 +3105,9 @@ export class NovaCourtEngine {
       dribbleProgress: owner.dribbleMoveProgress,
       moveExecution: owner.metadata?.handle ?? 0.78,
       defenderWrongFoot: moveActive && alignment < 0.12,
-      foulCheckValue: Math.random(),
-      ankleCheckValue: Math.random(),
-      pokeCheckValue: Math.random(),
+      foulCheckValue: this.random(),
+      ankleCheckValue: this.random(),
+      pokeCheckValue: this.random(),
       pokeSide: defender.root.position.x <= owner.root.position.x ? 1 : -1,
     });
 
@@ -3134,7 +3152,10 @@ export class NovaCourtEngine {
       this.ball.pickupCooldown = loose.pickupDelay;
       this.ball.lastTouchedTeamId = loose.lastTouchTeamId;
       this.ball.lastTouchedPlayerId = loose.lastTouchPlayerId;
-      owner.actionLock = Math.max(owner.actionLock, 0.18);
+      // The handler must visibly lose control before becoming pickup-eligible.
+      // The defender still has to chase the loose ball; possession is never
+      // assigned by the steal itself.
+      owner.actionLock = Math.max(owner.actionLock, 0.62);
       this.cameraShake = Math.max(this.cameraShake, 0.16);
       this.controls.rumble(0.48, 95);
       this._burst(stealPosition, 11, 0xffdc65, 0.9);
@@ -3149,6 +3170,7 @@ export class NovaCourtEngine {
     this.events.emit("steal", {
       defender,
       victim: owner,
+      source,
       success,
       chance: duel.pokeProbability ?? 0,
       distance,
