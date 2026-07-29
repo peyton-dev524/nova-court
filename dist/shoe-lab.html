@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071018">
+  <title>NOVA COURT · Shoe Lab</title>
+  <link rel="stylesheet" href="./js/shoe-lab.css?v=1.0">
+</head>
+<body>
+  <main id="shoe-lab">
+    <div id="shoe-lab-stage" aria-label="Isolated procedural basketball shoe preview"></div>
+    <header class="shoe-lab-brand">
+      <span>NOVA COURT · DEV TOOLS</span>
+      <h1>SHOE LAB</h1>
+      <p>Dimension-aware procedural footwear · deterministic review cameras</p>
+    </header>
+    <aside class="shoe-lab-controls" aria-label="Shoe Lab controls">
+      <label>Shoe
+        <select id="shoe-lab-style"></select>
+      </label>
+      <label>Colorway
+        <select id="shoe-lab-colorway"></select>
+      </label>
+      <label>Named view
+        <select id="shoe-lab-view">
+          <option value="front">Front</option>
+          <option value="three-quarter">Three-quarter</option>
+          <option value="profile">Profile</option>
+          <option value="top">Top</option>
+          <option value="outsole">Outsole</option>
+        </select>
+      </label>
+      <div class="shoe-lab-toggles">
+        <label><input id="shoe-lab-turntable" type="checkbox"> Turntable</label>
+        <label><input id="shoe-lab-wireframe" type="checkbox"> Wireframe</label>
+        <label><input id="shoe-lab-guides" type="checkbox" checked> Scale guides</label>
+      </div>
+      <div class="shoe-lab-view-buttons" role="group" aria-label="Named review cameras">
+        <button type="button" data-view="front">FRONT</button>
+        <button type="button" data-view="three-quarter">3/4</button>
+        <button type="button" data-view="profile">PROFILE</button>
+        <button type="button" data-view="top">TOP</button>
+        <button type="button" data-view="outsole">OUTSOLE</button>
+      </div>
+      <button id="shoe-lab-reset" type="button">RESET VIEW</button>
+      <button id="shoe-lab-capture" class="shoe-lab-capture" type="button">SAVE NAMED PNG</button>
+    </aside>
+    <section class="shoe-lab-evidence" aria-label="Shoe evidence and metrics">
+      <strong id="shoe-lab-name">PRECISION 7 STUDY</strong>
+      <span id="shoe-lab-approximation">Stylized procedural approximation</span>
+      <dl>
+        <div><dt>VIEW</dt><dd id="shoe-lab-view-name">FRONT</dd></div>
+        <div><dt>DIMENSIONS</dt><dd id="shoe-lab-dimensions">—</dd></div>
+        <div><dt>TRIANGLES</dt><dd id="shoe-lab-triangles">0</dd></div>
+        <div><dt>DRAWS</dt><dd id="shoe-lab-draws">0</dd></div>
+        <div><dt>FPS</dt><dd id="shoe-lab-fps">0</dd></div>
+        <div><dt>TEXTURES</dt><dd id="shoe-lab-textures">0</dd></div>
+      </dl>
+      <code id="shoe-lab-capture-name">precision-7-summit-silver-front.png</code>
+    </section>
+  </main>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/shoe-lab.js?v=1.0"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #071018;
+  color: #eefcff;
+}
+* { box-sizing: border-box; }
+html, body, #shoe-lab { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+#shoe-lab { position: relative; background: radial-gradient(circle at 50% 45%, #163142 0, #071018 58%, #03070b 100%); }
+#shoe-lab-stage { position: absolute; inset: 0; }
+#shoe-lab-stage canvas { width: 100%; height: 100%; display: block; }
+.shoe-lab-brand { position: absolute; top: 24px; left: 28px; pointer-events: none; }
+.shoe-lab-brand span, .shoe-lab-controls label, dt { color: #69e5ff; font-size: 11px; letter-spacing: .15em; font-weight: 800; text-transform: uppercase; }
+.shoe-lab-brand h1 { margin: 6px 0 0; font-size: clamp(28px, 4vw, 56px); line-height: .9; letter-spacing: -.04em; }
+.shoe-lab-brand p { margin: 8px 0; color: #9eb3c0; font-size: 12px; }
+.shoe-lab-controls, .shoe-lab-evidence {
+  position: absolute; width: 260px; padding: 18px; border: 1px solid rgba(105,229,255,.24);
+  border-radius: 14px; background: rgba(4,12,18,.88); box-shadow: 0 18px 60px rgba(0,0,0,.35);
+  backdrop-filter: blur(14px);
+}
+.shoe-lab-controls { right: 24px; top: 24px; display: grid; gap: 12px; }
+.shoe-lab-controls label { display: grid; gap: 6px; }
+select, button {
+  width: 100%; border: 1px solid rgba(128,202,224,.25); border-radius: 8px; background: #0d1b24;
+  color: #eefcff; padding: 10px; font: inherit;
+}
+button { cursor: pointer; font-size: 11px; font-weight: 850; letter-spacing: .08em; }
+button:hover, button[aria-pressed="true"] { border-color: #69e5ff; color: #69e5ff; background: #102b38; }
+.shoe-lab-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shoe-lab-toggles label { display: flex; align-items: center; gap: 6px; letter-spacing: .05em; color: #becbd2; }
+.shoe-lab-toggles input { accent-color: #69e5ff; }
+.shoe-lab-view-buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.shoe-lab-view-buttons button { padding: 8px 2px; }
+.shoe-lab-capture { border-color: #69e5ff; background: #69e5ff; color: #061018; }
+.shoe-lab-evidence { left: 24px; bottom: 24px; width: 310px; }
+.shoe-lab-evidence strong { display: block; font-size: 17px; letter-spacing: .04em; }
+.shoe-lab-evidence > span { display: block; margin-top: 4px; color: #9eb3c0; font-size: 11px; }
+.shoe-lab-evidence dl { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 14px 0; }
+.shoe-lab-evidence dl div { border-top: 1px solid rgba(105,229,255,.12); padding-top: 7px; }
+dt, dd { margin: 0; }
+dd { margin-top: 3px; font-variant-numeric: tabular-nums; font-size: 13px; }
+.shoe-lab-evidence code { display: block; color: #69e5ff; font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .shoe-lab-brand p { display: none; }
+  .shoe-lab-controls { top: auto; bottom: 16px; right: 16px; width: min(290px, calc(100vw - 32px)); }
+  .shoe-lab-evidence { left: 16px; bottom: 16px; width: min(250px, calc(100vw - 32px)); transform: translateY(-390px); }
+}

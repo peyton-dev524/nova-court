@@ -1,0 +1,30 @@
+[
+  {
+    "id": "low-collar-last-and-rocker",
+    "tier": "critical",
+    "score": 0.8,
+    "visible": true,
+    "notes": "Outer length, low collar and toe rocker read in profile; the procedural forefoot is less bulbous than the official reference."
+  },
+  {
+    "id": "midsole-and-rubber-wrap",
+    "tier": "critical",
+    "score": 0.78,
+    "visible": true,
+    "notes": "Split foam sidewall and forefoot wrap are attached and silhouette-visible; production-reference sculpting remains denser."
+  },
+  {
+    "id": "six-station-lace-system",
+    "tier": "critical",
+    "score": 0.84,
+    "visible": true,
+    "notes": "Mirrored crossed laces remain attached and readable from top and three-quarter views."
+  },
+  {
+    "id": "mesh-overlay-material",
+    "tier": "critical",
+    "score": 0.76,
+    "visible": true,
+    "notes": "Upper, overlay and molded mark separate under neutral light; mesh weave is intentionally simplified without a texture map."
+  }
+]

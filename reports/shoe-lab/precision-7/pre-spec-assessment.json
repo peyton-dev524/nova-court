@@ -1,0 +1,316 @@
+{
+  "targetName": "Nike Precision 7 stylized procedural basketball shoe",
+  "sourceImage": "reports\\shoe-lab\\precision-7\\reference\\nike-precision-7-official.png",
+  "preSpecAssessment": {
+    "objectClass": {
+      "primaryType": "low-collar basketball shoe",
+      "primaryDomain": "object",
+      "formLanguage": ["organic", "fabric-like", "hard-surface"],
+      "structureKind": ["compound object", "layered shell", "repeated modules"],
+      "motionPotential": ["whole-object transform", "detachable assemblies"],
+      "materialFamilies": ["rubber", "foam", "mesh cloth", "synthetic overlay"],
+      "notes": "Official lateral view supports the outer silhouette and visible layer stack. Medial construction and hidden outsole are inferred; output is explicitly a stylized real-time approximation."
+    },
+    "complexity": {
+      "tier": "complex",
+      "scores": {
+        "silhouetteComplexity": 2,
+        "componentCount": 3,
+        "hierarchyDepth": 2,
+        "repetitionDensity": 2,
+        "materialLayerCount": 2,
+        "localDetailDensity": 2,
+        "occlusionRisk": 2,
+        "actionReadinessNeed": 2
+      },
+      "estimatedCounts": {
+        "macroComponents": 3,
+        "mesoComponents": 8,
+        "microFeatureGroups": 6,
+        "materialLayers": 6,
+        "repetitionSystems": 3
+      },
+      "reasoning": [
+        "Three silhouette-defining layers (outsole, sculpted midsole, upper) plus collar, tongue, eyestay, heel counter, side overlay and toe wrap are independently visible.",
+        "Repeated laces, perforations, layered side ribs and herringbone traction require procedural repetition systems.",
+        "A single official lateral view makes the medial face and hidden outsole conditional rather than exact."
+      ]
+    },
+    "specDepthDecision": {
+      "requiredDepth": "complex",
+      "minimumComponentLevels": [
+        "macro",
+        "meso",
+        "micro"
+      ],
+      "needsRepetitionSystems": true,
+      "needsMaterialLocalOverrides": true,
+      "needsMultipleReviewViews": true,
+      "needsActionReadyHierarchy": true,
+      "rationale": "Choose simple/moderate/complex/ultra-complex from observed structure, not from a hardcoded domain."
+    },
+    "unknownsToResolveBeforeImplementation": [
+      "Medial overlay geometry is inferred as a simplified mirror of the lateral structure.",
+      "Outsole tread depth and the collar interior are not visible in the selected official lateral reference.",
+      "Outer width and height are fit-to-rig inferences; Nike publishes foot-length sizing, not manufacturing-last dimensions."
+    ],
+    "detailInventory": {
+      "scanMethod": "component-zones",
+      "targetMinDetails": 10,
+      "note": "Enumerate every identity-defining small detail before authoring the spec. Each detail must map to a component.localFeatures entry or material.localOverrides entry, never prose only. Use forge/stage1_intake/build_detail_inventory.py to scan zones.",
+      "details": [
+        {"id":"mesh-upper","kind":"surface relief","description":"breathable woven upper with fine directional ribs","region":"forefoot and quarter","scale":"micro","affects":"material response","mapsTo":{"type":"material.localOverrides","ref":"upper-mesh-weave"},"evidenceRef":"official-lateral","confidence":0.88},
+        {"id":"sculpted-midsole","kind":"profile break","description":"foam sidewall splits into raised heel and forefoot wedges","region":"lower lateral side","scale":"meso","affects":"silhouette","mapsTo":{"type":"component.localFeatures","ref":"midsole-sculpt"},"evidenceRef":"official-lateral","confidence":0.94},
+        {"id":"low-collar","kind":"padded opening","description":"low curved collar with plush rim and deep front dip","region":"rear upper","scale":"meso","affects":"silhouette","mapsTo":{"type":"component.localFeatures","ref":"collar-ellipse"},"evidenceRef":"official-lateral","confidence":0.91},
+        {"id":"long-eyestay","kind":"overlay","description":"long tapered eyestay frames six crossed lace stations","region":"upper centerline","scale":"meso","affects":"component structure","mapsTo":{"type":"component.localFeatures","ref":"eyestay-rail"},"evidenceRef":"official-lateral","confidence":0.9},
+        {"id":"molded-side-mark","kind":"raised mark","description":"curved lateral speed mark inspired by the molded reference logo","region":"lateral quarter","scale":"meso","affects":"identity","mapsTo":{"type":"component.localFeatures","ref":"lateral-speed-mark"},"evidenceRef":"official-lateral","confidence":0.84},
+        {"id":"side-ribs","kind":"raised linework","description":"three converging curved ribs reinforce the lateral overlay","region":"lateral midfoot","scale":"micro","affects":"form detail","mapsTo":{"type":"component.localFeatures","ref":"lateral-rib-system"},"evidenceRef":"official-lateral","confidence":0.87},
+        {"id":"perforation-field","kind":"repeated vents","description":"rear-quarter perforations follow a rising elliptical field","region":"lateral heel quarter","scale":"micro","affects":"surface detail","mapsTo":{"type":"component.localFeatures","ref":"quarter-perforations"},"evidenceRef":"official-lateral","confidence":0.86},
+        {"id":"rubber-wrap","kind":"protective wrap","description":"outsole rubber rises along the forefoot edge","region":"front lower side","scale":"meso","affects":"silhouette","mapsTo":{"type":"component.localFeatures","ref":"forefoot-rubber-wrap"},"evidenceRef":"official-lateral","confidence":0.92},
+        {"id":"toe-rocker","kind":"curved profile","description":"toe rises continuously from the forefoot datum","region":"toe","scale":"macro","affects":"silhouette","mapsTo":{"type":"component.localFeatures","ref":"cosine-toe-rocker"},"evidenceRef":"official-lateral","confidence":0.95},
+        {"id":"herringbone-tread","kind":"repeated traction","description":"multi-directional chevrons repeat under heel and forefoot","region":"outsole","scale":"micro","affects":"outsole identity","mapsTo":{"type":"component.localFeatures","ref":"herringbone-traction"},"evidenceRef":"official-product-copy","confidence":0.96}
+      ]
+    },
+    "anatomy": {
+      "applies": false,
+      "styleHeads": 0.0,
+      "proportions": {
+        "headUnit": 0.0,
+        "torso": 0.0,
+        "legs": 0.0,
+        "shoulderWidth": 0.0,
+        "hipWidth": 0.0
+      },
+      "pose": {
+        "type": "unassessed",
+        "jointAngles": {}
+      },
+      "faceLandmarks": {
+        "eyeLine": 0.0,
+        "eyeSpacing": 0.0,
+        "noseBase": 0.0,
+        "mouthLine": 0.0,
+        "hairline": 0.0
+      },
+      "features": [],
+      "confidence": 0.0,
+      "note": "Only meaningful when objectClass.primaryDomain is character or hybrid. Set applies=true and fill from forge/stage1_intake/extract_landmarks.py. See grimoire/character/reconstruction.md and grimoire/character/likeness_maximization.md."
+    },
+    "sourceImage": "reports\\shoe-lab\\precision-7\\reference\\nike-precision-7-official.png"
+  },
+  "qualityContract": {
+    "qualityBar": "complex",
+    "definitionOfDone": [
+      "The stylized procedural shoe stays within the dimension contract; exposes distinct outsole, sculpted midsole, mesh upper, collar/tongue, eyestay/laces, heel counter, side overlay/mark, perforations and herringbone traction; preserves mathematical continuity and bilateral bounds; and renders from five named Shoe Lab views inside the real-time budget."
+    ],
+    "minimumSpecDepth": {
+      "macroComponents": 3,
+      "mesoComponents": 8,
+      "microFeatureGroups": 5,
+      "materialLayers": 3,
+      "repetitionSystems": 1,
+        "reviewViewpoints": 5
+    },
+    "featureGroups": [
+      {
+        "id": "overall-silhouette",
+        "name": "Overall silhouette and proportions",
+        "required": true,
+        "qualityCriteria": [
+          "Bounding shape, dominant curves, negative spaces, and scale relationships are explicitly described."
+        ],
+        "evidenceRefs": [
+          "full-object"
+        ],
+        "failureModes": [
+          "model reads as a generic placeholder instead of the reference object",
+          "major proportions are guessed without evidence"
+        ]
+      },
+      {
+        "id": "primary-structure",
+        "name": "Primary structure and hierarchy",
+        "required": true,
+        "qualityCriteria": [
+          "Major parts, joints, seams, contact points, and parent-child relationships are named before code generation."
+        ],
+        "evidenceRefs": [
+          "full-object"
+        ],
+        "failureModes": [
+          "large visible parts are merged into one mesh",
+          "component hierarchy is too shallow for the observed complexity"
+        ]
+      },
+      {
+        "id": "attachment-joint-correctness",
+        "name": "Attachment and joint correctness",
+        "required": true,
+        "qualityCriteria": [
+          "Every visible child appendage, branch, limb, handle, connector, tube, cable, horn, wing, leg, or hinged part has an attachment contract with parent socket, localStart/localEnd, contact type, embed/overlap, and gap tolerance."
+        ],
+        "evidenceRefs": [
+          "full-object"
+        ],
+        "failureModes": [
+          "child part root floats away from the parent",
+          "branch/limb/tube is centered in space instead of pivoting from its root",
+          "parent-child transform mixes world and local coordinates"
+        ]
+      },
+      {
+        "id": "surface-material-response",
+        "name": "Surface material response",
+        "required": true,
+        "qualityCriteria": [
+          "Albedo zones, roughness, normal/bump/displacement intent, cavity dirt, edge wear, and local overrides are specified where visible.",
+          "Important materials define independent albedo, roughness, height/normal, and AO responses instead of reusing one texture for unrelated PBR channels.",
+          "Surface response is decomposed into macro, meso, and micro frequency bands with scale and amplitude tied to object scale."
+        ],
+        "evidenceRefs": [
+          "full-object"
+        ],
+        "failureModes": [
+          "surface looks like flat plastic",
+          "local material variation is missing or not tied to image evidence"
+        ]
+      },
+      {
+        "id": "reference-lookdev",
+        "name": "Reference color, material, and lighting response",
+        "required": true,
+        "qualityCriteria": [
+          "Material-pass names the reference-derived albedo palette, roughness variation, tactile normal/bump/displacement response, and local masks.",
+          "When a source image is available, run reference PBR extraction and require confidence >= 0.7 before treating maps as implementation-ready.",
+          "Lighting-pass names key/fill/rim or environment light, exposure, tone mapping, background, and contact shadow behavior.",
+          "Neutral, grazing-angle, and reference-matched renders prove that surface relief survives relighting and is not painted into albedo."
+        ],
+        "evidenceRefs": [
+          "full-object"
+        ],
+        "failureModes": [
+          "model has acceptable shape but reads as flat shaded or plastic",
+          "colors are a generic average instead of reference-observed local color zones",
+          "lighting is evenly ambient and cannot reproduce the source value range"
+        ]
+      }
+    ],
+    "visualDeltaChecks": [
+      "silhouette and negative-space delta",
+      "component hierarchy depth delta",
+      "repetition density and distribution delta",
+      "material albedo/roughness/normal response delta",
+      "local feature placement and scale delta"
+    ],
+    "antiShallowSpecRules": [
+      "Do not proceed to code if qualityContract.qualityBar is unassessed.",
+      "Do not proceed to code if the spec only contains a root component for a moderate or complex object.",
+      "Do not proceed to code if required featureGroups are not represented by componentTree, materials, or repetitionSystems.",
+      "Do not proceed to code if visible local features are described only in prose and not attached to components/materials/evidenceRefs.",
+      "Do not proceed past structural-pass if attached child parts lack attachment.parentSocket, localStart, localEnd, embedDepth/overlap, and gapTolerance.",
+      "Do not pass material look-dev when albedo is reused as roughness, height, normal, or AO.",
+      "Do not pass material look-dev without macro, meso, and micro surface frequency bands for close-up materials.",
+      "Do not pass reference-fidelity material look-dev from a source image without usable referencePbr maps or an explicit documented limitation.",
+      "Do not patch a spec with extracted PBR maps when extraction confidence is below the target threshold unless the user explicitly accepts lower fidelity.",
+      "Do not place adjacent separate-geometry parts below 0.02 world-unit seam overlap (source: grimoire/build/geometry_patterns.md).",
+      "Do not satisfy raised or recessed relief, fasteners, or grip structure with a map alone when the feature affects form; use geometry or displacement (source: grimoire/build/geometry_patterns.md)."
+    ]
+  },
+  "authoringInstruction": "Fill observed object class, complexity reasoning, featureGroups, visualDeltaChecks, and unknowns before generating or implementing ObjectSculptSpec.",
+  "localSpecSearch": {
+    "collection": "core_3d",
+    "query": "Nike Precision 7 stylized procedural basketball shoe basketball shoe low top mesh upper foam midsole traction footwear dimensional proportions sole rocker ellipse loft",
+    "index": {
+      "status": "hit",
+      "reason": "current",
+      "fingerprint": "6857e5ab528b42ac12f4f411f862610a0bffce8e47aee3610a7603c318072fe8"
+    },
+    "matches": [
+      {
+        "record_id": "core.measurement-source-text",
+        "file_path": "grimoire/intake/image_analysis.md",
+        "heading": "Layer 2 — Overall form & silhouette",
+        "key_path": null,
+        "score": 5.268490296339,
+        "snippets": [
+          "Record proportions relative to a named reference dimension and keep observations separate from inference."
+        ],
+        "source_refs": [
+          {
+            "path": "grimoire/intake/image_analysis.md",
+            "heading": "Layer 2 — Overall form & silhouette",
+            "key_path": null
+          },
+          {
+            "path": "grimoire/intake/image_analysis.md",
+            "heading": "The Rule",
+            "key_path": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "grimoire/intake/image_analysis.md"
+          },
+          {
+            "kind": "notebooklm-research",
+            "ref": "notebooklm:4b03c2f9-8393-411f-b5b4-039ab9532843",
+            "note": "Validated generic schema vocabulary; numeric claims remain backed by local source_refs."
+          }
+        ]
+      },
+      {
+        "record_id": "core.pbr-clearcoat",
+        "file_path": "docs/raw/img2threejs-skill-dataset.json",
+        "heading": null,
+        "key_path": "categories.material_pbr[4]",
+        "score": 4.900504821176,
+        "snippets": [
+          "Secondary reflective coating layer on top of the base material, simulating varnish, lacquer, or automotive paint. Lớp phủ phản xạ thứ cấp nằm trên vật liệu nền, mô phỏng vecni, sơn mài hoặc sơn xe hơi. Recognition cues: A distinct, sharp ..."
+        ],
+        "source_refs": [
+          {
+            "path": "docs/raw/img2threejs-skill-dataset.json",
+            "heading": null,
+            "key_path": "categories.material_pbr[4]"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "docs/raw/img2threejs-skill-dataset.json",
+            "note": "img2threejs NotebookLM research distillation"
+          }
+        ]
+      },
+      {
+        "record_id": "core.topology-intent",
+        "file_path": "grimoire/glossary/3d_vocabulary.md",
+        "heading": "Geometry And Topology",
+        "key_path": null,
+        "score": 4.394515582459,
+        "snippets": [
+          "Topology intent classifies a surface as hard-surface blockout, subdivision-ready, low-poly prop, organic deformed mesh, or alpha-card cluster."
+        ],
+        "source_refs": [
+          {
+            "path": "grimoire/glossary/3d_vocabulary.md",
+            "heading": "Geometry And Topology",
+            "key_path": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "grimoire/glossary/3d_vocabulary.md"
+          },
+          {
+            "kind": "notebooklm-research",
+            "ref": "notebooklm:4b03c2f9-8393-411f-b5b4-039ab9532843",
+            "note": "Validated generic schema vocabulary; numeric claims remain backed by local source_refs."
+          }
+        ]
+      }
+    ]
+  }
+}

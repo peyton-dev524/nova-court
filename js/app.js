@@ -29,7 +29,7 @@ import {
   getBallSelectionOption,
 } from "./ball-selection.js?v=1.0";
 import { createThreePointRackVisuals } from "./three-point-contest.js?v=1.0";
-import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.1";
+import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.3";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
