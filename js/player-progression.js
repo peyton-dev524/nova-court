@@ -263,6 +263,10 @@ export function normalizeProfile(candidate) {
   const validAppearances = new Set(AVATAR_APPEARANCES.map((item) => item.id));
   const appearanceId = validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic";
   const legacyAppearance = AVATAR_APPEARANCES.find((item) => item.id === appearanceId) || AVATAR_APPEARANCES[0];
+  const savedShoeColorway = source.identity?.shoeColorwayId ?? source.shoeColorwayId;
+  const shoeColorwayId = typeof savedShoeColorway === "string" && savedShoeColorway.trim()
+    ? savedShoeColorway.trim()
+    : normalizeBasketballShoeColorway(savedShoeColorway);
   const identity = {
     ...source.identity,
     created: Boolean(source.identity?.created ?? legacyProfile),
@@ -273,9 +277,10 @@ export function normalizeProfile(candidate) {
     skinToneId: normalizeSkinTone(source.identity?.skinToneId, legacyAppearance.skinToneId),
     heightM: normalizePlayerHeight(source.identity?.heightM, POSITION_PRESETS[selectedPosition].height),
     shoeStyleId: normalizeBasketballShoeStyle(source.identity?.shoeStyleId ?? source.shoeStyleId),
-    shoeColorwayId: normalizeBasketballShoeColorway(
-      source.identity?.shoeColorwayId ?? source.shoeColorwayId,
-    ),
+    // Preserve a future palette ID in saved data for forward compatibility.
+    // Gameplay normalizes it at the rendering boundary, and controlled profile
+    // edits still reject IDs that are not in the current palette registry.
+    shoeColorwayId,
     jerseyStyle: normalizeBasketballJerseyParameters(source.identity?.jerseyStyle),
     selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
   };

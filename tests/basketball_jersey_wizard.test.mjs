@@ -86,8 +86,8 @@ test("strict per-player jersey budget stays below the authored runtime ceiling",
   assert.ok(cost.totalTriangles <= 900);
 });
 
-test("version-six profile migration persists jersey fit and reaches production player config", () => {
-  assert.equal(PROFILE_SCHEMA_VERSION, 6);
+test("current profile migration persists jersey fit and reaches production player config", () => {
+  assert.equal(PROFILE_SCHEMA_VERSION, 7);
   const legacy = normalizeProfile({
     version: 5,
     identity: { created: true, displayName: "Legacy Ace", jerseyStyle: { fit: 9 } },
