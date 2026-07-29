@@ -91,6 +91,11 @@ import {
 } from "./player-anatomy.js?v=1.0";
 import { createPlayerHair } from "./player-appearance.js?v=1.0";
 import {
+  calculateOpenGymQACamera,
+  calculateCourtWideCamera,
+  resolveCourtBrandingPlacement,
+} from "./court-branding.js?v=1.0";
+import {
   ARC_RUN_GRAB_DURATION,
   createArcRunCameraSnapshot,
   sampleArcRunGrab,
@@ -1446,8 +1451,13 @@ export class NovaCourtEngine {
       new T.PlaneGeometry(3.5, 3.5),
       new T.MeshBasicMaterial({ map: logoTexture, transparent: true, depthWrite: false, toneMapped: false }),
     );
+    logo.name = "nova-court-center-logo";
     logo.rotation.x = -Math.PI / 2;
-    logo.position.set(0, 0.023, 1.6);
+    const brandingPlacement = resolveCourtBrandingPlacement(this.courtRuntime);
+    logo.position.set(brandingPlacement.x, 0.052, brandingPlacement.z);
+    logo.visible = brandingPlacement.visible;
+    logo.userData.brandingPlacement = brandingPlacement;
+    this.centerCourtLogo = logo;
     this.worldRoot.add(logo);
 
     const baselineTexture = this._makeCanvasTexture(1024, 160, (ctx, canvas) => {
@@ -2196,6 +2206,42 @@ export class NovaCourtEngine {
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.cameraTarget);
     return this.getArcRunCameraSnapshot();
+  }
+
+  snapCourtWideCameraForQA() {
+    const snapshot = calculateCourtWideCamera(
+      this.courtRuntime,
+      this.camera.aspect,
+      50,
+    );
+    this.camera.fov = snapshot.fov;
+    this.camera.up.set(...snapshot.up);
+    this.camera.position.set(...snapshot.position);
+    this.cameraTarget.set(...snapshot.target);
+    this.camera.lookAt(this.cameraTarget);
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
+    this.render();
+    return {
+      ...snapshot,
+      courtKind: this.courtRuntime.kind,
+      courtWidth: this.courtRuntime.width,
+      courtLength: this.courtRuntime.length,
+      branding: this.centerCourtLogo?.userData?.brandingPlacement || null,
+    };
+  }
+
+  snapOpenGymCameraForQA() {
+    const snapshot = calculateOpenGymQACamera(this.courtRuntime);
+    this.camera.fov = snapshot.fov;
+    this.camera.up.set(...snapshot.up);
+    this.camera.position.set(...snapshot.position);
+    this.cameraTarget.set(...snapshot.target);
+    this.camera.lookAt(this.cameraTarget);
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
+    this.render();
+    return snapshot;
   }
 
   start() {

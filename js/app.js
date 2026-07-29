@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT, ProceduralPlayer } from "./engine.js?v=6.2";
+import { NovaCourtEngine, PLAYER_STATES, COURT, ProceduralPlayer } from "./engine.js?v=6.3";
 import { createAIDirector } from "./ai.js?v=5.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -74,6 +74,7 @@ import {
   getGameplayHudPolicy,
   getPlayerCardContent,
 } from "./hud-presentation.js?v=1.0";
+import { applyGameplayHudVisibility } from "./gameplay-hud-visibility.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -982,6 +983,8 @@ function createEngine(modeKey, preview = false, roster = null, venueOverride = "
       setArcRunGrab: (progress = 0.5, rackIndex = 0, ballIndex = 0) =>
         setArcRunGrabForQA(progress, rackIndex, ballIndex),
       snapThreePointCamera: () => engine?.snapArcRunCameraForQA?.() || null,
+      snapCourtWideCamera: () => engine?.snapCourtWideCameraForQA?.() || null,
+      snapOpenGymCamera: () => engine?.snapOpenGymCameraForQA?.() || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
       sceneLoading: () => ({
         ...sceneLoadState,
@@ -1111,7 +1114,7 @@ function createModeController(modeKey) {
   return createGameMode(MODE_MAP[modeKey], config);
 }
 
-async function startMode(modeKey = selectedModeKey) {
+async function startMode(modeKey = selectedModeKey, { loadVenueDetails = true } = {}) {
   stopPresentation();
   resetShotMeter();
   runToken += 1;
@@ -1151,7 +1154,9 @@ async function startMode(modeKey = selectedModeKey) {
       );
     },
   });
-  const venueLoadPromise = activeVenueLoader.load();
+  const venueLoadPromise = loadVenueDetails
+    ? activeVenueLoader.load()
+    : Promise.resolve({ cancelled: false, baseCourtOnly: true });
   engine.setCameraMode(currentModeKey === "threePoint"
     ? "arc-run"
     : cameraPresetForTeamMode(currentModeKey).mode);
@@ -1172,7 +1177,16 @@ async function startMode(modeKey = selectedModeKey) {
   });
   const venueLoadResult = await venueLoadPromise;
   if (token !== runToken || venueLoadResult.cancelled) return;
-  const venueLoadSnapshot = activeVenueLoader.snapshot();
+  const venueLoadSnapshot = loadVenueDetails
+    ? activeVenueLoader.snapshot()
+    : {
+        ...activeVenueLoader.snapshot(),
+        sceneId: `${currentModeKey}:base-court`,
+        phase: "ready",
+        progress: 1,
+        loadedIds: ["court-fallback", "court", "hoops", "players"],
+        errors: [],
+      };
   sceneLoadState = {
     ...sceneLoadState,
     ...venueLoadSnapshot,
@@ -1189,6 +1203,7 @@ async function startMode(modeKey = selectedModeKey) {
   setHidden($("#teammate-hints"), !isTeamModeKey(currentModeKey));
   setHidden($("#restart-game"), !allowsRestart(currentModeKey));
   setHidden($("#rematch"), !allowsRestart(currentModeKey));
+  applyGameplayHudVisibility(document, currentModeKey);
   if (currentModeKey === "threePoint") buildRackProgress();
   if (isTeamModeKey(currentModeKey)) {
     $("#teammate-hints").innerHTML = "<span>J / E <b>PASS + SWITCH</b></span><span>I <b>STEAL</b></span><span>C <b>CAMERA</b></span>";
@@ -2523,6 +2538,7 @@ async function boot() {
     const venueSelectCapture = bootQuery.get("venueSelectCapture");
     const gameplayVenueCapture = bootQuery.get("gameplayVenueCapture");
     const gameplayHudCapture = bootQuery.get("gameplayHudCapture");
+    const openGymCapture = bootQuery.get("openGymCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
@@ -2538,6 +2554,13 @@ async function boot() {
     } else if (gameplayVenueCapture) {
       pendingVenueId = getVenueOption(gameplayVenueCapture).id;
       await startMode(MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "practice");
+      setHidden($("#loading-screen"), true);
+    } else if (openGymCapture) {
+      pendingVenueId = getVenueOption(bootQuery.get("venue") || "montgomery").id;
+      await startMode("practice", { loadVenueDetails: false });
+      engine.paused = true;
+      engine.controls.setEnabled(false);
+      app.dataset.openGymCapture = openGymCapture;
       setHidden($("#loading-screen"), true);
     } else {
       const forceOnboarding = bootQuery.get("onboarding") === "1";
