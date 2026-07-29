@@ -148,6 +148,8 @@ const DEFAULT_COURT = Object.freeze({
 });
 
 const EPSILON = 0.0001;
+export const AI_TRACE_LIMIT = 48;
+export const AI_OFFENSE_ACTIONS = Object.freeze(["shoot", "pass", "drive", "create", "hold"]);
 
 function clamp(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -245,6 +247,123 @@ function mergeTuning(difficulty, overrides = {}) {
   return { ...base, ...overrides };
 }
 
+function rounded(value, digits = 3) {
+  return Number((Number(value) || 0).toFixed(digits));
+}
+
+function shotRangeQuality(distanceToHoop, threePointRadius) {
+  if (distanceToHoop < 2) return 0.94;
+  if (distanceToHoop < 5.2) return 0.8;
+  if (distanceToHoop < threePointRadius + 0.8) return 0.72;
+  return 0.42;
+}
+
+/**
+ * Pure, inspectable offensive evaluator used by production AI and CPU Lab.
+ * Scores are utilities rather than make percentages, so the selected action
+ * can be compared directly without letting the lab bypass engine rules.
+ */
+export function scoreOffensiveCandidates({
+  player,
+  basket,
+  defenderDistance = Infinity,
+  laneScore = 0.5,
+  passOption = null,
+  shotClock = 24,
+  possessionSeconds = 0,
+  court = DEFAULT_COURT,
+  tuning = DIFFICULTY_PRESETS.pro,
+  recentAction = null,
+  repeatedActionCount = 0,
+} = {}) {
+  const distanceToHoop = distance(player, basket);
+  const range = shotRangeQuality(distanceToHoop, court.threePointRadius || DEFAULT_COURT.threePointRadius);
+  const openness = clamp((defenderDistance - 0.62) / 3);
+  const coverage = 1 - openness;
+  const rating = clamp(player?.shooting ?? player?.ratings?.shooting ?? 0.72);
+  const stamina = clamp(player?.stamina ?? 1);
+  const urgency = clamp((7 - shotClock) / 7);
+  const forced = shotClock <= 2.35;
+  const earlyClock = clamp((shotClock - 12) / 12);
+  const pressure = clamp((2.4 - defenderDistance) / 2.4);
+  const shotQuality = clamp(
+    range * 0.34 + openness * 0.31 + rating * 0.24 + stamina * 0.11
+      + (tuning.shotDiscipline - 0.75) * 0.07,
+  );
+  const passExpectedValue = clamp(passOption?.score ?? 0);
+  const teammateAdvantage = clamp(passExpectedValue - shotQuality + 0.5);
+  const closeoutAttack = clamp(pressure * laneScore * (distanceToHoop > 2.1 ? 1 : 0.55));
+  const hysteresisPenalty = repeatedActionCount > 0
+    ? Math.min(0.22, repeatedActionCount * 0.055)
+    : 0;
+  const repeat = (action) => recentAction === action ? hysteresisPenalty : 0;
+
+  const values = {
+    shoot: shotQuality * 0.91
+      + urgency * 0.34
+      + (openness > 0.85 && shotQuality > 0.73 ? 0.14 : 0)
+      + Math.min(possessionSeconds / 8, 0.08)
+      - coverage * earlyClock * 0.42
+      - (distanceToHoop > (court.threePointRadius || 6.75) + 1.2 ? 0.22 : 0)
+      - repeat("shoot"),
+    pass: passExpectedValue * 0.86
+      + teammateAdvantage * 0.2
+      + pressure * 0.13
+      - urgency * 0.12
+      - repeat("pass"),
+    drive: laneScore * 0.55
+      + closeoutAttack * 0.25
+      + tuning.driveBias * 0.14
+      + urgency * 0.13
+      - (1 - stamina) * 0.13
+      - repeat("drive"),
+    create: pressure * 0.18
+      + (1 - openness) * 0.12
+      + (1 - laneScore) * 0.12
+      + (1 - urgency) * 0.12
+      + 0.08
+      - repeat("create"),
+    hold: earlyClock * 0.22
+      + (1 - urgency) * 0.12
+      - pressure * 0.08
+      - Math.min(possessionSeconds / 10, 0.12)
+      - repeat("hold"),
+  };
+  if (!passOption) values.pass = -1;
+  if (forced) values.shoot = 1.3 + shotQuality * 0.1;
+
+  const components = {
+    shotQuality: rounded(shotQuality),
+    openness: rounded(openness),
+    coverage: rounded(coverage),
+    range: rounded(range),
+    rating: rounded(rating),
+    stamina: rounded(stamina),
+    lanePressure: rounded(1 - laneScore),
+    laneScore: rounded(laneScore),
+    passExpectedValue: rounded(passExpectedValue),
+    teammateAdvantage: rounded(teammateAdvantage),
+    possessionTime: rounded(possessionSeconds),
+    urgency: rounded(urgency),
+    earlyClock: rounded(earlyClock),
+    hysteresisPenalty: rounded(hysteresisPenalty),
+    distanceToHoop: rounded(distanceToHoop),
+    defenderDistance: rounded(Number.isFinite(defenderDistance) ? defenderDistance : 20),
+  };
+  const candidates = AI_OFFENSE_ACTIONS.map((action) => ({
+    action,
+    score: rounded(values[action]),
+    components,
+  })).sort((a, b) => b.score - a.score || AI_OFFENSE_ACTIONS.indexOf(a.action) - AI_OFFENSE_ACTIONS.indexOf(b.action));
+  return Object.freeze({
+    forced,
+    threshold: rounded(tuning.shotConfidence),
+    components: Object.freeze(components),
+    candidates: Object.freeze(candidates.map(Object.freeze)),
+    chosen: candidates[0].action,
+  });
+}
+
 /**
  * Manages a complete AI team (or every non-human player when teamIds is null).
  */
@@ -262,6 +381,8 @@ export class BasketballAIDirector {
     this.debug = debug;
     this.random = createSeededRandom(seed);
     this.memory = new Map();
+    this.traces = [];
+    this.traceSequence = 0;
     this.elapsed = 0;
     this.lastPossessionId = null;
   }
@@ -273,6 +394,8 @@ export class BasketballAIDirector {
 
   reset() {
     this.memory.clear();
+    this.traces.length = 0;
+    this.traceSequence = 0;
     this.elapsed = 0;
     this.lastPossessionId = null;
   }
@@ -284,7 +407,27 @@ export class BasketballAIDirector {
       matchupId: memory.matchupId,
       stateSeconds: memory.stateSeconds,
       lastDecision: memory.lastDecision,
+      watchdog: { ...memory.watchdog },
     }));
+  }
+
+  getDecisionTraces(playerId = null) {
+    if (!this.debug) return [];
+    const traces = playerId == null
+      ? this.traces
+      : this.traces.filter((trace) => trace.playerId === playerId);
+    return traces.map((trace) => structuredClone(trace));
+  }
+
+  getDecisionSnapshot(playerId = null) {
+    const traces = this.getDecisionTraces(playerId);
+    return Object.freeze({
+      enabled: this.debug,
+      limit: AI_TRACE_LIMIT,
+      count: traces.length,
+      latest: traces.at(-1) || null,
+      traces,
+    });
   }
 
   /**
@@ -300,6 +443,7 @@ export class BasketballAIDirector {
       || players.find((player) => player.hasBall)
       || null;
     const offenseTeamId = snapshot.offenseTeamId ?? holder?.teamId ?? null;
+    this.currentShotClock = snapshot.shotClock ?? 24;
     const possessionChanged = snapshot.possessionId != null
       && snapshot.possessionId !== this.lastPossessionId;
     if (snapshot.possessionId != null) this.lastPossessionId = snapshot.possessionId;
@@ -321,12 +465,19 @@ export class BasketballAIDirector {
       memory.actionCooldown -= dt;
       memory.handleCooldown -= dt;
       memory.stealCooldown -= dt;
+      this.#updateWatchdog(player, memory);
       if (possessionChanged) {
         memory.decisionCooldown = Math.min(memory.decisionCooldown, this.tuning.reactionSeconds);
+        memory.actionCooldown = 0;
+        memory.handleCooldown = 0;
         memory.cutCommitment = 0;
         memory.driveCommitment = 0;
         memory.probeCount = 0;
         memory.possessionSeconds = 0;
+        memory.cornerSeconds = 0;
+        memory.unchangedSeconds = 0;
+        memory.watchdog.active = false;
+        memory.watchdog.reason = null;
       }
       if (player.id === holder?.id) memory.possessionSeconds += dt;
       else memory.possessionSeconds = 0;
@@ -375,6 +526,18 @@ export class BasketballAIDirector {
         lastDecision: "spawn",
         lastDribbleMove: null,
         cornerSeconds: 0,
+        lastPosition: positionOf(player),
+        lastTarget: positionOf(player),
+        unchangedSeconds: 0,
+        repeatedActionCount: 0,
+        lastChosenAction: null,
+        lastEvaluation: null,
+        watchdog: {
+          active: false,
+          reason: null,
+          recoveries: 0,
+          unchangedSeconds: 0,
+        },
       };
       this.memory.set(player.id, memory);
     }
@@ -408,8 +571,80 @@ export class BasketballAIDirector {
         stateSeconds: Number(memory.stateSeconds.toFixed(2)),
         ...extraDebug,
       };
+      this.#recordTrace(player, memory, intent, extraDebug);
     }
+    memory.lastTarget = positionOf(target);
     return intent;
+  }
+
+  #updateWatchdog(player, memory) {
+    const current = positionOf(player);
+    const moved = distance(current, memory.lastPosition) > 0.055;
+    const expectsMovement = distance(current, memory.lastTarget) > 0.38;
+    memory.unchangedSeconds = !moved && expectsMovement
+      ? memory.unchangedSeconds + memory.lastDelta
+      : Math.max(0, memory.unchangedSeconds - memory.lastDelta * 2);
+    memory.lastPosition = current;
+    const stuck = memory.unchangedSeconds > 1.15;
+    const spam = memory.repeatedActionCount >= 3;
+    memory.watchdog.active = stuck || spam || memory.cornerSeconds > 1.1;
+    memory.watchdog.reason = stuck ? "unchanged_position"
+      : spam ? "repeated_action"
+        : memory.cornerSeconds > 1.1 ? "corner_trap" : null;
+    memory.watchdog.unchangedSeconds = rounded(memory.unchangedSeconds);
+  }
+
+  #rememberChoice(memory, action) {
+    memory.repeatedActionCount = memory.lastChosenAction === action
+      ? memory.repeatedActionCount + 1
+      : 0;
+    memory.lastChosenAction = action;
+  }
+
+  #recordTrace(player, memory, intent, extraDebug) {
+    const evaluation = memory.lastEvaluation;
+    const candidates = evaluation?.candidates || [];
+    const stateAction = memory.state === AI_STATES.DRIVE
+      ? "drive"
+      : memory.state === AI_STATES.CREATE_SHOT
+        ? "create"
+        : memory.state === AI_STATES.BALL_HANDLER ? "hold" : memory.state;
+    const chosenAction = intent.action?.type === "dribbleMove"
+      ? "create"
+      : intent.action?.type || stateAction;
+    const trace = {
+      sequence: ++this.traceSequence,
+      time: rounded(this.elapsed),
+      playerId: player.id,
+      state: memory.state,
+      reason: memory.lastDecision,
+      chosenAction,
+      candidates: candidates.map((candidate) => ({
+        action: candidate.action,
+        score: candidate.score,
+        components: { ...candidate.components },
+      })),
+      rejectedAlternatives: candidates
+        .filter((candidate) => candidate.action !== evaluation?.chosen)
+        .map((candidate) => ({ action: candidate.action, score: candidate.score })),
+      thresholds: {
+        shotConfidence: rounded(this.tuning.shotConfidence),
+        decisionSeconds: rounded(this.tuning.decisionSeconds),
+        forcedAttemptSeconds: 2.35,
+      },
+      cooldown: rounded(Math.max(0, memory.decisionCooldown)),
+      decisionAge: rounded(memory.stateSeconds),
+      shotClock: rounded(this.currentShotClock),
+      target: { ...intent.move.target },
+      face: { ...intent.face },
+      watchdog: { ...memory.watchdog },
+      difficulty: this.difficultyName,
+      details: { ...extraDebug },
+    };
+    this.traces.push(trace);
+    if (this.traces.length > AI_TRACE_LIMIT) {
+      this.traces.splice(0, this.traces.length - AI_TRACE_LIMIT);
+    }
   }
 
   #deadBallIntent(player, snapshot, players, court, memory) {
@@ -517,16 +752,33 @@ export class BasketballAIDirector {
     memory.cornerSeconds = nearSideline && nearBaseline
       ? memory.cornerSeconds + memory.lastDelta
       : 0;
+    const pass = this.#bestPass(player, teammates, defenders, basket, snapshot);
+    const evaluation = scoreOffensiveCandidates({
+      player,
+      basket,
+      defenderDistance: nearestDefender.distance,
+      laneScore,
+      passOption: pass,
+      shotClock,
+      possessionSeconds: memory.possessionSeconds,
+      court,
+      tuning: this.tuning,
+      recentAction: memory.lastChosenAction,
+      repeatedActionCount: memory.repeatedActionCount,
+    });
+    memory.lastEvaluation = evaluation;
 
-    if (memory.cornerSeconds > 0.35) {
+    if (memory.cornerSeconds > 0.35 || memory.watchdog.active && memory.watchdog.reason === "corner_trap") {
       const escapeTarget = clampToCourt({
         x: positionOf(player).x * 0.45,
         z: positionOf(player).z * 0.62,
       }, court, 1.1);
-      const escapePass = this.#bestPass(player, teammates, defenders, basket, snapshot);
+      const escapePass = pass;
       if (escapePass && memory.actionCooldown <= 0 && escapePass.score > 0.34) {
         memory.actionCooldown = 0.65;
         memory.driveCommitment = 0;
+        memory.watchdog.recoveries += 1;
+        this.#rememberChoice(memory, "pass");
         this.#setState(memory, AI_STATES.BALL_HANDLER, "escape corner with outlet pass");
         return this.#intent(player, memory, escapeTarget, 0.92, escapePass.player, {
           type: "pass",
@@ -536,6 +788,8 @@ export class BasketballAIDirector {
           score: escapePass.score,
         }, { cornerEscape: true });
       }
+      memory.watchdog.recoveries += 1;
+      this.#rememberChoice(memory, "drive");
       this.#setState(memory, AI_STATES.DRIVE, "escape corner toward middle");
       return this.#intent(player, memory, escapeTarget, 0.96, basket, null, { cornerEscape: true });
     }
@@ -544,14 +798,18 @@ export class BasketballAIDirector {
       memory.decisionCooldown = this.tuning.decisionSeconds
         + this.random() * this.tuning.reactionSeconds;
 
-      const pass = this.#bestPass(player, teammates, defenders, basket, snapshot);
-      const passThreshold = 0.43 + (1 - this.tuning.passingVision) * 0.2;
-      if (pass && memory.actionCooldown <= 0
-        && pass.score > passThreshold
-        && (pressure > 0.48 || pass.score > shotQuality + 0.08 || laneScore < 0.28)) {
+      let chosen = evaluation.chosen;
+      if (forcedShot) chosen = "shoot";
+      if (memory.watchdog.active && memory.watchdog.reason === "unchanged_position") {
+        chosen = pass?.score > 0.42 ? "pass" : laneScore > 0.35 ? "drive" : "shoot";
+        memory.watchdog.recoveries += 1;
+      }
+      this.#rememberChoice(memory, chosen);
+
+      if (chosen === "pass" && pass && memory.actionCooldown <= 0) {
         memory.actionCooldown = 0.48;
         memory.driveCommitment = 0;
-        this.#setState(memory, AI_STATES.BALL_HANDLER, "read help and pass to " + pass.player.id);
+        this.#setState(memory, AI_STATES.BALL_HANDLER, "teammate has better expected value: " + pass.player.id);
         return this.#intent(player, memory, player, 0.18, pass.player, {
           type: "pass",
           targetPlayerId: pass.player.id,
@@ -561,7 +819,7 @@ export class BasketballAIDirector {
         }, { passScore: pass.score, pressure, laneScore });
       }
 
-      if ((forcedShot || atRim || openShot || pullUpWindow) && memory.actionCooldown <= 0) {
+      if (chosen === "shoot" && memory.actionCooldown <= 0) {
         memory.actionCooldown = atRim ? 0.72 : 1.05;
         memory.driveCommitment = 0;
         const dunkWindow = hoopDistance < 1.7
@@ -579,7 +837,9 @@ export class BasketballAIDirector {
         this.#setState(
           memory,
           atRim ? AI_STATES.DRIVE : AI_STATES.CREATE_SHOT,
-          forcedShot ? "beat shot clock" : atRim ? "finish at rim" : "rise into open jumper",
+          forcedShot ? "forced legal attempt before shot-clock expiry"
+            : atRim ? "finish at rim"
+              : evaluation.components.openness > 0.66 ? "take high-value open jumper" : "take best available shot",
         );
         return this.#intent(player, memory, player, 0, basket, {
           type: "shoot",
@@ -594,13 +854,13 @@ export class BasketballAIDirector {
         });
       }
 
-      if (pressure > 0.58 && memory.actionCooldown <= 0 && memory.handleCooldown <= 0) {
+      if (chosen === "create" && memory.actionCooldown <= 0 && memory.handleCooldown <= 0) {
         memory.actionCooldown = 0.5;
         memory.handleCooldown = 0.82;
         memory.probeCount += 1;
         memory.sidePreference *= -1;
-        const separationMoves = ["snatchBack", "doubleCross", "spin", "behindBack", "shamgod"];
-        let move = laneScore > 0.64 ? "shamgod" : separationMoves[memory.probeCount % separationMoves.length];
+        const separationMoves = ["snatchBack", "crossover", "spin", "behindBack"];
+        let move = laneScore > 0.64 ? "crossover" : separationMoves[memory.probeCount % separationMoves.length];
         if (move === memory.lastDribbleMove) {
           move = separationMoves[(memory.probeCount + 1) % separationMoves.length];
         }
@@ -614,6 +874,22 @@ export class BasketballAIDirector {
           type: "dribbleMove",
           move,
         }, { pressure, laneScore, probeCount: memory.probeCount });
+      }
+
+      if (chosen === "drive") {
+        memory.driveCommitment = 1;
+      }
+
+      if (chosen === "hold") {
+        const safeTarget = clampToCourt(add(positionOf(player), {
+          x: memory.sidePreference * 0.65,
+          z: -Math.sign(basket.z || 1) * 0.2,
+        }), court, 0.8);
+        this.#setState(memory, AI_STATES.BALL_HANDLER, "preserve early clock and survey");
+        return this.#intent(player, memory, safeTarget, 0.42, basket, null, {
+          shotQuality,
+          earlyClock: evaluation.components.earlyClock,
+        });
       }
     }
 

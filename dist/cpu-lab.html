@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NOVA COURT · CPU Decision Lab</title>
+  <link rel="stylesheet" href="./js/cpu-lab.css?v=1.0">
+</head>
+<body>
+  <main id="cpu-lab">
+    <div id="cpu-stage" aria-label="Production court and CPU players"></div>
+    <header><span>NOVA COURT · SYSTEM TOOLS</span><h1>CPU DECISION LAB</h1><p>Seeded action scoring · watchdog recovery · production rig</p></header>
+    <aside class="controls">
+      <div class="field-row"><label>SCENARIO<select id="scenario"></select></label><label>DIFFICULTY<select id="difficulty"></select></label></div>
+      <div class="field-row"><label>SEED<input id="seed" type="number" value="41"></label><label>SHOT CLOCK<input id="shot-clock" type="number" min="0.5" max="24" step=".1" value="14"></label></div>
+      <div class="transport"><button id="play">PLAY</button><button id="step">STEP</button><button id="reset">RESET</button></div>
+      <div class="toggles"><label><input id="targets" type="checkbox" checked> Targets + facing</label><label><input id="scores" type="checkbox" checked> Candidate scores</label><label><input id="timeline-toggle" type="checkbox" checked> Trace timeline</label></div>
+      <label class="trace-select">TRACE PLAYER<select id="trace-player"></select></label>
+      <section class="decision"><div class="chosen"><span>CHOSEN ACTION</span><strong id="chosen">—</strong></div><p id="reason">Waiting for a deterministic step.</p><div id="candidate-bars"></div></section>
+      <section id="timeline" class="timeline"></section>
+      <button id="capture" class="capture">SAVE NAMED PNG</button><small id="capture-name">cpu-open-jumper.png</small>
+    </aside>
+    <footer><span id="scenario-caption">OPEN JUMPER · SEED 41</span><dl><div><dt>FPS</dt><dd id="fps">60</dd></div><div><dt>DRAWS</dt><dd id="draws">0</dd></div><div><dt>TRIS</dt><dd id="tris">0</dd></div><div><dt>TRACE</dt><dd id="trace-count">0/48</dd></div></dl></footer>
+  </main>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/cpu-lab.js?v=1.0"></script>
+</body>
+</html>

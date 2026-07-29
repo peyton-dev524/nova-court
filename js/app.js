@@ -1,5 +1,5 @@
 import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=6.1";
-import { createAIDirector } from "./ai.js?v=4.0";
+import { createAIDirector } from "./ai.js?v=5.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
 import { createHalfCourtDuosMode } from "./half-court-duos-mode.js";
@@ -569,7 +569,8 @@ function createEngine(modeKey, preview = false, roster = null) {
   engine.start();
   engine.setPaused(preview);
   engine.controls.setEnabled(!preview);
-  if (new URLSearchParams(location.search).has("qa")) {
+  const qaQuery = new URLSearchParams(location.search);
+  if (qaQuery.has("qa") || qaQuery.has("aiDebug")) {
     globalThis.__NOVA_QA__ = {
       snapshot: () => engine?.getSnapshot?.(),
       replay: () => engine ? {
@@ -601,6 +602,13 @@ function createEngine(modeKey, preview = false, roster = null) {
         loadedIds: [...sceneLoadState.loadedIds],
         loadErrors: [...sceneLoadState.loadErrors],
       }),
+      ai: () => ai?.getDecisionSnapshot?.() || {
+        enabled: false,
+        limit: 0,
+        count: 0,
+        latest: null,
+        traces: [],
+      },
     };
   }
   return engine;
