@@ -216,6 +216,40 @@ select:focus-visible {
   padding: 0 0 12px;
 }
 
+.lab-cloth-toggle {
+  min-height: 30px;
+}
+
+.lab-shorts-grid label {
+  grid-template-columns: 72px 1fr 58px;
+}
+
+.lab-shorts-grid output {
+  color: var(--paper);
+  font: 750 .58rem/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: right;
+}
+
+.lab-cloth-budget {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgba(92, 236, 255, .16);
+  background: rgba(0, 0, 0, .22);
+}
+
+.lab-cloth-budget span {
+  color: var(--dim);
+  font-size: .5rem;
+  font-weight: 850;
+  letter-spacing: .1em;
+}
+
+.lab-cloth-budget output {
+  color: var(--cyan);
+  font: 750 .58rem/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
 .lab-editor-select {
   display: grid;
   grid-template-columns: 72px 1fr;

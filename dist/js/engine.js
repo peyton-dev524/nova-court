@@ -49,6 +49,7 @@ import {
   shotPerfectHalfWidthForPlayer,
   userShotPerfectHalfWidth,
 } from "./shooting-assist.js";
+import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
 import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
@@ -414,21 +415,11 @@ export class ProceduralPlayer {
     this.hips.position.y = this.baseHipHeight;
     group.add(this.hips);
 
-    const waistband = this._mesh(new T.CylinderGeometry(0.265, 0.285, 0.13, 12), trim);
-    waistband.position.y = 0.2;
-    waistband.scale.z = 0.74;
-    this.hips.add(waistband);
-    for (const side of [-1, 1]) {
-      const shortLeg = this._mesh(new T.CylinderGeometry(0.137, 0.165, 0.3, 10), trim);
-      shortLeg.position.set(side * 0.14, 0.015, 0);
-      shortLeg.rotation.z = side * -0.035;
-      shortLeg.scale.z = 0.82;
-      this.hips.add(shortLeg);
-      const shortPanel = this._mesh(new T.BoxGeometry(0.035, 0.25, 0.24), jersey);
-      shortPanel.position.set(side * 0.265, 0.02, 0);
-      this.hips.add(shortPanel);
-      this.detailMeshes.push(shortPanel);
-    }
+    this.shortsRig = createBasketballShortsRig(T, {
+      mainColor: this.colors.trim,
+      panelColor: this.colors.jersey,
+    });
+    this.hips.add(this.shortsRig.root);
 
     const torso = this._mesh(new T.CylinderGeometry(0.305, 0.238, 0.59, 14), jersey);
     torso.position.y = 0.63;
@@ -667,6 +658,14 @@ export class ProceduralPlayer {
     for (const mesh of this.detailMeshes) mesh.visible = showDetail;
   }
 
+  setShortsParameters(parameters = {}) {
+    return this.shortsRig?.setParameters(parameters);
+  }
+
+  shortsMetrics() {
+    return this.shortsRig?.getMetrics();
+  }
+
   updateAnimation(dt, speedRatio) {
     this.stateTime += dt;
     this.animationClock += dt;
@@ -860,6 +859,20 @@ export class ProceduralPlayer {
       leg.knee.rotation.y = damp(leg.knee.rotation.y, guardKnee[1] * guardBlend, 18, dt);
       leg.knee.rotation.z = damp(leg.knee.rotation.z, guardKnee[2] * guardBlend, 18, dt);
     }
+
+    this.shortsRig?.update(dt, {
+      speedRatio: this.smoothedSpeed,
+      lateralSpeed: this.velocity.x,
+      forwardSpeed: this.velocity.z,
+      defenseBlend: this.defenseBlend,
+      airborneBlend: this.airborneBlend,
+      leftHipPitch: this.legs[0]?.hip.rotation.x || 0,
+      rightHipPitch: this.legs[1]?.hip.rotation.x || 0,
+      leftHipYaw: this.legs[0]?.hip.rotation.y || 0,
+      rightHipYaw: this.legs[1]?.hip.rotation.y || 0,
+      leftHipRoll: this.legs[0]?.hip.rotation.z || 0,
+      rightHipRoll: this.legs[1]?.hip.rotation.z || 0,
+    });
 
     for (let i = 0; i < this.arms.length; i++) {
       const arm = this.arms[i];

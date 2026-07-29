@@ -199,10 +199,47 @@ const state = {
   wireframe: false,
   turntable: false,
   guides: true,
+  shortsMotion: false,
+  shortsMotionPreset: "idle",
+  shortsParameters: {
+    length: 0.45,
+    flare: 0.045,
+    sideVent: 0.055,
+    sway: 0.052,
+    stiffness: 48,
+    damping: 10.5,
+  },
   azimuthOffset: 0,
   elevationOffset: 0,
   zoomOffset: 0,
 };
+
+function formatShortsValue(key, value) {
+  if (["length", "flare", "sideVent", "sway"].includes(key)) {
+    return `${Number(value).toFixed(3)} m`;
+  }
+  return Number(value).toFixed(key === "damping" ? 1 : 0);
+}
+
+function applyShortsParameters(parameters = state.shortsParameters) {
+  state.shortsParameters = {
+    ...state.shortsParameters,
+    ...parameters,
+  };
+  playerEntries.forEach(({ player }) => player.setShortsParameters(state.shortsParameters));
+  document.querySelectorAll("[data-shorts]").forEach((slider) => {
+    const key = slider.dataset.shorts;
+    slider.value = String(state.shortsParameters[key]);
+    if (slider.nextElementSibling) {
+      slider.nextElementSibling.value = formatShortsValue(key, state.shortsParameters[key]);
+    }
+  });
+  const metrics = activeEntry().player.shortsMetrics();
+  $("#lab-shorts-budget").value =
+    `${metrics.drawCalls} draws · ${metrics.totalTriangles} tris · ` +
+    `${metrics.dynamicVertices} verts/collisions · ${metrics.textures} textures`;
+  return Object.freeze({ ...state.shortsParameters });
+}
 
 const basketballReviewBall = state.subject === "basketball"
   ? createBasketballMesh(T, 0.88, {
@@ -692,6 +729,8 @@ function syncControls() {
   $("#lab-wireframe").checked = state.wireframe;
   $("#lab-turntable").checked = state.turntable;
   $("#lab-guides").checked = state.guides;
+  $("#lab-shorts-motion").checked = state.shortsMotion;
+  $("#lab-shorts-motion-preset").value = state.shortsMotionPreset;
 }
 
 function selectAthlete(direction) {
@@ -755,6 +794,36 @@ $("#lab-prev").addEventListener("click", () => selectAthlete(-1));
 $("#lab-next").addEventListener("click", () => selectAthlete(1));
 $("#lab-reset").addEventListener("click", () => setView(state.view));
 $("#lab-capture").addEventListener("click", saveCapture);
+$("#lab-shorts-motion").addEventListener("change", (event) => {
+  state.shortsMotion = event.target.checked;
+  applySceneState();
+});
+$("#lab-shorts-motion-preset").addEventListener("change", (event) => {
+  state.shortsMotionPreset = event.target.value;
+  const poseForPreset = {
+    idle: "neutral",
+    defense: "defense",
+    run: "neutral",
+    crossover: "handle",
+  };
+  state.pose = poseForPreset[state.shortsMotionPreset] || state.pose;
+  applySceneState();
+});
+document.querySelectorAll("[data-shorts]").forEach((slider) => {
+  slider.addEventListener("input", () => {
+    applyShortsParameters({ [slider.dataset.shorts]: Number(slider.value) });
+  });
+});
+$("#lab-reset-shorts").addEventListener("click", () => {
+  applyShortsParameters({
+    length: 0.45,
+    flare: 0.045,
+    sideVent: 0.055,
+    sway: 0.052,
+    stiffness: 48,
+    damping: 10.5,
+  });
+});
 document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.view));
 });
@@ -829,9 +898,66 @@ function resize() {
   camera.aspect = width / Math.max(1, height);
   camera.updateProjectionMatrix();
 }
+
+function updateShortsMotionPreview(dt, now) {
+  if (!state.shortsMotion) return;
+  const phase = now / 1000;
+  playerEntries.forEach((entry) => {
+    if (!entry.player.root.visible) return;
+    const player = entry.player;
+    const preset = state.shortsMotionPreset;
+    const basePose = preset === "defense" ? "defense"
+      : preset === "crossover" ? "handle" : "neutral";
+    applyPose(player, basePose);
+    const stride = Math.sin(phase * 8.2);
+    let speedRatio = 0.08;
+    let lateralSpeed = 0;
+    let forwardSpeed = 0;
+    let defenseBlend = 0;
+    if (preset === "run") {
+      player.legs[0].hip.rotation.x = stride * 0.58;
+      player.legs[1].hip.rotation.x = -stride * 0.58;
+      player.legs[0].knee.rotation.x = Math.max(0.04, -stride * 0.62);
+      player.legs[1].knee.rotation.x = Math.max(0.04, stride * 0.62);
+      speedRatio = 1;
+      forwardSpeed = 4.35;
+    } else if (preset === "defense") {
+      const shuffle = Math.sin(phase * 4.4);
+      player.legs[0].hip.rotation.x += shuffle * 0.07;
+      player.legs[1].hip.rotation.x -= shuffle * 0.07;
+      speedRatio = 0.52;
+      lateralSpeed = Math.cos(phase * 4.4) * 3.2;
+      defenseBlend = 1;
+    } else if (preset === "crossover") {
+      const cross = Math.sin(phase * 5.3);
+      player.legs[0].hip.rotation.z -= cross * 0.15;
+      player.legs[1].hip.rotation.z += cross * 0.15;
+      speedRatio = 0.68;
+      lateralSpeed = Math.cos(phase * 5.3) * 4;
+      forwardSpeed = Math.sin(phase * 2.65) * 1.2;
+      defenseBlend = 0.25;
+    }
+    player.shortsRig.update(dt, {
+      speedRatio,
+      lateralSpeed,
+      forwardSpeed,
+      defenseBlend,
+      leftHipPitch: player.legs[0].hip.rotation.x,
+      rightHipPitch: player.legs[1].hip.rotation.x,
+      leftHipYaw: player.legs[0].hip.rotation.y,
+      rightHipYaw: player.legs[1].hip.rotation.y,
+      leftHipRoll: player.legs[0].hip.rotation.z,
+      rightHipRoll: player.legs[1].hip.rotation.z,
+    });
+    player.root.updateMatrixWorld(true);
+  });
+  updateJointGuide();
+}
+
 new ResizeObserver(resize).observe(stage);
 resize();
 applySceneState();
+applyShortsParameters();
 updateCamera();
 
 let lastFrame = performance.now();
@@ -841,6 +967,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (state.turntable && !dragging) state.azimuthOffset += dt * 0.32;
+  updateShortsMotionPreview(dt, now);
   updateCamera();
   playerEntries.forEach((entry) => positionBall(entry));
   renderer.render(scene, camera);
@@ -891,7 +1018,18 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
     updateCamera();
     return true;
   },
+  setShortsParameters(parameters) {
+    return applyShortsParameters(parameters);
+  },
+  setShortsMotion(value, preset = state.shortsMotionPreset) {
+    if (!["idle", "defense", "run", "crossover"].includes(preset)) return false;
+    state.shortsMotion = Boolean(value);
+    state.shortsMotionPreset = preset;
+    syncControls();
+    return true;
+  },
   snapshot() {
+    const shortsMetrics = activeEntry().player.shortsMetrics();
     return Object.freeze({
       subject: state.subject,
       ballStyle: selectedBallStyle,
@@ -904,6 +1042,12 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
       draws: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
       textures: renderer.info.memory.textures,
+      shorts: Object.freeze({
+        parameters: Object.freeze({ ...state.shortsParameters }),
+        motion: state.shortsMotion,
+        motionPreset: state.shortsMotionPreset,
+        cost: shortsMetrics,
+      }),
       assetLoadStatus: "procedural-production-rig-ready",
     });
   },

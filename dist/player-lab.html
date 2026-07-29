@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#05090d">
   <title>NOVA COURT · Player Model Lab</title>
-  <link rel="stylesheet" href="./js/player-model-lab.css?v=1.2">
+  <link rel="stylesheet" href="./js/player-model-lab.css?v=1.3">
 </head>
 <body>
   <main id="player-lab" aria-label="NOVA COURT player model visual harness">
@@ -62,6 +62,38 @@
         <button id="lab-next" type="button">NEXT →</button>
       </div>
       <button id="lab-capture" class="lab-capture" type="button">SAVE NAMED PNG</button>
+
+      <details class="lab-pose-editor lab-shorts-editor" open>
+        <summary>SHORTS CLOTH LAB</summary>
+        <div class="lab-editor-body">
+          <label class="lab-editor-select">
+            Motion
+            <select id="lab-shorts-motion-preset">
+              <option value="idle">Idle settle</option>
+              <option value="defense">Defensive shuffle</option>
+              <option value="run">Full-speed run</option>
+              <option value="crossover">Lateral crossover</option>
+            </select>
+          </label>
+          <label class="lab-toggle lab-cloth-toggle">
+            <input id="lab-shorts-motion" type="checkbox"><span></span>Animate cloth preview
+          </label>
+          <fieldset class="lab-rotation-grid lab-shorts-grid">
+            <legend>FIT + FABRIC RESPONSE</legend>
+            <label>LENGTH <input data-shorts="length" type="range" min="0.34" max="0.52" step="0.01"><output></output></label>
+            <label>HEM FLARE <input data-shorts="flare" type="range" min="0.01" max="0.085" step="0.005"><output></output></label>
+            <label>SIDE VENT <input data-shorts="sideVent" type="range" min="0" max="0.1" step="0.005"><output></output></label>
+            <label>SWAY <input data-shorts="sway" type="range" min="0" max="0.09" step="0.005"><output></output></label>
+            <label>STIFFNESS <input data-shorts="stiffness" type="range" min="20" max="80" step="2"><output></output></label>
+            <label>DAMPING <input data-shorts="damping" type="range" min="5" max="18" step="0.5"><output></output></label>
+          </fieldset>
+          <div class="lab-cloth-budget">
+            <span>PER PLAYER BUDGET</span>
+            <output id="lab-shorts-budget">2 draws · 608 tris · 320 verts/collisions · 0 textures</output>
+          </div>
+          <button id="lab-reset-shorts" type="button">RESET SHORTS</button>
+        </div>
+      </details>
 
       <details class="lab-pose-editor" open>
         <summary>POSE COORDINATE EDITOR</summary>
@@ -131,6 +163,6 @@
 
   <noscript>The player model lab requires JavaScript.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/player-model-lab.js?v=1.7"></script>
+  <script type="module" src="./js/player-model-lab.js?v=1.8"></script>
 </body>
 </html>

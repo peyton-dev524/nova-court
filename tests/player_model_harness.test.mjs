@@ -67,9 +67,8 @@ test("production build includes the player model lab entry point", async () => {
 
 test("production athlete rig includes articulated silhouette and face improvements", async () => {
   const engine = await readFile(new URL("js/engine.js", root), "utf8");
+  const shorts = await readFile(new URL("js/basketball-shorts.js", root), "utf8");
   for (const feature of [
-    "shortLeg",
-    "waistband",
     "jaw",
     "sclera",
     "brow",
@@ -81,5 +80,10 @@ test("production athlete rig includes articulated silhouette and face improvemen
   ]) {
     assert.match(engine, new RegExp(`const ${feature} =`));
   }
+  assert.match(engine, /createBasketballShortsRig/);
+  assert.match(engine, /this\.shortsRig\?\.update/);
+  assert.match(shorts, /const waistband =/);
+  assert.match(shorts, /loose-basketball-shorts/);
+  assert.match(shorts, /constrainShortsVertexToCapsule/);
   assert.doesNotMatch(engine, /const headband =/);
 });

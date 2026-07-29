@@ -1,0 +1,28 @@
+{
+  "frameCount": 256,
+  "durationSeconds": 9.834,
+  "presets": [
+    "idle",
+    "defense",
+    "run",
+    "crossover",
+    "idle"
+  ],
+  "collision": "per-vertex moving thigh capsules",
+  "cost": {
+    "drawCalls": 2,
+    "triangles": 608,
+    "dynamicVertices": 320,
+    "collisionTestsPerFrame": 320,
+    "textures": 0
+  },
+  "dimensions": {
+    "deviceHeight": 720,
+    "deviceWidth": 1280,
+    "offsetTop": 0,
+    "pageScaleFactor": 1,
+    "scrollOffsetX": 0,
+    "scrollOffsetY": 0,
+    "timestamp": 1785288606.526555
+  }
+}
