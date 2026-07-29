@@ -17,7 +17,9 @@ import {
   createContestBallSequence,
   createThreePointRackVisuals,
   getThreePointRackPresentation,
+  getThreePointRackSpaceMetrics,
   sampleArcRunGrab,
+  THREE_POINT_RACK_SPACE,
 } from "../js/three-point-contest.js";
 
 function startLive(config = {}) {
@@ -61,32 +63,36 @@ test("five stations follow the NBA 22 ft corner and 23 ft 9 in above-break line"
   assert.equal(THREE_POINT_RACKS[2].x, 0);
 });
 
-test("side racks stay tangent while the top rack runs vertically toward the hoop", () => {
+test("every rack runs radially toward the hoop with bounded footprint and pickup space", () => {
   for (const rack of THREE_POINT_RACKS) {
     const presentation = getThreePointRackPresentation(rack);
+    const space = getThreePointRackSpaceMetrics(rack);
     assert.ok(presentation.forwardToHoopDot > 0.999999, `${rack.id} forward cue faces hoop`);
     assert.ok(Number.isFinite(presentation.visualYaw), `${rack.id} visual yaw is finite`);
-    if (rack.id === "top") {
-      assert.equal(presentation.layout, "radial");
-      assert.ok(Math.abs(presentation.rackAxis.x) < 1e-12, "top rack has no horizontal run");
-      assert.ok(presentation.rackAxis.z > 0.999999, "top rack axis points down-court");
-      assert.ok(
-        presentation.rackAxisShooterToHoopDot < -0.999999,
-        "top rack is parallel to the hoop line and ordered away from the hoop",
-      );
-      assert.ok(
-        presentation.playerRackDistance >= 0.81
-          && presentation.playerRackDistance <= 0.83,
-        "top rack stays beside the shooter within pickup reach",
-      );
-    } else {
-      assert.equal(presentation.layout, "tangent");
-      assert.ok(Math.abs(presentation.tangentForwardDot) < 1e-10, `${rack.id} shelf is tangent`);
-      assert.ok(presentation.playerRackDistance >= 1.04, `${rack.id} frame clears player`);
-      const nearestBallDistance = presentation.playerRackDistance - 0.57;
-      assert.ok(nearestBallDistance >= 0.45, `${rack.id} does not intersect player`);
-      assert.ok(nearestBallDistance <= 0.55, `${rack.id} remains within handoff reach`);
-    }
+    assert.equal(presentation.layout, "radial");
+    assert.ok(
+      presentation.rackAxisShooterToHoopDot < -0.999999,
+      `${rack.id} is parallel to the hoop line and ordered away from the hoop`,
+    );
+    assert.ok(
+      Math.abs(
+        presentation.rackAxis.x * presentation.widthAxis.x
+          + presentation.rackAxis.z * presentation.widthAxis.z,
+      ) < 1e-10,
+      `${rack.id} length and width axes stay perpendicular`,
+    );
+    assert.ok(
+      space.boundaryClearance >= THREE_POINT_RACK_SPACE.boundaryMargin - 1e-9,
+      `${rack.id} footprint clears court bounds`,
+    );
+    assert.ok(
+      space.playerBodyClearance >= THREE_POINT_RACK_SPACE.minPlayerBodyClearance,
+      `${rack.id} frame clears the player body`,
+    );
+    assert.ok(
+      space.maxPickupDistance <= THREE_POINT_RACK_SPACE.maxPickupReach,
+      `${rack.id} balls remain within pickup reach`,
+    );
   }
 });
 
@@ -104,9 +110,10 @@ test("Arc Run camera is behind the shooter, aims toward the hoop, and has smooth
     ]) assert.ok(Number.isFinite(value), `${THREE_POINT_RACKS[index].id} camera is finite`);
     assert.ok(snapshot.behindShooterDot > 0.3);
     assert.ok(snapshot.cameraTowardHoopDot > 0.9);
+    assert.ok(snapshot.rackFramingDot > 0.9, `${THREE_POINT_RACKS[index].id} rack stays framed`);
     assert.ok(snapshot.fov >= 47 && snapshot.fov <= 58);
-    assert.ok(Math.abs(snapshot.position.x) <= 6.981);
-    assert.ok(Math.abs(snapshot.position.z) <= 6.801);
+    assert.ok(Math.abs(snapshot.position.x) <= 9.051);
+    assert.ok(Math.abs(snapshot.position.z) <= 8.201);
   }
   for (let index = 1; index < snapshots.length; index += 1) {
     const previous = snapshots[index - 1].position;
@@ -338,6 +345,14 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
     Math.abs(visuals.root.children[0].matrices[2].yaw - topPresentation.visualYaw) < 1e-12,
     "top rack mesh uses the radial visual yaw",
   );
+  for (let rackIndex = 0; rackIndex < THREE_POINT_RACKS.length; rackIndex += 1) {
+    const first = visuals.getBallPlacement(rackIndex, 0);
+    const money = visuals.getBallPlacement(rackIndex, 4);
+    assert.ok(
+      Math.hypot(first.x, first.z + 5.7) < Math.hypot(money.x, money.z + 5.7),
+      `${THREE_POINT_RACKS[rackIndex].id} keeps normal ball at hoop/top end`,
+    );
+  }
 });
 
 test("Arc Run integration wires rack placement, locked camera, and arbitrary QA jumps", async () => {

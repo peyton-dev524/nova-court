@@ -1,27 +1,48 @@
-# Arc Run top-of-key rack orientation
+# Arc Run radial rack orientation and spacing
 
-## Capture
+## Captures
 
-- `top-key-vertical-normal-to-money.png`
-- Route: `/index.html?qa=1&captureHeight=720&arcRunCapture=top-key-rack`
-- Scene: Arc Run, rack 3 of 5, ball 1 of 5
-- Camera: production behind-player Arc Run camera
+| Rack | Screenshot | Debug route |
+| --- | --- | --- |
+| Left corner | `rack-left-corner-radial.png` | `/index.html?qa=1&captureHeight=720&arcRunCapture=rack-left-corner` |
+| Left wing | `rack-left-wing-radial.png` | `/index.html?qa=1&captureHeight=720&arcRunCapture=rack-left-wing` |
+| Top of key | `top-key-vertical-normal-to-money.png` | `/index.html?qa=1&captureHeight=720&arcRunCapture=rack-top` |
+| Right wing | `rack-right-wing-radial.png` | `/index.html?qa=1&captureHeight=720&arcRunCapture=rack-right-wing` |
+| Right corner | `rack-right-corner-radial.png` | `/index.html?qa=1&captureHeight=720&arcRunCapture=rack-right-corner` |
 
-## Verified geometry
+All captures use the production behind-player Arc Run camera at rack ball 1.
 
-- The top-of-key rack's long axis has zero world-X run and follows the
-  shooter-to-hoop line.
-- The positive rack axis points down-court, away from the hoop.
-- Ball indices therefore advance from the hoop/top end toward the
+## Spacing calculation
+
+The authored position of each rack is checked as an oriented footprint rather
+than as a single center point:
+
+`halfExtent(axis) = |rackAxis| × 0.775 m + |sideAxis| × 0.23 m`
+
+The footprint is clamped to the 15 m × 14 m half court with a 0.06 m boundary
+margin. The player stands 0.82 m from the rack center. Subtracting the 0.23 m
+rack half-width and 0.32 m player radius leaves at least 0.20 m of body
+clearance. Every ball must also remain within the 1.10 m pickup reach.
+
+| Rack | Boundary clearance | Player-body clearance | Furthest pickup | Clamp adjustment |
+| --- | ---: | ---: | ---: | ---: |
+| Left corner | 0.060 m | 0.262 m | 1.054 m | 0.114 m |
+| Left wing | 2.250 m | 0.270 m | 0.990 m | 0.000 m |
+| Top of key | 4.686 m | 0.270 m | 0.990 m | 0.000 m |
+| Right wing | 2.250 m | 0.270 m | 0.990 m | 0.000 m |
+| Right corner | 0.060 m | 0.262 m | 1.054 m | 0.114 m |
+
+The camera may frame the larger rendered apron (9.05 m × 8.2 m half extents),
+but rack collision and placement calculations continue to use the actual
+7.5 m × 7 m gameplay court bounds.
+
+## Verified geometry and visual QA
+
+- Every rack's long axis follows its shooter-to-hoop line.
+- Ball order advances from the hoop-facing/top end toward the
   down-court/bottom end.
-- The four classic orange balls begin at the top end.
-- Ball 5 is the red/white/blue money ball at the bottom end.
-- The rack remains beside the shooter within the authored pickup reach.
-
-## Visual QA
-
-- The rack points toward the hoop instead of crossing the court horizontally.
-- The orange ball is visibly above and farther up-court than the money ball.
-- The money ball is nearest the camera at the bottom of the rack.
-- The player, rack, hoop, and HUD are unobstructed.
-- Browser console: zero warnings and zero errors.
+- The four classic orange balls begin at the top end and the fifth
+  red/white/blue money ball sits at the bottom end on all five racks.
+- Every complete rack, player, hoop, and HUD is visible from its gameplay
+  camera.
+- Browser console: zero warnings and zero errors in all five captures.

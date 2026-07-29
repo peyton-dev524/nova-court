@@ -11,6 +11,21 @@ export const NBA_CORNER_THREE_METERS = 22 * 0.3048;
 export const NBA_ABOVE_BREAK_THREE_METERS = 23.75 * 0.3048;
 export const THREE_POINT_WING_ANGLE_RADIANS = Math.PI / 4;
 export const THREE_POINT_RACK_REACH_OFFSET = 1.05;
+export const THREE_POINT_RACK_BALL_SPACING = 0.285;
+export const THREE_POINT_RACK_SPACE = Object.freeze({
+  // Production half-court footprint: COURT.width 15 m × COURT.length 14 m.
+  courtHalfWidth: 7.5,
+  courtHalfLength: 7,
+  // The 1.55 m shelf is the longest footprint component. The width includes
+  // rails, wheels, and a small collision allowance.
+  halfLength: 1.55 / 2,
+  halfWidth: 0.23,
+  boundaryMargin: 0.06,
+  playerSideOffset: 0.82,
+  playerRadius: 0.32,
+  minPlayerBodyClearance: 0.2,
+  maxPickupReach: 1.1,
+});
 
 function normalized2(x, z, fallback = { x: 0, z: -1 }) {
   const length = Math.hypot(x, z);
@@ -20,6 +35,7 @@ function normalized2(x, z, fallback = { x: 0, z: -1 }) {
 }
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+const clampRange = (value, min, max) => Math.max(min, Math.min(max, value));
 const smoothstep01 = (value) => {
   const t = clamp01(value);
   return t * t * (3 - 2 * t);
@@ -59,16 +75,37 @@ function authorRack({
   x,
   z,
   tangentSign,
-  layout = "tangent",
-  reachOffset = THREE_POINT_RACK_REACH_OFFSET,
+  layout = "radial",
+  reachOffset = THREE_POINT_RACK_SPACE.playerSideOffset,
 }) {
   const shooterToHoop = normalized2(BASKET.x - x, BASKET.z - z);
-  const tangent = {
+  const side = {
     x: -shooterToHoop.z * tangentSign,
     z: shooterToHoop.x * tangentSign,
   };
-  const propX = x + tangent.x * reachOffset;
-  const propZ = z + tangent.z * reachOffset;
+  const rackAxis = { x: -shooterToHoop.x, z: -shooterToHoop.z };
+  const desiredPropX = x + side.x * reachOffset;
+  const desiredPropZ = z + side.z * reachOffset;
+  const footprintHalfX =
+    Math.abs(rackAxis.x) * THREE_POINT_RACK_SPACE.halfLength
+    + Math.abs(side.x) * THREE_POINT_RACK_SPACE.halfWidth;
+  const footprintHalfZ =
+    Math.abs(rackAxis.z) * THREE_POINT_RACK_SPACE.halfLength
+    + Math.abs(side.z) * THREE_POINT_RACK_SPACE.halfWidth;
+  const propX = clampRange(
+    desiredPropX,
+    -THREE_POINT_RACK_SPACE.courtHalfWidth
+      + THREE_POINT_RACK_SPACE.boundaryMargin + footprintHalfX,
+    THREE_POINT_RACK_SPACE.courtHalfWidth
+      - THREE_POINT_RACK_SPACE.boundaryMargin - footprintHalfX,
+  );
+  const propZ = clampRange(
+    desiredPropZ,
+    -THREE_POINT_RACK_SPACE.courtHalfLength
+      + THREE_POINT_RACK_SPACE.boundaryMargin + footprintHalfZ,
+    THREE_POINT_RACK_SPACE.courtHalfLength
+      - THREE_POINT_RACK_SPACE.boundaryMargin - footprintHalfZ,
+  );
   const rackForward = normalized2(BASKET.x - propX, BASKET.z - propZ);
   const rackTangent = { x: -rackForward.z, z: rackForward.x };
   return Object.freeze({
@@ -79,6 +116,10 @@ function authorRack({
     z,
     propX,
     propZ,
+    sideX: side.x,
+    sideZ: side.z,
+    boundaryAdjustmentX: propX - desiredPropX,
+    boundaryAdjustmentZ: propZ - desiredPropZ,
     forwardX: rackForward.x,
     forwardZ: rackForward.z,
     tangentX: rackTangent.x,
@@ -118,8 +159,6 @@ export const THREE_POINT_RACKS = Object.freeze([
     x: 0,
     z: topZ,
     tangentSign: -1,
-    layout: "radial",
-    reachOffset: 0.82,
   }),
   authorRack({
     id: "right_wing",
@@ -164,7 +203,9 @@ export function getThreePointRackPresentation(rack, basket = BASKET) {
   const rackAxis = radialLayout
     ? { x: -shooterToHoop.x, z: -shooterToHoop.z }
     : tangent;
-  const widthAxis = radialLayout ? rackToShooter : forward;
+  const widthAxis = radialLayout
+    ? normalized2(Number(rack?.sideX), Number(rack?.sideZ), tangent)
+    : forward;
   const visualYaw = radialLayout
     ? Math.atan2(-rackAxis.z, rackAxis.x)
     : Math.atan2(forward.x, forward.z);
@@ -196,6 +237,51 @@ export function getThreePointRackPresentation(rack, basket = BASKET) {
   });
 }
 
+export function getThreePointRackSpaceMetrics(rack, basket = BASKET) {
+  const presentation = getThreePointRackPresentation(rack, basket);
+  const { shooter, prop, rackAxis, widthAxis } = presentation;
+  const footprintHalfX =
+    Math.abs(rackAxis.x) * THREE_POINT_RACK_SPACE.halfLength
+    + Math.abs(widthAxis.x) * THREE_POINT_RACK_SPACE.halfWidth;
+  const footprintHalfZ =
+    Math.abs(rackAxis.z) * THREE_POINT_RACK_SPACE.halfLength
+    + Math.abs(widthAxis.z) * THREE_POINT_RACK_SPACE.halfWidth;
+  const boundaryClearance = Math.min(
+    prop.x - footprintHalfX + THREE_POINT_RACK_SPACE.courtHalfWidth,
+    THREE_POINT_RACK_SPACE.courtHalfWidth - prop.x - footprintHalfX,
+    prop.z - footprintHalfZ + THREE_POINT_RACK_SPACE.courtHalfLength,
+    THREE_POINT_RACK_SPACE.courtHalfLength - prop.z - footprintHalfZ,
+  );
+  const playerDelta = { x: shooter.x - prop.x, z: shooter.z - prop.z };
+  const playerLength = Math.abs(playerDelta.x * rackAxis.x + playerDelta.z * rackAxis.z);
+  const playerWidth = Math.abs(playerDelta.x * widthAxis.x + playerDelta.z * widthAxis.z);
+  const frameDistance = Math.hypot(
+    Math.max(0, playerLength - THREE_POINT_RACK_SPACE.halfLength),
+    Math.max(0, playerWidth - THREE_POINT_RACK_SPACE.halfWidth),
+  );
+  const pickupDistances = Array.from({ length: THREE_POINT_BALLS_PER_RACK }, (_, ballIndex) => {
+    const local = (ballIndex - (THREE_POINT_BALLS_PER_RACK - 1) / 2)
+      * THREE_POINT_RACK_BALL_SPACING;
+    const ballX = prop.x + rackAxis.x * local - widthAxis.x * 0.01;
+    const ballZ = prop.z + rackAxis.z * local - widthAxis.z * 0.01;
+    return Math.hypot(ballX - shooter.x, ballZ - shooter.z);
+  });
+  return Object.freeze({
+    id: rack?.id || "",
+    footprintHalfX,
+    footprintHalfZ,
+    boundaryClearance,
+    playerBodyClearance: frameDistance - THREE_POINT_RACK_SPACE.playerRadius,
+    firstBallDistance: pickupDistances[0],
+    moneyBallDistance: pickupDistances[pickupDistances.length - 1],
+    maxPickupDistance: Math.max(...pickupDistances),
+    boundaryAdjustment: Math.hypot(
+      Number(rack?.boundaryAdjustmentX) || 0,
+      Number(rack?.boundaryAdjustmentZ) || 0,
+    ),
+  });
+}
+
 export function createArcRunCameraSnapshot({
   shooter,
   basket = BASKET,
@@ -203,7 +289,10 @@ export function createArcRunCameraSnapshot({
   behindDistance = 3.15,
   shoulderOffset = 0.58,
   height = 2.15,
-  cameraBounds = { halfWidth: 6.98, halfLength: 6.8 },
+  // The rendered court apron is wider than the 15 × 14 m playable surface.
+  // Let the camera use that apron so corner stations retain a real behind-
+  // player view without changing gameplay or rack bounds.
+  cameraBounds = { halfWidth: 9.05, halfLength: 8.2 },
 } = {}) {
   const player = {
     x: Number(shooter?.x) || 0,
@@ -260,22 +349,36 @@ export function createArcRunCameraSnapshot({
   );
   const target = {
     x: player.x + forward.x * aimDistance,
-    y: 1.75,
+    // Aim slightly below the chest so all five waist-high rack balls remain
+    // above the lower HUD, especially at the left corner.
+    y: 1.25,
     z: player.z + forward.z * aimDistance,
   };
   const cameraToTarget = normalized2(target.x - position.x, target.z - position.z);
   const shooterToCamera = normalized2(position.x - player.x, position.z - player.z);
+  const cameraToRack = rack
+    ? normalized2(
+      Number(rack.propX ?? rack.x) - position.x,
+      Number(rack.propZ ?? rack.z) - position.z,
+      cameraToTarget,
+    )
+    : cameraToTarget;
   return Object.freeze({
     position: Object.freeze(position),
     target: Object.freeze(target),
     forward: Object.freeze(forward),
     right: Object.freeze(right),
-    fov: 47 + (behindDistance - boundedBehindDistance) * 3.6,
+    // Corner cameras cannot travel the full 3.15 m behind the shooter without
+    // leaving the rendered apron. Widen proportionally so the near money-ball
+    // endpoint and the player remain visible together.
+    fov: 47 + (behindDistance - boundedBehindDistance) * 8,
     behindDistance: boundedBehindDistance,
     requestedBehindDistance: behindDistance,
     shoulderOffset: boundedShoulderOffset * shoulderSign,
     behindShooterDot: shooterToCamera.x * -forward.x + shooterToCamera.z * -forward.z,
     cameraTowardHoopDot: cameraToTarget.x * forward.x + cameraToTarget.z * forward.z,
+    rackFramingDot:
+      cameraToTarget.x * cameraToRack.x + cameraToTarget.z * cameraToRack.z,
   });
 }
 
@@ -466,7 +569,8 @@ export function createThreePointRackVisuals(T, scene, {
     }
 
     for (let ballIndex = 0; ballIndex < ballsPerRack; ballIndex += 1) {
-      const localX = (ballIndex - (ballsPerRack - 1) / 2) * 0.285;
+      const localX = (ballIndex - (ballsPerRack - 1) / 2)
+        * THREE_POINT_RACK_BALL_SPACING;
       const ballX = x + lengthX * localX - widthX * 0.01;
       const ballZ = z + lengthZ * localX - widthZ * 0.01;
       const placement = { x: ballX, y: 1.01, z: ballZ, yaw };

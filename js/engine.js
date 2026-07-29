@@ -94,7 +94,7 @@ import {
   ARC_RUN_GRAB_DURATION,
   createArcRunCameraSnapshot,
   sampleArcRunGrab,
-} from "./three-point-contest.js?v=1.2";
+} from "./three-point-contest.js?v=1.8";
 
 export const ENGINE_VERSION = "1.0.0";
 

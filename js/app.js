@@ -31,7 +31,7 @@ import {
 import {
   createThreePointRackVisuals,
   getThreePointRackPresentation,
-} from "./three-point-contest.js?v=1.3";
+} from "./three-point-contest.js?v=1.8";
 import {
   BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLES,
@@ -1378,6 +1378,17 @@ function prepareArcRunCaptureState(name) {
     setArcRunGrabForQA(0.12, 2, 3);
   } else if (name === "top-key-rack") {
     setArcRunGrabForQA(0.12, 2, 0);
+  } else {
+    const rackCaptureIndex = [
+      "rack-left-corner",
+      "rack-left-wing",
+      "rack-top",
+      "rack-right-wing",
+      "rack-right-corner",
+    ].indexOf(name);
+    if (rackCaptureIndex >= 0) {
+      setArcRunGrabForQA(0.12, rackCaptureIndex, 0);
+    }
   }
   gameActive = false;
   engine.controls.setEnabled(false);
