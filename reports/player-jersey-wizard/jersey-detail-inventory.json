@@ -1,0 +1,109 @@
+{
+  "sourceImage": "reports/player-jersey-wizard/reference/jersey-front-crop.png",
+  "zonesDir": "reports/player-jersey-wizard/inventory-crops",
+  "detailInventory": {
+    "scanMethod": "grid-3x3",
+    "targetMinDetails": 6,
+    "details": [
+      {
+        "id": "v-neck-binding",
+        "kind": "binding",
+        "description": "Dark ribbed V-neck binding follows the neckline apex.",
+        "region": "upper-center",
+        "scale": "meso",
+        "affects": "silhouette/material",
+        "mapsTo": { "type": "component.localFeatures", "ref": "neck-binding.v-neck-curve" },
+        "evidenceRef": "inventory-crops/zone-r0c1.png",
+        "confidence": 0.92
+      },
+      {
+        "id": "deep-armhole",
+        "kind": "negative-space",
+        "description": "Deep sleeveless armhole separates torso shell from upper arm.",
+        "region": "upper-sides",
+        "scale": "macro",
+        "affects": "silhouette/attachment",
+        "mapsTo": { "type": "component.localFeatures", "ref": "shoulder-bridges.armhole-clearance" },
+        "evidenceRef": "reference/nike-jersey-06.png",
+        "confidence": 0.9
+      },
+      {
+        "id": "armhole-binding",
+        "kind": "binding",
+        "description": "Armhole binding remains narrow relative to the opening.",
+        "region": "upper-sides",
+        "scale": "meso",
+        "affects": "material/silhouette",
+        "mapsTo": { "type": "component.localFeatures", "ref": "armhole-binding.one-inch-maximum" },
+        "evidenceRef": "reference/nike-jersey-04.png",
+        "confidence": 0.88
+      },
+      {
+        "id": "front-number",
+        "kind": "graphic",
+        "description": "Front number is centered on the visible torso panel.",
+        "region": "center",
+        "scale": "meso",
+        "affects": "graphic/readability",
+        "mapsTo": { "type": "component.localFeatures", "ref": "number-plates.front-four-inch" },
+        "evidenceRef": "inventory-crops/zone-r1c1.png",
+        "confidence": 0.95
+      },
+      {
+        "id": "lower-fold-band",
+        "kind": "fabric-response",
+        "description": "Polyester body shows low-amplitude vertical folds below the chest.",
+        "region": "lower-center",
+        "scale": "meso",
+        "affects": "geometry/material/motion",
+        "mapsTo": { "type": "material.localOverrides", "ref": "polyester-knit.lower-fold-band" },
+        "evidenceRef": "inventory-crops/zone-r2c1.png",
+        "confidence": 0.84
+      },
+      {
+        "id": "side-insert",
+        "kind": "side-insert",
+        "description": "Contrast side insert runs vertically below the armhole.",
+        "region": "sides",
+        "scale": "meso",
+        "affects": "color/material",
+        "mapsTo": { "type": "component.localFeatures", "ref": "side-inserts.four-inch-maximum" },
+        "evidenceRef": "reference/nike-jersey-04.png",
+        "confidence": 0.91
+      },
+      {
+        "id": "loose-hem",
+        "kind": "hem",
+        "description": "Front lower hem hangs straight with slight outward ease.",
+        "region": "lower",
+        "scale": "macro",
+        "affects": "silhouette/motion",
+        "mapsTo": { "type": "component.localFeatures", "ref": "body-shell.loose-hem" },
+        "evidenceRef": "inventory-crops/zone-r2c1.png",
+        "confidence": 0.9
+      },
+      {
+        "id": "side-fold-zone",
+        "kind": "side-seam",
+        "description": "Lower side seam is the main fold and motion concentration zone.",
+        "region": "lower-sides",
+        "scale": "meso",
+        "affects": "motion/collision",
+        "mapsTo": { "type": "component.localFeatures", "ref": "body-shell.side-fold-zone" },
+        "evidenceRef": "reference/jersey-side-crop.png",
+        "confidence": 0.8
+      },
+      {
+        "id": "micro-knit",
+        "kind": "material",
+        "description": "Fine knit surface is matte with a soft grazing-angle sheen.",
+        "region": "full-surface",
+        "scale": "micro",
+        "affects": "roughness/sheen",
+        "mapsTo": { "type": "material.localOverrides", "ref": "polyester-knit.micro-knit" },
+        "evidenceRef": "inventory-crops/zone-r1c1.png",
+        "confidence": 0.78
+      }
+    ]
+  }
+}

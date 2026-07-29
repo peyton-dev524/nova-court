@@ -16,6 +16,7 @@ function discoverTestFiles(directory) {
 
 const allTests = [...new Set(discoverTestFiles(testsRoot))].sort();
 const labTests = new Set([
+  "basketball_jersey_wizard.test.mjs",
   "basketball_shoe_styles.test.mjs",
   "cpu_decision_system.test.mjs",
   "dribble_animation_lab.test.mjs",
@@ -25,6 +26,7 @@ const labTests = new Set([
   "shoe_lab.test.mjs",
 ]);
 const smokeTests = new Set([
+  "basketball_jersey_wizard.test.mjs",
   "ai_shooting.test.mjs",
   "ball_selection.test.mjs",
   "game.test.mjs",

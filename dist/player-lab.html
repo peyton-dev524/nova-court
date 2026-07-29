@@ -60,6 +60,10 @@
           <option value="legs-front">Leg proportions / front</option>
           <option value="legs-three-quarter">Leg proportions / three-quarter</option>
           <option value="back">Back / jersey</option>
+          <option value="jersey-front">Jersey / front</option>
+          <option value="jersey-side">Jersey / side</option>
+          <option value="jersey-back">Jersey / back</option>
+          <option value="jersey-action">Jersey / action cloth</option>
           <option value="top">Top / shoe throat</option>
           <option value="outsole">Outsole / tread</option>
         </select>
@@ -108,6 +112,35 @@
             <output id="lab-shorts-budget">2 draws · 608 tris · 320 verts/collisions · 0 textures</output>
           </div>
           <button id="lab-reset-shorts" type="button">RESET SHORTS</button>
+        </div>
+      </details>
+
+      <details class="lab-pose-editor lab-jersey-editor" open>
+        <summary>JERSEY CLOTH LAB</summary>
+        <div class="lab-editor-body">
+          <p class="lab-reference-note">19 in body width · 29.75 in body length · NFHS number, trim, and side-panel limits</p>
+          <label class="lab-toggle lab-cloth-toggle">
+            <input id="lab-jersey-motion" type="checkbox"><span></span>Animate action cloth
+          </label>
+          <fieldset class="lab-rotation-grid lab-jersey-grid">
+            <legend>FIT + FABRIC RESPONSE</legend>
+            <label>FIT <input data-jersey="fit" type="range" min="0.96" max="1.14" step="0.01"><output></output></label>
+            <label>LENGTH <input data-jersey="length" type="range" min="0.69" max="0.86" step="0.01"><output></output></label>
+            <label>HEM FLARE <input data-jersey="hemFlare" type="range" min="0.012" max="0.065" step="0.001"><output></output></label>
+            <label>SIDE PANEL <input data-jersey="sidePanelWidth" type="range" min="0.045" max="0.1016" step="0.002"><output></output></label>
+            <label>FABRIC <input data-jersey="fabricResponse" type="range" min="0" max="1" step="0.05"><output></output></label>
+          </fieldset>
+          <div class="lab-cloth-budget">
+            <span>STRICT PER PLAYER BUDGET</span>
+            <output id="lab-jersey-budget">5 draws · 880 tris · 240 dynamic verts · 0 textures</output>
+          </div>
+          <div class="lab-editor-actions lab-jersey-views">
+            <button type="button" data-view="jersey-front">FRONT</button>
+            <button type="button" data-view="jersey-side">SIDE</button>
+            <button type="button" data-view="jersey-back">BACK</button>
+            <button type="button" data-view="jersey-action">ACTION</button>
+          </div>
+          <button id="lab-reset-jersey" type="button">RESET JERSEY</button>
         </div>
       </details>
 
@@ -176,6 +209,7 @@
       <button type="button" data-view="hand-front">04 HAND</button>
       <button type="button" data-view="legs-front">05 LEGS</button>
       <button type="button" data-view="back">06 BACK</button>
+      <button type="button" data-view="jersey-front">07 JERSEY</button>
       <button type="button" data-view="top">07 TOP</button>
       <button type="button" data-view="outsole">08 OUTSOLE</button>
     </nav>

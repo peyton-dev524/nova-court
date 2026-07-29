@@ -394,6 +394,23 @@ select:focus-visible {
   line-height: 1.45;
 }
 
+.lab-reference-note {
+  margin: 0 0 10px;
+  color: #87aab3;
+  font-size: .6rem;
+  line-height: 1.45;
+}
+
+.lab-jersey-views {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.lab-jersey-views button {
+  min-width: 0;
+  padding-inline: 6px;
+  font-size: .55rem;
+}
+
 .lab-readout {
   bottom: 26px;
   left: 30px;

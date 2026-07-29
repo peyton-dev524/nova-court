@@ -223,6 +223,10 @@ const views = Object.freeze({
   "legs-front": { azimuth: 0, elevation: 0.02, distance: 2.35, focus: "legs" },
   "legs-three-quarter": { azimuth: -0.64, elevation: 0.04, distance: 2.25, focus: "legs" },
   back: { azimuth: Math.PI, elevation: 0.08, distance: 5.4 },
+  "jersey-front": { azimuth: 0, elevation: 0.03, distance: 2.3, focus: "jersey" },
+  "jersey-side": { azimuth: -Math.PI / 2, elevation: 0.03, distance: 2.3, focus: "jersey" },
+  "jersey-back": { azimuth: Math.PI, elevation: 0.03, distance: 2.3, focus: "jersey" },
+  "jersey-action": { azimuth: -0.62, elevation: 0.06, distance: 2.42, focus: "jersey" },
   top: { azimuth: 0, elevation: Math.PI / 2, distance: 4.8 },
   outsole: { azimuth: 0, elevation: -Math.PI / 2, distance: 4.8 },
 });
@@ -251,6 +255,14 @@ const state = {
     sway: 0.052,
     stiffness: 48,
     damping: 10.5,
+  },
+  jerseyMotion: query.get("jerseyMotion") === "1" || query.get("view") === "jersey-action",
+  jerseyParameters: {
+    fit: 1.04,
+    length: 0.75565,
+    hemFlare: 0.035,
+    sidePanelWidth: 0.082,
+    fabricResponse: 0.58,
   },
   azimuthOffset: 0,
   elevationOffset: 0,
@@ -282,6 +294,29 @@ function applyShortsParameters(parameters = state.shortsParameters) {
     `${metrics.drawCalls} draws · ${metrics.totalTriangles} tris · ` +
     `${metrics.dynamicVertices} verts/collisions · ${metrics.textures} textures`;
   return Object.freeze({ ...state.shortsParameters });
+}
+
+function formatJerseyValue(key, value) {
+  if (key === "fit" || key === "fabricResponse") return `${Math.round(Number(value) * 100)}%`;
+  if (key === "length") return `${(Number(value) / 0.0254).toFixed(1)} in`;
+  return `${(Number(value) * 100).toFixed(1)} cm`;
+}
+
+function applyJerseyParameters(parameters = state.jerseyParameters) {
+  state.jerseyParameters = { ...state.jerseyParameters, ...parameters };
+  playerEntries.forEach(({ player }) => player.setJerseyParameters(state.jerseyParameters));
+  document.querySelectorAll("[data-jersey]").forEach((slider) => {
+    const key = slider.dataset.jersey;
+    slider.value = String(state.jerseyParameters[key]);
+    if (slider.nextElementSibling) {
+      slider.nextElementSibling.value = formatJerseyValue(key, state.jerseyParameters[key]);
+    }
+  });
+  const metrics = activeEntry().player.jerseyMetrics();
+  $("#lab-jersey-budget").value =
+    `${metrics.drawCalls} draws · ${metrics.totalTriangles} tris · ` +
+    `${metrics.dynamicVertices} dynamic verts · ${metrics.textures} textures`;
+  return Object.freeze({ ...state.jerseyParameters });
 }
 
 const basketballReviewBall = state.subject === "basketball"
@@ -796,6 +831,8 @@ function updateCamera() {
     if (preset.focus === "hand") {
       const handIndex = state.limb === "left-arm" ? 1 : 0;
       target = activePlayer.arms[handIndex].hand.getWorldPosition(new T.Vector3());
+    } else if (preset.focus === "jersey") {
+      target = new T.Vector3(0, 1.06, 0);
     } else {
       target = new T.Vector3(0, 0.58, 0);
     }
@@ -838,6 +875,11 @@ function updateCaptureName() {
     $("#lab-capture-name").textContent = `npc-height-range-${state.pose}-${state.view}-comparison.png`;
     return;
   }
+  if (state.view.startsWith("jersey-")) {
+    $("#lab-capture-name").textContent =
+      `${state.view === "jersey-action" ? "jersey-action-cloth" : state.view}.png`;
+    return;
+  }
   const focus = views[state.view].focus ? views[state.view].focus : "full-body";
   $("#lab-capture-name").textContent =
     `npc-${athlete}-${state.pose}-${state.view}-${focus}.png`;
@@ -860,6 +902,7 @@ function syncControls() {
   $("#lab-shorts-motion").checked = state.shortsMotion;
   $("#lab-shorts-motion-preset").value = state.shortsMotionPreset;
   $("#lab-shoe-style").value = state.shoeStyleId;
+  $("#lab-jersey-motion").checked = state.jerseyMotion;
 }
 
 function selectAthlete(direction) {
@@ -874,6 +917,10 @@ function setView(view) {
   state.azimuthOffset = 0;
   state.elevationOffset = 0;
   state.zoomOffset = 0;
+  if (view === "jersey-action") {
+    state.pose = "handle";
+    state.jerseyMotion = true;
+  }
   applySceneState();
   updateCamera();
   return true;
@@ -957,6 +1004,24 @@ $("#lab-reset-shorts").addEventListener("click", () => {
     sway: 0.052,
     stiffness: 48,
     damping: 10.5,
+  });
+});
+$("#lab-jersey-motion").addEventListener("change", (event) => {
+  state.jerseyMotion = event.target.checked;
+  if (state.jerseyMotion && !state.view.startsWith("jersey-")) setView("jersey-action");
+});
+document.querySelectorAll("[data-jersey]").forEach((slider) => {
+  slider.addEventListener("input", () => {
+    applyJerseyParameters({ [slider.dataset.jersey]: Number(slider.value) });
+  });
+});
+$("#lab-reset-jersey").addEventListener("click", () => {
+  applyJerseyParameters({
+    fit: 1.04,
+    length: 0.75565,
+    hemFlare: 0.035,
+    sidePanelWidth: 0.082,
+    fabricResponse: 0.58,
   });
 });
 document.querySelectorAll("[data-view]").forEach((button) => {
@@ -1089,10 +1154,24 @@ function updateShortsMotionPreview(dt, now) {
   updateJointGuide();
 }
 
+function updateJerseyMotionPreview(dt, now) {
+  const phase = now / 1000;
+  playerEntries.forEach((entry) => {
+    if (!entry.player.root.visible) return;
+    const wave = state.jerseyMotion ? Math.sin(phase * 3.4) : 0;
+    entry.player.jerseyRig?.update(dt, {
+      lateralSpeed: wave * 3.6,
+      forwardSpeed: state.jerseyMotion ? 2.25 + Math.cos(phase * 2.1) * 0.8 : 0,
+      torsoYaw: wave * 0.3,
+    });
+  });
+}
+
 new ResizeObserver(resize).observe(stage);
 resize();
 applySceneState();
 applyShortsParameters();
+applyJerseyParameters();
 updateCamera();
 
 let lastFrame = performance.now();
@@ -1103,6 +1182,7 @@ function frame(now) {
   lastFrame = now;
   if (state.turntable && !dragging) state.azimuthOffset += dt * 0.32;
   updateShortsMotionPreview(dt, now);
+  updateJerseyMotionPreview(dt, now);
   updateCamera();
   playerEntries.forEach((entry) => positionBall(entry));
   renderer.render(scene, camera);
@@ -1178,6 +1258,14 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
     syncControls();
     return true;
   },
+  setJerseyParameters(parameters) {
+    return applyJerseyParameters(parameters);
+  },
+  setJerseyMotion(value) {
+    state.jerseyMotion = Boolean(value);
+    syncControls();
+    return true;
+  },
   snapshot() {
     const shortsMetrics = activeEntry().player.shortsMetrics();
     return Object.freeze({
@@ -1197,6 +1285,11 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
         motion: state.shortsMotion,
         motionPreset: state.shortsMotionPreset,
         cost: shortsMetrics,
+      }),
+      jersey: Object.freeze({
+        parameters: Object.freeze({ ...state.jerseyParameters }),
+        motion: state.jerseyMotion,
+        cost: activeEntry().player.jerseyMetrics(),
       }),
       shoe: shoeReview
         ? Object.freeze({
