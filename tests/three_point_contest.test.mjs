@@ -1,16 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "../js/modes.js";
 import {
+  createArcRunCameraSnapshot,
   THREE_POINT_BALLS_PER_RACK,
   THREE_POINT_MONEY_BALL_POINTS,
   THREE_POINT_MONEY_BALL_STYLE,
   THREE_POINT_NORMAL_BALL_POINTS,
   THREE_POINT_NORMAL_BALL_STYLE,
+  NBA_ABOVE_BREAK_THREE_METERS,
+  NBA_CORNER_THREE_METERS,
   THREE_POINT_RACKS,
   contestRackDistance,
   createContestBallSequence,
   createThreePointRackVisuals,
+  getThreePointRackPresentation,
 } from "../js/three-point-contest.js";
 
 function startLive(config = {}) {
@@ -26,22 +31,75 @@ function startLive(config = {}) {
   return { mode, live };
 }
 
-test("five authored rack spots follow a symmetric regulation-distance arc", () => {
+test("five stations follow the NBA 22 ft corner and 23 ft 9 in above-break line", () => {
   assert.equal(THREE_POINT_RACKS.length, 5);
   assert.deepEqual(
     THREE_POINT_RACKS.map((rack) => rack.id),
     ["left_corner", "left_wing", "top", "right_wing", "right_corner"],
   );
-  for (const rack of THREE_POINT_RACKS) {
-    assert.ok(contestRackDistance(rack) >= 6.35, `${rack.id} must be behind the arc`);
+  const uniqueStations = new Set();
+  for (const [index, rack] of THREE_POINT_RACKS.entries()) {
+    const distance = contestRackDistance(rack);
+    const expectedDistance = index === 0 || index === 4
+      ? NBA_CORNER_THREE_METERS
+      : NBA_ABOVE_BREAK_THREE_METERS;
+    assert.ok(
+      Math.abs(distance - expectedDistance) <= (index === 0 || index === 4 ? 0.02 : 1e-9),
+      `${rack.id} distance ${distance.toFixed(4)} must match its NBA line segment`,
+    );
     assert.ok(Math.abs(rack.x) < 7.5, `${rack.id} must remain on court`);
     assert.ok(Math.abs(rack.z) < 7, `${rack.id} must remain on court`);
+    uniqueStations.add(`${rack.x.toFixed(4)},${rack.z.toFixed(4)}`);
   }
+  assert.equal(uniqueStations.size, 5);
   assert.equal(THREE_POINT_RACKS[0].x, -THREE_POINT_RACKS[4].x);
   assert.equal(THREE_POINT_RACKS[0].z, THREE_POINT_RACKS[4].z);
   assert.equal(THREE_POINT_RACKS[1].x, -THREE_POINT_RACKS[3].x);
   assert.equal(THREE_POINT_RACKS[1].z, THREE_POINT_RACKS[3].z);
   assert.equal(THREE_POINT_RACKS[2].x, 0);
+});
+
+test("every asymmetric rack faces the hoop, runs tangent to the arc, and clears the shooter", () => {
+  for (const rack of THREE_POINT_RACKS) {
+    const presentation = getThreePointRackPresentation(rack);
+    assert.ok(presentation.forwardToHoopDot > 0.999999, `${rack.id} forward cue faces hoop`);
+    assert.ok(Math.abs(presentation.tangentForwardDot) < 1e-10, `${rack.id} shelf is tangent`);
+    assert.ok(Number.isFinite(presentation.yaw), `${rack.id} yaw is finite`);
+    assert.ok(presentation.playerRackDistance >= 1.04, `${rack.id} frame clears player`);
+    const nearestBallDistance = presentation.playerRackDistance - 0.57;
+    assert.ok(nearestBallDistance >= 0.45, `${rack.id} does not intersect player`);
+    assert.ok(nearestBallDistance <= 0.55, `${rack.id} remains within handoff reach`);
+  }
+});
+
+test("Arc Run camera is behind the shooter, aims toward the hoop, and has smooth finite rack endpoints", () => {
+  const snapshots = THREE_POINT_RACKS.map((rack) => createArcRunCameraSnapshot({
+    shooter: { x: rack.x, y: 0, z: rack.z },
+    basket: { x: 0, y: 3.05, z: -5.7 },
+    rack,
+  }));
+  for (const [index, snapshot] of snapshots.entries()) {
+    for (const value of [
+      ...Object.values(snapshot.position),
+      ...Object.values(snapshot.target),
+      snapshot.fov,
+    ]) assert.ok(Number.isFinite(value), `${THREE_POINT_RACKS[index].id} camera is finite`);
+    assert.ok(snapshot.behindShooterDot > 0.3);
+    assert.ok(snapshot.cameraTowardHoopDot > 0.9);
+    assert.ok(snapshot.fov >= 47 && snapshot.fov <= 58);
+    assert.ok(Math.abs(snapshot.position.x) <= 6.981);
+    assert.ok(Math.abs(snapshot.position.z) <= 6.801);
+  }
+  for (let index = 1; index < snapshots.length; index += 1) {
+    const previous = snapshots[index - 1].position;
+    const current = snapshots[index].position;
+    const transitionDistance = Math.hypot(
+      current.x - previous.x,
+      current.y - previous.y,
+      current.z - previous.z,
+    );
+    assert.ok(transitionDistance > 0.1 && transitionDistance < 9.5);
+  }
 });
 
 test("each rack deterministically ends with a two-point tricolor money ball", () => {
@@ -71,7 +129,7 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   class FakeObject3D {
     constructor() {
       this.position = { x: 0, y: 0, z: 0, set: (x, y, z) => Object.assign(this.position, { x, y, z }) };
-      this.rotation = { y: 0 };
+      this.rotation = { x: 0, y: 0 };
       this.scale = { x: 1, y: 1, z: 1, set: (x, y, z) => Object.assign(this.scale, { x, y, z }) };
       this.matrix = {};
     }
@@ -79,6 +137,7 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
       this.matrix = {
         position: { x: this.position.x, y: this.position.y, z: this.position.z },
         yaw: this.rotation.y,
+        pitch: this.rotation.x,
         scale: { x: this.scale.x, y: this.scale.y, z: this.scale.z },
       };
     }
@@ -124,13 +183,17 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   assert.deepEqual(visuals.getSnapshot(), {
     rackCount: 5,
     ballCount: 25,
-    drawCalls: 8,
+    drawCalls: 11,
+    racks: THREE_POINT_RACKS.map((rack) => ({
+      id: rack.id,
+      ...getThreePointRackPresentation(rack),
+    })),
   });
   assert.equal(scene.children[0].name, "three-point-contest-racks");
 
   visuals.setCurrent(0, 4);
-  const normalBalls = visuals.root.children[4];
-  const moneyBalls = visuals.root.children[5];
+  const normalBalls = visuals.root.children[7];
+  const moneyBalls = visuals.root.children[8];
   assert.deepEqual(
     normalBalls.matrices.slice(0, 4).map((matrix) => matrix.scale),
     Array.from({ length: 4 }, () => ({ x: 0, y: 0, z: 0 })),
@@ -141,6 +204,23 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   assert.deepEqual(moneyBalls.matrices[0].scale, { x: 0, y: 0, z: 0 });
   visuals.reset();
   assert.deepEqual(normalBalls.matrices[0].scale, { x: 1, y: 1, z: 1 });
+});
+
+test("Arc Run integration wires rack placement, locked camera, and arbitrary QA jumps", async () => {
+  const [appSource, engineSource] = await Promise.all([
+    readFile(new URL("../js/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../js/engine.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(appSource, /setCameraMode\(currentModeKey === "threePoint"[\s\S]*\? "arc-run"/);
+  assert.match(appSource, /engine\.setArcRunRack\?\.\(rack\)/);
+  assert.match(appSource, /jumpThreePointContest:\s*\(rackIndex = 0, ballIndex = 0/);
+  assert.match(appSource, /snapThreePointCamera/);
+  assert.match(appSource, /facingHoopDot/);
+  assert.match(engineSource, /createArcRunCameraSnapshot/);
+  assert.match(engineSource, /if \(this\.cameraMode === "arc-run"\)/);
+  assert.match(engineSource, /if \(this\.cameraMode === "arc-run"\) return "arc-run"/);
+  assert.match(engineSource, /snapArcRunCameraForQA\(\)/);
+  assert.match(engineSource, /1 - Math\.exp\(-4\.2 \* dt\)/);
 });
 
 test("settling every attempt automatically advances balls and all five racks", () => {

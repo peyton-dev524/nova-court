@@ -28,7 +28,10 @@ import {
   cycleBallSelection,
   getBallSelectionOption,
 } from "./ball-selection.js?v=1.0";
-import { createThreePointRackVisuals } from "./three-point-contest.js?v=1.0";
+import {
+  createThreePointRackVisuals,
+  getThreePointRackPresentation,
+} from "./three-point-contest.js?v=1.1";
 import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.3";
 import {
   ATTRIBUTE_GROUPS,
@@ -557,13 +560,12 @@ function createEngine(modeKey, preview = false, roster = null) {
       }),
       shootingAssist: () => engine?.getShootingAssistSnapshot?.() || null,
       basketballStyle: () => engine?.ballMesh?.userData?.visualProfile?.style || null,
-      threePointContest: () => ({
-        mode: mode?.getState?.() || null,
-        ui: mode?.getUIState?.() || null,
-        racks: contestRackVisuals?.getSnapshot?.() || null,
-      }),
+      threePointContest: () => getThreePointContestQASnapshot(),
       advanceThreePointContest: (sequenceIndex = 4, made = false) =>
         advanceThreePointContestForQA(sequenceIndex, made),
+      jumpThreePointContest: (rackIndex = 0, ballIndex = 0, made = false) =>
+        jumpThreePointContestForQA(rackIndex, ballIndex, made),
+      snapThreePointCamera: () => engine?.snapArcRunCameraForQA?.() || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
     };
   }
@@ -692,7 +694,7 @@ function startMode(modeKey = selectedModeKey) {
   const token = runToken;
   createEngine(currentModeKey);
   engine.setCameraMode(currentModeKey === "threePoint"
-    ? "broadcast"
+    ? "arc-run"
     : cameraPresetForTeamMode(currentModeKey).mode);
   mode = createModeController(currentModeKey);
   if (currentModeKey === "threePoint") {
@@ -798,6 +800,68 @@ function advanceThreePointContestForQA(sequenceIndex = 4, made = false) {
     ui: mode.getUIState(),
     racks: contestRackVisuals?.getSnapshot?.() || null,
     basketballStyle: engine?.ballMesh?.userData?.visualProfile?.style || null,
+  };
+}
+
+function jumpThreePointContestForQA(rackIndex = 0, ballIndex = 0, made = false) {
+  if (currentModeKey !== "threePoint" || !mode) {
+    return { ok: false, reason: "three_point_mode_not_active" };
+  }
+  const rules = mode.getRules();
+  const safeRack = Math.max(0, Math.min(
+    rules.rackCount - 1,
+    Math.floor(Number(rackIndex) || 0),
+  ));
+  const safeBall = Math.max(0, Math.min(
+    rules.ballsPerRack - 1,
+    Math.floor(Number(ballIndex) || 0),
+  ));
+  const target = safeRack * rules.ballsPerRack + safeBall;
+  const state = mode.getState();
+  if (state.phase === MODE_PHASES.FINISHED || state.sequenceIndex > target) {
+    processCommands(mode.handleEvent("RESTART").commands, runToken);
+  }
+  const result = advanceThreePointContestForQA(target, made);
+  const camera = engine?.snapArcRunCameraForQA?.() || null;
+  return {
+    ...result,
+    camera,
+    qa: getThreePointContestQASnapshot(),
+  };
+}
+
+function getThreePointContestQASnapshot() {
+  const state = mode?.getState?.() || null;
+  const rules = mode?.getRules?.() || null;
+  const rack = state && rules && state.rackIndex < rules.racks.length
+    ? rules.racks[state.rackIndex]
+    : null;
+  const player = engine?.controlledPlayer?.root?.position;
+  const basket = engine?.courtRuntime?.baskets?.home || { x: 0, y: 3.05, z: -5.7 };
+  const rackPresentation = rack ? getThreePointRackPresentation(rack, basket) : null;
+  const facing = engine?.controlledPlayer?.facing;
+  const shooterToHoopLength = player
+    ? Math.hypot(basket.x - player.x, basket.z - player.z) || 1
+    : 1;
+  const facingHoopDot = player && facing
+    ? facing.x * ((basket.x - player.x) / shooterToHoopLength)
+      + facing.z * ((basket.z - player.z) / shooterToHoopLength)
+    : null;
+  return {
+    mode: state,
+    ui: mode?.getUIState?.() || null,
+    racks: contestRackVisuals?.getSnapshot?.() || null,
+    currentRack: rack ? {
+      ...rack,
+      ...rackPresentation,
+    } : null,
+    player: player ? {
+      position: player.toArray(),
+      facing: facing?.toArray?.() || null,
+      facingHoopDot,
+    } : null,
+    hoop: { ...basket },
+    camera: engine?.getArcRunCameraSnapshot?.() || null,
   };
 }
 
@@ -929,6 +993,7 @@ function placeAtRack(rack, giveBall = false) {
   player.velocity.set(0, 0, 0);
   player.desiredVelocity.set(0, 0, 0);
   const basket = engine.courtRuntime?.baskets?.home || { x: 0, z: -5.7 };
+  engine.setArcRunRack?.(rack);
   player.facing.set(
     (Number(basket.x) || 0) - player.root.position.x,
     0,
