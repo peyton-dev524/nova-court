@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "../js/modes.js";
 import {
+  ARC_RUN_GRAB_DURATION,
   createArcRunCameraSnapshot,
   THREE_POINT_BALLS_PER_RACK,
   THREE_POINT_MONEY_BALL_POINTS,
@@ -16,6 +17,7 @@ import {
   createContestBallSequence,
   createThreePointRackVisuals,
   getThreePointRackPresentation,
+  sampleArcRunGrab,
 } from "../js/three-point-contest.js";
 
 function startLive(config = {}) {
@@ -125,6 +127,102 @@ test("each rack deterministically ends with a two-point tricolor money ball", ()
   });
 });
 
+test("money ball is fifth on all five racks before and after deterministic restarts", () => {
+  const mode = createGameMode(MODE_IDS.THREE_POINT_CONTEST, { countdown: 0.01 });
+  const assertRackOrder = (label) => {
+    const sequence = mode.getRules().ballSequence;
+    for (let rackIndex = 0; rackIndex < 5; rackIndex += 1) {
+      const rack = sequence.filter((ball) => ball.rackIndex === rackIndex);
+      assert.deepEqual(
+        rack.map((ball) => ball.isMoneyBall),
+        [false, false, false, false, true],
+        `${label}: rack ${rackIndex + 1} keeps money ball last`,
+      );
+      assert.equal(rack[0].ballStyle, THREE_POINT_NORMAL_BALL_STYLE);
+      assert.equal(rack[4].ballStyle, THREE_POINT_MONEY_BALL_STYLE);
+    }
+  };
+  mode.start({ userTeamId: "home" });
+  assertRackOrder("opening run");
+  mode.update(0.02);
+  for (let index = 0; index < 9; index += 1) {
+    const shotId = `restart-order-${index}`;
+    mode.handleEvent("SHOT_ATTEMPT", { shotId });
+    mode.handleEvent("MISS", { shotId });
+  }
+  const restarted = mode.handleEvent("RESTART");
+  assert.equal(mode.getState().currentBall.isMoneyBall, false);
+  assert.equal(mode.getState().ballIndex, 0);
+  assert.ok(restarted.commands.some((command) =>
+    command.type === "COUNTDOWN" && command.seconds === 1));
+  assertRackOrder("restarted run");
+  const liveAgain = mode.update(0.02);
+  const openingBall = liveAgain.commands.find((command) => command.type === "SPAWN_RACK_BALL");
+  assert.equal(openingBall.ballIndex, 0);
+  assert.equal(openingBall.isMoneyBall, false);
+});
+
+test("Arc Run grab has continuous reach, contact, and pull-to-gather phases", () => {
+  assert.equal(ARC_RUN_GRAB_DURATION, 0.64);
+  const samples = [0, 0.2, 0.4, 0.52, 0.76, 1].map((progress) =>
+    sampleArcRunGrab(progress, -1));
+  assert.deepEqual(
+    [samples[0].phase, samples[2].phase, samples[4].phase, samples[5].phase],
+    ["reach", "contact", "gather", "complete"],
+  );
+  assert.equal(samples[0].ballBlend, 0);
+  assert.equal(samples[2].ballBlend, 0);
+  assert.equal(samples[5].ballBlend, 1);
+  for (let index = 1; index < samples.length; index += 1) {
+    assert.ok(samples[index].ballBlend >= samples[index - 1].ballBlend);
+  }
+  for (const sample of samples) {
+    assert.equal(sample.handSign, -1);
+    for (const value of Object.values(sample).filter((entry) => typeof entry === "number")) {
+      assert.ok(Number.isFinite(value));
+    }
+  }
+});
+
+test("3-2-1 countdown freezes the contest clock and rejects shot input until live", () => {
+  const mode = createGameMode(MODE_IDS.THREE_POINT_CONTEST, {
+    countdown: 3,
+    duration: 60,
+  });
+  const opening = mode.start({ userTeamId: "home" });
+  assert.equal(opening.commands.find((command) => command.type === "COUNTDOWN").seconds, 3);
+  assert.equal(mode.handleEvent("SHOT_ATTEMPT", { shotId: "too-early" }).accepted, false);
+  assert.equal(mode.getState().clock, 60);
+
+  const emitted = [3];
+  for (let step = 0; step < 31; step += 1) {
+    const response = mode.update(0.1);
+    emitted.push(...response.commands
+      .filter((command) => command.type === "COUNTDOWN")
+      .map((command) => command.seconds));
+    if (mode.phase === MODE_PHASES.COUNTDOWN) {
+      assert.equal(mode.phase, MODE_PHASES.COUNTDOWN);
+      assert.equal(mode.getState().clock, 60);
+      if (step % 10 === 9) {
+        assert.equal(mode.handleEvent("SHOT_ATTEMPT", { shotId: `early-${step}` }).accepted, false);
+      }
+    } else {
+      break;
+    }
+  }
+  assert.deepEqual(emitted, [3, 2, 1]);
+  assert.equal(mode.phase, MODE_PHASES.LIVE);
+  assert.equal(mode.getState().clock, 60);
+  assert.equal(mode.getState().currentBall.isMoneyBall, false);
+  assert.equal(mode.handleEvent("SHOT_ATTEMPT", { shotId: "live-shot" }).accepted, true);
+
+  const restarted = mode.handleEvent("RESTART");
+  assert.equal(mode.phase, MODE_PHASES.COUNTDOWN);
+  assert.equal(mode.getState().countdown, 3);
+  assert.equal(mode.getState().clock, 60);
+  assert.equal(restarted.commands.find((command) => command.type === "COUNTDOWN").seconds, 3);
+});
+
 test("rack renderer exposes all five racks and consumes the visible ball instances", () => {
   class FakeObject3D {
     constructor() {
@@ -199,6 +297,11 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
     Array.from({ length: 4 }, () => ({ x: 0, y: 0, z: 0 })),
   );
   assert.deepEqual(moneyBalls.matrices[0].scale, { x: 1, y: 1, z: 1 });
+  const lastBallPlacement = visuals.getBallPlacement(0, 4);
+  assert.ok(Number.isFinite(lastBallPlacement.x));
+  assert.equal(lastBallPlacement.y, 1.01);
+  visuals.takeBall(0, 4);
+  assert.deepEqual(moneyBalls.matrices[0].scale, { x: 0, y: 0, z: 0 });
 
   visuals.setCurrent(1, 0);
   assert.deepEqual(moneyBalls.matrices[0].scale, { x: 0, y: 0, z: 0 });
@@ -214,12 +317,18 @@ test("Arc Run integration wires rack placement, locked camera, and arbitrary QA 
   assert.match(appSource, /setCameraMode\(currentModeKey === "threePoint"[\s\S]*\? "arc-run"/);
   assert.match(appSource, /engine\.setArcRunRack\?\.\(rack\)/);
   assert.match(appSource, /jumpThreePointContest:\s*\(rackIndex = 0, ballIndex = 0/);
+  assert.match(appSource, /setArcRunCountdown/);
+  assert.match(appSource, /setArcRunGrab/);
+  assert.match(appSource, /beginArcRunGrab/);
+  assert.match(appSource, /arc-run-countdown/);
   assert.match(appSource, /snapThreePointCamera/);
   assert.match(appSource, /facingHoopDot/);
   assert.match(engineSource, /createArcRunCameraSnapshot/);
   assert.match(engineSource, /if \(this\.cameraMode === "arc-run"\)/);
   assert.match(engineSource, /if \(this\.cameraMode === "arc-run"\) return "arc-run"/);
   assert.match(engineSource, /snapArcRunCameraForQA\(\)/);
+  assert.match(engineSource, /setArcRunGrabProgressForQA/);
+  assert.match(engineSource, /sampleArcRunGrab/);
   assert.match(engineSource, /1 - Math\.exp\(-4\.2 \* dt\)/);
 });
 
