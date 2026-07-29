@@ -12,6 +12,7 @@ test("player model lab exposes stable visual QA controls and capture naming", as
 
   for (const control of [
     "lab-athlete",
+    "lab-shoe-style",
     "lab-pose",
     "lab-view",
     "lab-compare",
@@ -80,7 +81,7 @@ test("production athlete rig includes articulated silhouette and face improvemen
     assert.match(engine, new RegExp(`const ${feature} =`));
   }
   assert.match(engine, /createBasketballShortsRig/);
-  assert.match(engine, /createNovaFlightShoe/);
+  assert.match(engine, /createBasketballShoe/);
   assert.match(engine, /this\.shortsRig\?\.update/);
   assert.match(shorts, /const waistband =/);
   assert.match(shorts, /loose-basketball-shorts/);

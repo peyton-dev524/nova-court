@@ -50,7 +50,10 @@ import {
   userShotPerfectHalfWidth,
 } from "./shooting-assist.js";
 import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
-import { createNovaFlightShoe } from "./basketball-shoes.js?v=1.0";
+import {
+  createBasketballShoe,
+  normalizeBasketballShoeStyle,
+} from "./basketball-shoes.js?v=1.1";
 import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
@@ -351,6 +354,9 @@ export class ProceduralPlayer {
       appearanceId: options.appearanceId ?? options.metadata?.appearanceId ?? "classic",
       hairStyle: options.hairStyle ?? options.metadata?.hairStyle ?? "crop",
       headShape: options.headShape ?? options.metadata?.headShape ?? "round",
+      shoeStyleId: normalizeBasketballShoeStyle(
+        options.shoeStyleId ?? options.shoeStyle ?? options.metadata?.shoeStyleId,
+      ),
     };
     this.colors = {
       jersey: options.jerseyColor ?? options.primary ?? (this.team === "home" ? 0x32e6c4 : 0xff5a76),
@@ -585,7 +591,8 @@ export class ProceduralPlayer {
       sockMesh.position.y = -0.425;
       knee.add(sockMesh);
       this.detailMeshes.push(sockMesh);
-      const shoe = createNovaFlightShoe(T, {
+      const shoe = createBasketballShoe(T, {
+        styleId: this.metadata.shoeStyleId,
         shellColor: this.colors.shoes,
         accentColor: this.colors.trim,
         detail: "high",

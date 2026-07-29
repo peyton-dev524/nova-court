@@ -42,6 +42,7 @@
         <div class="onboarding-fields">
           <label>Jersey number<input id="create-player-number" name="jerseyNumber" type="number" min="0" max="99" value="1" required></label>
           <label>Appearance<select id="create-player-appearance" name="appearance"><option value="classic">Classic</option><option value="highTop">High Top</option><option value="braided">Braided</option><option value="fade">Fade</option></select></label>
+          <label>Shoes<select id="create-player-shoe-style" name="shoeStyle"><option value="nova-flight">NOVA Flight</option><option value="court-classic">NOVA Court Classic</option></select></label>
         </div>
         <p id="create-player-error" class="form-error" role="alert"></p>
         <button class="button button--primary" type="submit"><strong>ENTER NOVA COURT</strong></button>
@@ -112,6 +113,7 @@
             <div class="profile-section-title"><div><span class="overline">ORIGINAL IDENTITY</span><h3 id="locker-title">STYLE LOCKER</h3></div></div>
             <div class="identity-fields"><label>Name<input id="identity-name" maxlength="18"></label><label>Jersey #<input id="jersey-number" type="number" min="0" max="99"></label><button id="save-identity" class="button" type="button">SAVE IDENTITY</button></div>
             <h4 class="locker-subhead">APPEARANCE</h4><div id="appearance-grid" class="appearance-grid"></div>
+            <h4 class="locker-subhead">SHOES</h4><div id="shoe-style-grid" class="appearance-grid shoe-style-grid"></div>
             <h4 class="locker-subhead">COLORWAY</h4><div id="cosmetic-grid" class="cosmetic-grid"></div>
             <h4 class="locker-subhead">TITLES</h4><div id="title-grid" class="title-grid"></div>
             <p class="title-note">Overall titles unlock every five OVR. LEGEND unlocks at 99. DEV, TESTER, and OWNER require explicit entitlements.</p>

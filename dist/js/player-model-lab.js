@@ -6,7 +6,11 @@ import {
   createBasketballMesh,
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
-import { createNovaFlightShoe } from "./basketball-shoes.js?v=1.0";
+import {
+  BASKETBALL_SHOE_STYLE_IDS,
+  createBasketballShoe,
+  normalizeBasketballShoeStyle,
+} from "./basketball-shoes.js?v=1.1";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Player Model Lab requires THREE.");
@@ -160,6 +164,7 @@ const ATHLETES = Object.freeze([
 
 const query = new URLSearchParams(location.search);
 const selectedBallStyle = normalizeBasketballStyle(query.get("ball"));
+const selectedShoeStyle = normalizeBasketballShoeStyle(query.get("shoe"));
 const basketballPrototype = createBasketballMesh(T, 0.12, {
   anisotropy: renderer.capabilities.getMaxAnisotropy?.() || 1,
   textureRegistry: harnessEngine.generatedTextures,
@@ -169,6 +174,7 @@ const basketballPrototype = createBasketballMesh(T, 0.12, {
 const playerEntries = ATHLETES.map((config) => {
   const player = new ProceduralPlayer(harnessEngine, {
     ...config,
+    shoeStyleId: selectedShoeStyle,
     team: "home",
     controlled: false,
     isAI: false,
@@ -192,6 +198,7 @@ const poseIds = ["neutral", "defense", "handle", "gather", "release", "layup", "
 const athleteIds = ATHLETES.map((athlete) => athlete.id);
 const state = {
   subject: ["basketball", "shoe"].includes(query.get("subject")) ? query.get("subject") : "player",
+  shoeStyleId: selectedShoeStyle,
   athlete: athleteIds.includes(query.get("athlete")) ? query.get("athlete") : "classic",
   pose: poseIds.includes(query.get("pose")) ? query.get("pose") : "neutral",
   view: views[query.get("view")] ? query.get("view") : "front",
@@ -263,16 +270,17 @@ if (basketballReviewBall) {
 }
 
 const shoeReview = state.subject === "shoe"
-  ? createNovaFlightShoe(T, {
-    shellColor: 0xeaf7ff,
-    accentColor: 0x63e8ff,
+  ? createBasketballShoe(T, {
+    styleId: state.shoeStyleId,
+    shellColor: state.shoeStyleId === "court-classic" ? 0x224960 : 0xeaf7ff,
+    accentColor: state.shoeStyleId === "court-classic" ? 0x102d47 : 0x63e8ff,
     detail: "high",
     side: -1,
   })
   : null;
 if (shoeReview) {
   shoeReview.root.position.y = 0.06;
-  shoeReview.root.scale.setScalar(2.35);
+  shoeReview.root.scale.setScalar(state.shoeStyleId === "court-classic" ? 1.85 : 2.35);
   scene.add(shoeReview.root);
   hemisphere.intensity = 0.82;
   key.intensity = 2.7;
@@ -723,7 +731,9 @@ function updateCamera() {
     return;
   }
   if (state.subject === "shoe") {
-    const target = new T.Vector3(0, 0.25, 0.06);
+    const target = state.shoeStyleId === "court-classic"
+      ? new T.Vector3(0, 0.2, 0)
+      : new T.Vector3(0, 0.25, 0.06);
     const distance = (state.view === "top" || state.view === "outsole" ? 1.5 : 1.18)
       + state.zoomOffset;
     if (state.view === "top" || state.view === "outsole") {
@@ -763,7 +773,7 @@ function updateCaptureName() {
     return;
   }
   if (state.subject === "shoe") {
-    $("#lab-capture-name").textContent = `nova-flight-shoe-${state.view}.png`;
+    $("#lab-capture-name").textContent = `${state.shoeStyleId}-shoe-${state.view}.png`;
     return;
   }
   const athlete = state.compare ? "roster" : state.athlete;
@@ -787,6 +797,7 @@ function syncControls() {
   $("#lab-guides").checked = state.guides;
   $("#lab-shorts-motion").checked = state.shortsMotion;
   $("#lab-shorts-motion-preset").value = state.shortsMotionPreset;
+  $("#lab-shoe-style").value = state.shoeStyleId;
 }
 
 function selectAthlete(direction) {
@@ -830,6 +841,12 @@ $("#lab-pose").addEventListener("change", (event) => {
   setEditorStatus(`Editing ${state.pose.toUpperCase()} · drafts are pose-specific.`);
 });
 $("#lab-view").addEventListener("change", (event) => setView(event.target.value));
+$("#lab-shoe-style").addEventListener("change", (event) => {
+  const styleId = normalizeBasketballShoeStyle(event.target.value);
+  const next = new URL(location.href);
+  next.searchParams.set("shoe", styleId);
+  location.assign(next);
+});
 $("#lab-compare").addEventListener("change", (event) => {
   state.compare = event.target.checked;
   applySceneState();
@@ -1049,7 +1066,11 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
     });
   },
   createShoeReviewMesh(options = {}) {
-    return createNovaFlightShoe(T, { detail: "high", ...options }).root;
+    return createBasketballShoe(T, {
+      styleId: state.shoeStyleId,
+      detail: "high",
+      ...options,
+    }).root;
   },
   setAthlete(id) {
     if (!athleteIds.includes(id)) return false;
@@ -1109,11 +1130,12 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
       }),
       shoe: shoeReview
         ? Object.freeze({
-          model: "nova-flight",
+          model: state.shoeStyleId,
           inferredSurfaces: shoeReview.root.userData.sculptRuntime?.inferredSurfaces || [],
           cost: shoeReview.metrics,
         })
         : null,
+      availableShoeStyles: BASKETBALL_SHOE_STYLE_IDS,
       assetLoadStatus: "procedural-production-rig-ready",
     });
   },
