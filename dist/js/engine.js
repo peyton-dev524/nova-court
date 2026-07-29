@@ -80,6 +80,7 @@ import {
   createBasketballMesh,
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
+import { sampleFeaturedDribbleMove } from "./dribble-animation.js?v=1.0";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -202,6 +203,10 @@ export function getDribbleMovePath(type, progress, startHand = 1) {
   const p = clamp(progress, 0, 1);
   const config = DRIBBLE_MOVE_CONFIG[type] || DRIBBLE_MOVE_CONFIG.hesi;
   const endHand = config.switchesHand ? -startHand : startHand;
+  if (type === "crossover" || type === "spin") {
+    const sample = sampleFeaturedDribbleMove(type, p, startHand);
+    return { ...sample.ball, endHand: sample.endHand };
+  }
   const eased = smoothstep(0, 1, p);
   let side = lerp(startHand * 0.46, endHand * 0.46, eased);
   let forward = 0.24;
@@ -741,14 +746,21 @@ export class ProceduralPlayer {
     const moveProgress = moveActive
       ? sampleActionProgress(this.dribbleMoveStartedAt, this.dribbleMoveDuration, actionNow)
       : 0;
+    const featuredMoveSample = moveActive
+      && (this.dribbleMove === "crossover" || this.dribbleMove === "spin")
+      ? sampleFeaturedDribbleMove(this.dribbleMove, moveProgress, this.dribbleMoveStartHand)
+      : null;
     const moveWave = Math.sin(moveProgress * Math.PI);
     const doubleWave = Math.sin(moveProgress * Math.PI * 2);
     let moveTurn = 0;
     let moveCrouch = 0;
     let moveLean = this.dribbleMoveStartHand * 0.14 * moveWave;
     if (moveActive) {
-      if (this.dribbleMove === "crossover") moveTurn = this.dribbleMoveStartHand * -0.52 * moveWave;
-      else if (this.dribbleMove === "behindBack") moveTurn = this.dribbleMoveStartHand * 0.82 * moveWave;
+      if (featuredMoveSample) {
+        moveTurn = featuredMoveSample.pose.torsoYaw;
+        moveLean = featuredMoveSample.pose.torsoLean;
+        moveCrouch = featuredMoveSample.pose.crouch;
+      } else if (this.dribbleMove === "behindBack") moveTurn = this.dribbleMoveStartHand * 0.82 * moveWave;
       else if (this.dribbleMove === "betweenLegs") moveTurn = this.dribbleMoveStartHand * -0.2 * moveWave;
       else if (this.dribbleMove === "inOut") {
         moveTurn = this.dribbleMoveStartHand * 0.24 * moveWave;
@@ -756,9 +768,6 @@ export class ProceduralPlayer {
       } else if (this.dribbleMove === "doubleCross") {
         moveTurn = this.dribbleMoveStartHand * -0.34 * doubleWave;
         moveLean = this.dribbleMoveStartHand * 0.2 * doubleWave;
-      } else if (this.dribbleMove === "spin") {
-        moveTurn = this.dribbleMoveStartHand * 1.24 * moveWave;
-        moveLean *= 0.55;
       } else if (this.dribbleMove === "snatchBack") {
         moveTurn = this.dribbleMoveStartHand * -0.14 * moveWave;
         moveLean = this.dribbleMoveStartHand * 0.08 * moveWave;
@@ -766,9 +775,10 @@ export class ProceduralPlayer {
         moveTurn = this.dribbleMoveStartHand * -0.72 * moveWave;
         moveLean = this.dribbleMoveStartHand * 0.26 * moveWave;
       }
-      if (this.dribbleMove === "betweenLegs") moveCrouch = 0.2 * moveWave;
+      if (featuredMoveSample) {
+        moveCrouch = featuredMoveSample.pose.crouch;
+      } else if (this.dribbleMove === "betweenLegs") moveCrouch = 0.2 * moveWave;
       else if (this.dribbleMove === "hesi") moveCrouch = 0.12 * moveWave;
-      else if (this.dribbleMove === "spin") moveCrouch = 0.14 * moveWave;
       else if (this.dribbleMove === "snatchBack") moveCrouch = 0.24 * moveWave;
       else if (this.dribbleMove === "doubleCross") moveCrouch = 0.13 * Math.abs(doubleWave);
       else if (this.dribbleMove === "shamgod") moveCrouch = 0.17 * moveWave;
@@ -801,12 +811,12 @@ export class ProceduralPlayer {
         + (moveActive ? handleForwardLean : 0)
         + (shootPose ? lerp(0.1 + shootPose.dip * 0.04, -0.055, shootPose.setPoint) : 0);
     this.hips.rotation.x = damp(this.hips.rotation.x, forwardLean + stumble * 0.28, 13, dt);
-    this.hips.rotation.y = damp(
-      this.hips.rotation.y,
-      dunkPose ? dunkPose.root.turn + dunkPose.torso.yaw : moveTurn + stumble * 0.32,
-      15,
-      dt,
-    );
+    const targetHipYaw = dunkPose
+      ? dunkPose.root.turn + dunkPose.torso.yaw
+      : moveTurn + stumble * 0.32;
+    this.hips.rotation.y = featuredMoveSample?.move === "spin"
+      ? targetHipYaw
+      : damp(this.hips.rotation.y, targetHipYaw, 15, dt);
     const lateralLean = lerp(
       clamp(this.velocity.x * -0.032, -0.14, 0.14),
       clamp(this.velocity.x * -0.055, -0.18, 0.18),
@@ -851,13 +861,22 @@ export class ProceduralPlayer {
         kneeTarget = lerp(kneeTarget, airKnee, this.airborneBlend);
       }
       if (moveActive) {
-        if (this.dribbleMove === "betweenLegs" || this.dribbleMove === "shamgod") {
+        if (featuredMoveSample) {
+          const poseLeg = i === 0
+            ? {
+              hip: featuredMoveSample.pose.rightHip,
+              knee: featuredMoveSample.pose.rightKnee,
+            }
+            : {
+              hip: featuredMoveSample.pose.leftHip,
+              knee: featuredMoveSample.pose.leftKnee,
+            };
+          hipTarget = poseLeg.hip;
+          kneeTarget = poseLeg.knee;
+          spread += phase * 0.06 * moveWave;
+        } else if (this.dribbleMove === "betweenLegs" || this.dribbleMove === "shamgod") {
           hipTarget += phase * this.dribbleMoveStartHand * 0.3 * moveWave;
           kneeTarget += 0.34 * moveWave;
-        } else if (this.dribbleMove === "spin") {
-          hipTarget += phase * this.dribbleMoveStartHand * 0.38 * moveWave;
-          kneeTarget += 0.28 * moveWave;
-          spread += phase * 0.12 * moveWave;
         } else if (this.dribbleMove === "snatchBack") {
           hipTarget -= 0.2 * moveWave;
           kneeTarget += 0.48 * moveWave;
@@ -2442,6 +2461,7 @@ export class NovaCourtEngine {
       return;
     }
     if (progress >= 1) {
+      if (player.dribbleMove === "spin") player.hips.rotation.y = 0;
       this._commitDribbleHand(player);
       player.dribbleMove = null;
       player.dribbleMoveTime = 0;
