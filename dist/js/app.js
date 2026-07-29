@@ -1,4 +1,4 @@
-import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=6.0";
+import { NovaCourtEngine, PLAYER_STATES, COURT } from "./engine.js?v=6.1";
 import { createAIDirector } from "./ai.js?v=4.0";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "./modes.js";
 import { createPracticeMode, PRACTICE_MODE_ID } from "./practice.js";
@@ -33,7 +33,6 @@ import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.1";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
-  AVATAR_APPEARANCES,
   COSMETIC_PALETTES,
   POSITION_PRESETS,
   awardMatch,
@@ -50,6 +49,11 @@ import {
   updatePlayerIdentity,
   upgradeAttribute,
 } from "./player-progression.js";
+import {
+  formatPlayerHeight,
+  HAIR_STYLES,
+  SKIN_TONES,
+} from "./player-appearance.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -344,6 +348,9 @@ function renderPlayerProfile() {
   if (identityName && document.activeElement !== identityName) identityName.value = summary.displayName === "UNNAMED PLAYER" ? "" : summary.displayName;
   const jerseyNumber = $("#jersey-number");
   if (jerseyNumber && document.activeElement !== jerseyNumber) jerseyNumber.value = summary.jerseyNumber;
+  const playerHeight = $("#player-height");
+  if (playerHeight && document.activeElement !== playerHeight) playerHeight.value = summary.heightM.toFixed(2);
+  if ($("#player-height-output")) $("#player-height-output").textContent = formatPlayerHeight(summary.heightM);
 
   const positions = $("#position-tabs");
   positions.replaceChildren(...Object.entries(POSITION_PRESETS).map(([key, value]) => {
@@ -399,14 +406,25 @@ function renderPlayerProfile() {
     return button;
   }));
 
-  const appearanceRoot = $("#appearance-grid");
-  appearanceRoot?.replaceChildren(...AVATAR_APPEARANCES.map((item) => {
+  const hairRoot = $("#hair-style-grid");
+  hairRoot?.replaceChildren(...HAIR_STYLES.map((item) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `identity-choice${summary.appearance.id === item.id ? " is-selected" : ""}`;
-    button.dataset.appearance = item.id;
-    button.setAttribute("aria-pressed", String(summary.appearance.id === item.id));
-    button.innerHTML = `<i style="--skin:#${item.skin.toString(16).padStart(6, "0")}"></i><span>${item.name}</span>`;
+    button.className = `identity-choice${summary.hairStyle.id === item.id ? " is-selected" : ""}`;
+    button.dataset.hairStyle = item.id;
+    button.setAttribute("aria-pressed", String(summary.hairStyle.id === item.id));
+    button.innerHTML = `<i class="hair-style-icon" aria-hidden="true"></i><span>${item.name}</span>`;
+    return button;
+  }));
+
+  const skinToneRoot = $("#skin-tone-grid");
+  skinToneRoot?.replaceChildren(...SKIN_TONES.map((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `identity-choice${summary.skinTone.id === item.id ? " is-selected" : ""}`;
+    button.dataset.skinTone = item.id;
+    button.setAttribute("aria-pressed", String(summary.skinTone.id === item.id));
+    button.innerHTML = `<i style="--skin:#${item.color.toString(16).padStart(6, "0")}"></i><span>${item.name}</span>`;
     return button;
   }));
 
@@ -463,6 +481,9 @@ function controlledProfileConfig() {
       stamina: config.staminaRating,
       jerseyNumber: config.jerseyNumber,
       appearanceId: config.appearanceId,
+      hairStyleId: config.hairStyleId,
+      skinToneId: config.skinToneId,
+      height: config.height,
       shoeStyleId: config.shoeStyleId,
       hairStyle: config.hairStyle,
       headShape: config.headShape,
@@ -1573,19 +1594,41 @@ function bindUI() {
       displayName: $("#identity-name")?.value,
       jerseyNumber: $("#jersey-number")?.value,
       appearanceId: playerProfile.identity.appearanceId,
+      hairStyleId: playerProfile.identity.hairStyleId,
+      skinToneId: playerProfile.identity.skinToneId,
+      heightM: $("#player-height")?.value,
       shoeStyleId: playerProfile.identity.shoeStyleId,
     });
     if (result.ok) commitProfile(result.profile, "Player identity saved.");
     else profileMessage("Enter a name using letters or numbers.", "warning");
   });
-  $("#appearance-grid")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-appearance]");
+  $("#hair-style-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-hair-style]");
     if (!button) return;
     const result = updatePlayerIdentity(playerProfile, {
       displayName: playerProfile.identity.displayName || "Ace Nova",
-      appearanceId: button.dataset.appearance,
+      hairStyleId: button.dataset.hairStyle,
     });
-    if (result.ok) commitProfile(result.profile, `${AVATAR_APPEARANCES.find((item) => item.id === button.dataset.appearance)?.name} appearance equipped.`);
+    if (result.ok) commitProfile(result.profile, `${HAIR_STYLES.find((item) => item.id === button.dataset.hairStyle)?.name} equipped.`);
+  });
+  $("#skin-tone-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-skin-tone]");
+    if (!button) return;
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: playerProfile.identity.displayName || "Ace Nova",
+      skinToneId: button.dataset.skinTone,
+    });
+    if (result.ok) commitProfile(result.profile, `${SKIN_TONES.find((item) => item.id === button.dataset.skinTone)?.name} equipped.`);
+  });
+  $("#player-height")?.addEventListener("input", (event) => {
+    $("#player-height-output").textContent = formatPlayerHeight(event.target.value);
+  });
+  $("#player-height")?.addEventListener("change", (event) => {
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: playerProfile.identity.displayName || "Ace Nova",
+      heightM: event.target.value,
+    });
+    if (result.ok) commitProfile(result.profile, `Height saved at ${formatPlayerHeight(result.profile.identity.heightM)}.`);
   });
   $("#shoe-style-grid")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-shoe-style]");
@@ -1612,7 +1655,9 @@ function bindUI() {
     const result = updatePlayerIdentity(playerProfile, {
       displayName: $("#create-player-name")?.value,
       jerseyNumber: $("#create-player-number")?.value,
-      appearanceId: $("#create-player-appearance")?.value,
+      hairStyleId: $("#create-player-hair")?.value,
+      skinToneId: $("#create-player-skin")?.value,
+      heightM: $("#create-player-height")?.value,
       shoeStyleId: $("#create-player-shoe-style")?.value,
     });
     if (!result.ok) {
@@ -1624,6 +1669,9 @@ function bindUI() {
     renderPlayerProfile();
     startAttractMode();
     showMainMenu();
+  });
+  $("#create-player-height")?.addEventListener("input", (event) => {
+    $("#create-player-height-output").textContent = formatPlayerHeight(event.target.value);
   });
   $("#tutorial-skip")?.addEventListener("click", () => {
     presentationDirector?.skip?.();

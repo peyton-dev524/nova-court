@@ -1,7 +1,7 @@
 import {
   BALL_HANDLER_GUARD_POSE,
   ProceduralPlayer,
-} from "./engine.js?v=6.0";
+} from "./engine.js?v=6.1";
 import {
   createBasketballMesh,
   normalizeBasketballStyle,
@@ -11,6 +11,10 @@ import {
   createBasketballShoe,
   normalizeBasketballShoeStyle,
 } from "./basketball-shoes.js?v=1.1";
+import {
+  HAIR_STYLES,
+  SKIN_TONES,
+} from "./player-appearance.js?v=1.0";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Player Model Lab requires THREE.");
@@ -160,6 +164,30 @@ const ATHLETES = Object.freeze([
     trimColor: 0xd9f5ff,
     shoeColor: 0xffb84b,
   },
+  {
+    id: "short",
+    name: "5'6\" Guard",
+    height: 1.68,
+    jerseyNumber: 5,
+    hairStyle: "waves",
+    headShape: "round",
+    skinColor: 0xf0c5aa,
+    jerseyColor: 0x22cfe8,
+    trimColor: 0x102d47,
+    shoeColor: 0xf5fbff,
+  },
+  {
+    id: "tall",
+    name: "7'2\" Forward",
+    height: 2.18,
+    jerseyNumber: 32,
+    hairStyle: "locs",
+    headShape: "long",
+    skinColor: 0x543225,
+    jerseyColor: 0xff6846,
+    trimColor: 0xffcf62,
+    shoeColor: 0xffeee6,
+  },
 ]);
 
 const query = new URLSearchParams(location.search);
@@ -190,6 +218,10 @@ const views = Object.freeze({
   front: { azimuth: 0, elevation: 0.08, distance: 5.4 },
   "three-quarter": { azimuth: -0.64, elevation: 0.1, distance: 5.15 },
   profile: { azimuth: -Math.PI / 2, elevation: 0.08, distance: 5.4 },
+  "hand-front": { azimuth: 0, elevation: 0.03, distance: 1.08, focus: "hand" },
+  "hand-profile": { azimuth: -Math.PI / 2, elevation: 0.03, distance: 1.08, focus: "hand" },
+  "legs-front": { azimuth: 0, elevation: 0.02, distance: 2.35, focus: "legs" },
+  "legs-three-quarter": { azimuth: -0.64, elevation: 0.04, distance: 2.25, focus: "legs" },
   back: { azimuth: Math.PI, elevation: 0.08, distance: 5.4 },
   top: { azimuth: 0, elevation: Math.PI / 2, distance: 4.8 },
   outsole: { azimuth: 0, elevation: -Math.PI / 2, distance: 4.8 },
@@ -205,7 +237,8 @@ const state = {
   limb: ["left-arm", "right-arm", "left-leg", "right-leg"].includes(query.get("limb"))
     ? query.get("limb")
     : "right-arm",
-  compare: query.get("compare") === "1",
+  compare: ["1", "heights"].includes(query.get("compare")),
+  comparisonKind: query.get("compare") === "heights" ? "heights" : "roster",
   wireframe: false,
   turntable: false,
   guides: true,
@@ -547,7 +580,7 @@ function updateJointGuide() {
   nodes.bend.getWorldPosition(bendWorld);
   nodes.end.getWorldPosition(endWorld);
 
-  const show = !state.compare && entry.player.root.visible;
+  const show = state.guides && !state.compare && entry.player.root.visible;
   rootJointMarker.visible = show;
   bendJointMarker.visible = show;
   endJointMarker.visible = show;
@@ -682,14 +715,18 @@ async function copyPoseReport() {
 
 function applySceneState() {
   const activeIndex = athleteIds.indexOf(state.athlete);
+  const heightComparison = state.compare && state.comparisonKind === "heights";
+  const comparisonIds = heightComparison ? ["short", "tall"] : athleteIds;
   playerEntries.forEach((entry, index) => {
-    const visible = state.subject === "player" && (state.compare || index === activeIndex);
+    const comparisonIndex = comparisonIds.indexOf(entry.config.id);
+    const visible = state.subject === "player"
+      && (state.compare ? comparisonIndex >= 0 : index === activeIndex);
     entry.player.root.visible = visible;
     entry.ball.visible = visible && ballVisibleForPose(state.pose);
     entry.player.root.position.set(
-      state.compare ? (index - 1.5) * 1.25 : 0,
+      state.compare ? (comparisonIndex - (comparisonIds.length - 1) / 2) * (heightComparison ? 1.35 : 1.05) : 0,
       0,
-      state.compare ? Math.abs(index - 1.5) * 0.08 : 0,
+      state.compare ? Math.abs(comparisonIndex - (comparisonIds.length - 1) / 2) * 0.08 : 0,
     );
     applyPose(entry.player, state.pose);
     applyPoseDraft(entry.player, state.pose);
@@ -752,7 +789,27 @@ function updateCamera() {
     return;
   }
   camera.up.set(0, 1, 0);
-  const distance = preset.distance + state.zoomOffset + (state.compare ? 2.6 : 0);
+  const activePlayer = activeEntry().player;
+  if (!state.compare && preset.focus) {
+    activePlayer.root.updateMatrixWorld(true);
+    let target;
+    if (preset.focus === "hand") {
+      const handIndex = state.limb === "left-arm" ? 1 : 0;
+      target = activePlayer.arms[handIndex].hand.getWorldPosition(new T.Vector3());
+    } else {
+      target = new T.Vector3(0, 0.58, 0);
+    }
+    const distance = preset.distance + state.zoomOffset;
+    camera.position.set(
+      target.x + Math.sin(azimuth) * Math.cos(elevation) * distance,
+      target.y + Math.sin(elevation) * distance,
+      target.z + Math.cos(azimuth) * Math.cos(elevation) * distance,
+    );
+    camera.lookAt(target);
+    return;
+  }
+  const distance = preset.distance + state.zoomOffset
+    + (state.compare ? (state.comparisonKind === "heights" ? 0.65 : 2.6) : 0);
   const compareTargetX = state.view === "back" ? -0.42 : 0.42;
   const target = new T.Vector3(
     state.compare ? compareTargetX : 0,
@@ -777,8 +834,13 @@ function updateCaptureName() {
     return;
   }
   const athlete = state.compare ? "roster" : state.athlete;
+  if (state.compare && state.comparisonKind === "heights") {
+    $("#lab-capture-name").textContent = `npc-height-range-${state.pose}-${state.view}-comparison.png`;
+    return;
+  }
+  const focus = views[state.view].focus ? views[state.view].focus : "full-body";
   $("#lab-capture-name").textContent =
-    `npc-${athlete}-${state.pose}-${state.view}-full-body.png`;
+    `npc-${athlete}-${state.pose}-${state.view}-${focus}.png`;
 }
 
 function updateViewButtons() {
@@ -1094,6 +1156,14 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
   setView,
   setComparison(value) {
     state.compare = Boolean(value);
+    state.comparisonKind = "roster";
+    applySceneState();
+    updateCamera();
+    return true;
+  },
+  setHeightComparison(value = true) {
+    state.compare = Boolean(value);
+    state.comparisonKind = "heights";
     applySceneState();
     updateCamera();
     return true;
@@ -1136,6 +1206,8 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
         })
         : null,
       availableShoeStyles: BASKETBALL_SHOE_STYLE_IDS,
+      availableHairStyles: HAIR_STYLES.map((style) => style.id),
+      availableSkinTones: SKIN_TONES.map((tone) => tone.id),
       assetLoadStatus: "procedural-production-rig-ready",
     });
   },

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "subject": "stylized procedural basketball-player hand",
+  "suitability": {
+    "verdict": "character-conditional-stylized",
+    "reason": "No likeness reference was supplied. Primary anthropometric measurements support a proportionally credible, code-only real-time hand, while surface anatomy remains intentionally stylized."
+  },
+  "qualityContract": {
+    "definitionOfDone": [
+      "Palm volume plus five separately named digits",
+      "Middle finger longest; index and ring close; little finger shortest",
+      "Tapered proximal and distal segments",
+      "Thumb opposed at an explicit trigonometric angle",
+      "Left and right attachments mathematically mirrored",
+      "Wrist overlap and ball-contact socket exposed for animation"
+    ],
+    "blockingFailures": [
+      "Missing digit",
+      "Floating wrist",
+      "Same-length fingers",
+      "Thumb not mirrored",
+      "Hand length or breadth differs more than one percent from the normalized formulas"
+    ],
+    "requiredViews": [
+      "hand-front",
+      "hand-profile"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "ncsu-army-1988",
+      "url": "https://multisite.eos.ncsu.edu/www-ergocenter-ncsu-edu/wp-content/uploads/sites/18/2016/06/Anthropometric-Detailed-Data-Tables.pdf",
+      "measurements": {
+        "femaleMeanHandLengthCm": 18.05,
+        "maleMeanHandLengthCm": 19.38,
+        "femaleMeanHandBreadthCm": 7.94,
+        "maleMeanHandBreadthCm": 9.04
+      },
+      "caveat": "U.S. military personnel data are not globally representative."
+    },
+    {
+      "id": "didomenico-nussbaum-2003",
+      "url": "https://stacks.cdc.gov/view/cdc/191543/cdc_191543_DS1.pdf",
+      "population": "100 adults, 50 men and 50 women, ages 18-65, university/community sample",
+      "measurements": {
+        "pooledStatureCm": 173.2,
+        "pooledHandLengthCm": 18,
+        "pooledHandBreadthCm": 8.3
+      },
+      "caveat": "A regional convenience sample intended to resemble industrial employees; it does not encode all ages, disabilities, or global populations."
+    }
+  ],
+  "normalization": {
+    "rigHeightLocal": 2.722,
+    "lengthFormula": "handLengthLocal = rigHeightLocal * (0.18 / 1.732)",
+    "breadthFormula": "handBreadthLocal = handLengthLocal * (0.083 / 0.18)",
+    "palmFormula": "palmLengthLocal = handLengthLocal * 0.54",
+    "palmDepthFormula": "palmDepthLocal = handBreadthLocal * 0.36",
+    "thumbOppositionFormula": "rotationZ = handedSide * 54 * PI / 180",
+    "values": {
+      "handLengthLocal": 0.28286,
+      "handBreadthLocal": 0.13043,
+      "palmLengthLocal": 0.15275,
+      "palmDepthLocal": 0.04696
+    }
+  },
+  "componentHierarchy": [
+    "wrist-pivot",
+    "palm",
+    "index.proximal",
+    "index.distal",
+    "middle.proximal",
+    "middle.distal",
+    "ring.proximal",
+    "ring.distal",
+    "little.proximal",
+    "little.distal",
+    "thumb.proximal",
+    "thumb.distal"
+  ],
+  "review": {
+    "decision": "continue",
+    "fidelity": 0.79,
+    "layerScores": {
+      "silhouetteProportion": 0.82,
+      "componentStructure": 0.87,
+      "formDetail": 0.76,
+      "materialSurface": 0.65,
+      "lightingCamera": 0.84
+    },
+    "remainingLimitations": [
+      "No nail plates, palm creases, or explicit knuckle folds",
+      "Digits use two visual segments rather than three independently rigged phalanges",
+      "Anthropometric ratios are population anchors, not a claim of a universal hand"
+    ]
+  }
+}

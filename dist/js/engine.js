@@ -81,6 +81,12 @@ import {
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
 import { sampleFeaturedDribbleMove } from "./dribble-animation.js?v=1.0";
+import {
+  createProceduralHand,
+  PLAYER_LEG_PROPORTIONS,
+  playerRigScaleForHeight,
+} from "./player-anatomy.js?v=1.0";
+import { createPlayerHair } from "./player-appearance.js?v=1.0";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -480,25 +486,9 @@ export class ProceduralPlayer {
     jaw.position.set(0, 1.17, 0.012);
     jaw.scale.set(headShape === "wide" ? 1.08 : 0.92, 0.72, 0.96);
     this.hips.add(jaw);
-    const hairStyle = this.metadata.hairStyle;
-    const hairGeometry = hairStyle === "highTop"
-      ? new T.CylinderGeometry(0.15, 0.175, 0.24, 10)
-      : hairStyle === "braids"
-        ? new T.CapsuleGeometry(0.19, 0.1, 3, 9)
-        : new T.SphereGeometry(0.207, 16, 10, 0, Math.PI * 2, 0, hairStyle === "fade" ? Math.PI * 0.36 : Math.PI * 0.48);
-    const hairCap = this._mesh(hairGeometry, hair);
-    hairCap.position.y = hairStyle === "highTop" ? 1.45 : hairStyle === "braids" ? 1.35 : 1.29;
-    hairCap.scale.set(hairStyle === "highTop" ? 1 : 0.96, hairStyle === "braids" ? 0.78 : 1.04, 0.94);
-    this.hips.add(hairCap);
-    if (hairStyle === "braids") {
-      for (const side of [-1, 1]) {
-        const braid = this._mesh(new T.CapsuleGeometry(0.025, 0.22, 2, 5), hair);
-        braid.position.set(side * 0.145, 1.2, -0.1);
-        braid.rotation.z = side * 0.12;
-        this.hips.add(braid);
-        this.detailMeshes.push(braid);
-      }
-    }
+    const hairRig = createPlayerHair(T, this.metadata.hairStyle, hair);
+    this.hips.add(hairRig.root);
+    this.detailMeshes.push(...hairRig.details);
 
     const faceDark = this._material(0x17191c, 0.82);
     const eyeWhite = this._material(0xf1eee6, 0.76);
@@ -568,11 +558,16 @@ export class ProceduralPlayer {
       wristBand.position.y = -0.39;
       elbow.add(wristBand);
       this.detailMeshes.push(wristBand);
-      const hand = this._mesh(new T.SphereGeometry(0.085, 11, 9), skin);
-      hand.position.y = -0.465;
-      hand.scale.set(0.86, 1.12, 0.76);
+      const handRig = createProceduralHand(T, { side, material: skin });
+      const hand = handRig.root;
+      hand.position.y = -0.47;
+      hand.traverse((node) => {
+        if (!node.isMesh) return;
+        node.castShadow = true;
+        node.receiveShadow = true;
+      });
       elbow.add(hand);
-      this.arms.push({ shoulder, elbow, hand, side });
+      this.arms.push({ shoulder, elbow, hand, handRig, side });
     }
 
     this.legs = [];
@@ -581,17 +576,31 @@ export class ProceduralPlayer {
       const hip = new T.Group();
       hip.position.set(side * 0.165, -0.05, 0);
       this.hips.add(hip);
-      const thigh = this._mesh(new T.CapsuleGeometry(0.112, 0.375, 4, 10), skin);
-      thigh.position.y = -0.305;
+      const thigh = this._mesh(new T.CapsuleGeometry(
+        PLAYER_LEG_PROPORTIONS.thigh.radius,
+        PLAYER_LEG_PROPORTIONS.thigh.capsuleLength,
+        4,
+        10,
+      ), skin);
+      thigh.position.y = PLAYER_LEG_PROPORTIONS.thigh.centerY;
       hip.add(thigh);
       const knee = new T.Group();
       knee.position.y = -0.575;
       hip.add(knee);
-      const kneeCap = this._mesh(new T.SphereGeometry(0.103, 10, 8), skin);
+      const kneeCap = this._mesh(new T.SphereGeometry(
+        PLAYER_LEG_PROPORTIONS.knee.radius,
+        10,
+        8,
+      ), skin);
       kneeCap.position.z = 0.012;
-      kneeCap.scale.set(0.9, 0.82, 0.94);
+      kneeCap.scale.fromArray(PLAYER_LEG_PROPORTIONS.knee.scale);
       knee.add(kneeCap);
-      const shin = this._mesh(new T.CapsuleGeometry(0.086, lowerLegFit.shin.length, 4, 9), skin);
+      const shin = this._mesh(new T.CapsuleGeometry(
+        PLAYER_LEG_PROPORTIONS.calf.radius,
+        lowerLegFit.shin.length,
+        4,
+        9,
+      ), skin);
       shin.position.y = lowerLegFit.shin.centerY;
       knee.add(shin);
       const sockMesh = this._mesh(new T.CylinderGeometry(
@@ -652,9 +661,8 @@ export class ProceduralPlayer {
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.position.y = 0.018;
     group.add(this.marker);
-    const widthScale = this.height / 1.9;
-    const heightScale = this.height / 2.722;
-    group.scale.set(widthScale * 0.96, heightScale, widthScale * 0.96);
+    const rigScale = playerRigScaleForHeight(this.height);
+    group.scale.set(rigScale.x, rigScale.y, rigScale.z);
     return group;
   }
 

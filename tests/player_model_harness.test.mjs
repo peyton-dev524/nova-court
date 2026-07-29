@@ -34,7 +34,7 @@ test("player model lab exposes stable visual QA controls and capture naming", as
   ]) {
     assert.match(html, new RegExp(`id="${control}"`));
   }
-  assert.match(source, /npc-\$\{athlete\}-\$\{state\.pose\}-\$\{state\.view\}-full-body\.png/);
+  assert.match(source, /npc-\$\{athlete\}-\$\{state\.pose\}-\$\{state\.view\}-\$\{focus\}\.png/);
   assert.match(source, /__NOVA_PLAYER_LAB__/);
   assert.match(source, /renderer\.info\.render\.triangles/);
   assert.match(source, /assetLoadStatus: "procedural-production-rig-ready"/);
