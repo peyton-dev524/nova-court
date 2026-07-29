@@ -95,6 +95,12 @@ Six original ElevenLabs-generated instrumental loops are routed across the seven
 
 The exact production athlete rig can also be inspected at `/player-lab.html` while the local server is running. The visual harness provides repeatable full-body poses and camera angles, roster comparison, wireframe and scale guides, live renderer metrics, and stable PNG capture names. Its pose-coordinate editor exposes shoulder/hip and elbow/knee rotation controls, live joint and hand/foot positions in meters, per-pose saved drafts, and copyable JSON reports.
 
+The procedural compact venue and its staged loading lifecycle can be inspected at
+`/gym-lab.html`. The Stadium / Gym Lab provides regulation court measurements,
+named baseline/sideline/bleacher/rafter/scoreboard/court-wide views, three quality
+tiers, optional-group load/unload controls, renderer budgets, and deterministic
+PNG capture names.
+
 ## Performance
 
 The renderer targets 60 FPS with a bounded 60 Hz simulation, three-step catch-up cap, throttled AI/HUD work, instanced crowds, pooled VFX, capped pixel ratio, shadow/character tiers, and an adaptive quality governor. Team modes reduce distant-player detail, while 1v1 and solo modes keep the highest character tier. All runtime assets are local and no media is hotlinked. Actual frame rate depends on GPU, browser throttling, display and viewport; use **Performance** quality or reduce camera shake on slower devices.
