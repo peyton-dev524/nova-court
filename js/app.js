@@ -28,6 +28,7 @@ import {
   cycleBallSelection,
   getBallSelectionOption,
 } from "./ball-selection.js?v=1.0";
+import { createThreePointRackVisuals } from "./three-point-contest.js?v=1.0";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
@@ -104,6 +105,7 @@ let ballSelectionPreview = null;
 let pendingModeKey = "street";
 let pendingBallStyle = ui.settings.ballStyle;
 let ballSelectionOrigin = "modes";
+let contestRackVisuals = null;
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
@@ -479,6 +481,7 @@ function createRoster(modeKey) {
 
 function createEngine(modeKey, preview = false, roster = null) {
   engine?.destroy();
+  contestRackVisuals = null;
   gameRoot.replaceChildren();
   const teamMode = isTeamModeKey(modeKey);
   const performanceMode = $("#quality-select")?.value === "performance";
@@ -520,6 +523,13 @@ function createEngine(modeKey, preview = false, roster = null) {
       }),
       shootingAssist: () => engine?.getShootingAssistSnapshot?.() || null,
       basketballStyle: () => engine?.ballMesh?.userData?.visualProfile?.style || null,
+      threePointContest: () => ({
+        mode: mode?.getState?.() || null,
+        ui: mode?.getUIState?.() || null,
+        racks: contestRackVisuals?.getSnapshot?.() || null,
+      }),
+      advanceThreePointContest: (sequenceIndex = 4, made = false) =>
+        advanceThreePointContestForQA(sequenceIndex, made),
       presentation: () => presentationDirector?.getSnapshot?.() || null,
     };
   }
@@ -601,7 +611,7 @@ function configForMode(modeKey) {
   }
   if (modeKey === "threePoint") {
     const duration = targetChoice === "quick" ? 45 : targetChoice === "extended" ? 75 : 60;
-    return { difficulty: currentDifficulty, duration, targetScore: 18, moneyRackIndex: 2 };
+    return { difficulty: currentDifficulty, duration, targetScore: 18 };
   }
   if (modeKey === "duos") {
     const targetScore = targetChoice === "quick" ? 9 : targetChoice === "extended" ? 17 : 13;
@@ -651,6 +661,13 @@ function startMode(modeKey = selectedModeKey) {
     ? "broadcast"
     : cameraPresetForTeamMode(currentModeKey).mode);
   mode = createModeController(currentModeKey);
+  if (currentModeKey === "threePoint") {
+    contestRackVisuals = createThreePointRackVisuals(
+      globalThis.THREE,
+      engine.worldRoot,
+      { racks: mode.getRules().racks },
+    );
+  }
   const opening = mode.start({ teamIds: ["home", "away"], userTeamId: "home" });
   processCommands(opening?.commands, token);
   ai = createAIDirector({
@@ -689,10 +706,22 @@ function buildRackProgress() {
   const node = $("#three-point-progress");
   if (!node) return;
   node.replaceChildren();
-  for (let i = 0; i < 25; i += 1) {
+  const rules = mode?.getRules?.() || {};
+  const rackCount = rules.rackCount || 5;
+  const ballsPerRack = rules.ballsPerRack || 5;
+  const moneyBallSlot = rules.moneyBallSlot ?? ballsPerRack - 1;
+  for (let i = 0; i < rackCount * ballsPerRack; i += 1) {
     const dot = document.createElement("i");
+    const rackIndex = Math.floor(i / ballsPerRack);
+    const ballIndex = i % ballsPerRack;
     dot.dataset.ball = String(i);
-    if (i % 5 === 4 || Math.floor(i / 5) === 2) dot.classList.add("is-money");
+    dot.dataset.rack = String(rackIndex);
+    dot.dataset.slot = String(ballIndex);
+    dot.setAttribute(
+      "aria-label",
+      `Rack ${rackIndex + 1}, ball ${ballIndex + 1}${ballIndex === moneyBallSlot ? ", money ball" : ""}`,
+    );
+    if (ballIndex === moneyBallSlot) dot.classList.add("is-money");
     node.append(dot);
   }
 }
@@ -703,6 +732,39 @@ function handleModeEvent(type, payload = {}) {
   processCommands(response.commands, runToken);
   updateHUD();
   return response;
+}
+
+function advanceThreePointContestForQA(sequenceIndex = 4, made = false) {
+  if (currentModeKey !== "threePoint" || !mode) {
+    return { ok: false, reason: "three_point_mode_not_active" };
+  }
+  let guard = 0;
+  while (mode.phase === MODE_PHASES.COUNTDOWN && guard < 40) {
+    const response = mode.update(0.1);
+    processCommands(response.commands, runToken);
+    guard += 1;
+  }
+  const rules = mode.getRules();
+  const target = Math.max(0, Math.min(rules.totalBalls - 1, Math.floor(Number(sequenceIndex) || 0)));
+  while (mode.phase === MODE_PHASES.LIVE
+    && mode.getState().sequenceIndex < target
+    && guard < rules.totalBalls + 40) {
+    const shotId = `qa-${runToken}-${mode.getState().sequenceIndex}`;
+    processCommands(mode.handleEvent("SHOT_ATTEMPT", { shotId }).commands, runToken);
+    processCommands(
+      mode.handleEvent(made ? "BASKET" : "MISS", { shotId, perfectRelease: made }).commands,
+      runToken,
+    );
+    guard += 1;
+  }
+  updateHUD();
+  return {
+    ok: mode.phase === MODE_PHASES.LIVE && mode.getState().sequenceIndex === target,
+    state: mode.getState(),
+    ui: mode.getUIState(),
+    racks: contestRackVisuals?.getSnapshot?.() || null,
+    basketballStyle: engine?.ballMesh?.userData?.visualProfile?.style || null,
+  };
 }
 
 function processCommands(commands = [], token = runToken) {
@@ -750,16 +812,26 @@ function processCommands(commands = [], token = runToken) {
         break;
       case "PLACE_PLAYER":
       case "MOVE_TO_RACK":
-        placeAtRack(command.position || command.rack);
+        placeAtRack(command.position || command.rack, false);
         break;
-      case "SPAWN_RACK_BALL":
-        placeAtRack(command.rack);
+      case "SPAWN_RACK_BALL": {
+        placeAtRack(command.rack, false);
+        engine.setBasketballStyle(command.ballStyle || "classic");
+        contestRackVisuals?.setCurrent(command.rackIndex, command.ballIndex);
+        setActiveRackBall(command.sequenceIndex);
+        const expectedSequenceIndex = command.sequenceIndex;
         setTimeout(() => {
           if (token !== runToken) return;
+          const contestState = mode?.getState?.();
+          if (currentModeKey !== "threePoint"
+            || contestState?.phase !== MODE_PHASES.LIVE
+            || contestState?.sequenceIndex !== expectedSequenceIndex) return;
+          engine.ball.pickupCooldown = 0;
           engine.givePossession(engine.controlledPlayer, true);
           engine.controls.setEnabled(true);
         }, 90);
         break;
+      }
       case "RETURN_BALL":
         setTimeout(() => {
           if (token !== runToken || !engine?.controlledPlayer) return;
@@ -789,7 +861,8 @@ function processCommands(commands = [], token = runToken) {
         announcer.announce(command.event || (command.tone === "overtime" ? "overtime" : "score"), { force: true });
         break;
       case "CONTEST_SHOT_RESOLVED":
-        markRackBall(command.made);
+        markRackBall(command.rackIndex, command.ballIndex, command.made);
+        if (!command.made && pendingShot?.shotId === command.shotId) pendingShot = null;
         feedback(command.made ? `+${command.value}` : "OFF", command.made ? "good" : "neutral", 600);
         break;
       case "SCORE_CONFIRMED":
@@ -815,15 +888,23 @@ function processCommands(commands = [], token = runToken) {
   }
 }
 
-function placeAtRack(rack) {
+function placeAtRack(rack, giveBall = false) {
   if (!rack || !engine?.controlledPlayer) return;
   const player = engine.controlledPlayer;
   player.root.position.set(Number(rack.x) || 0, 0, Number(rack.z) || 2.4);
   player.velocity.set(0, 0, 0);
   player.desiredVelocity.set(0, 0, 0);
-  player.facing.set(0, 0, -1);
-  player.root.rotation.y = Math.PI;
-  engine.givePossession(player, true);
+  const basket = engine.courtRuntime?.baskets?.home || { x: 0, z: -5.7 };
+  player.facing.set(
+    (Number(basket.x) || 0) - player.root.position.x,
+    0,
+    (Number(basket.z) || -5.7) - player.root.position.z,
+  ).normalize();
+  player.root.rotation.y = Math.atan2(player.facing.x, player.facing.z);
+  if (giveBall) {
+    engine.ball.pickupCooldown = 0;
+    engine.givePossession(player, true);
+  }
 }
 
 function setPossession(teamId, restartPosition = null, live = false) {
@@ -852,11 +933,20 @@ function setPossession(teamId, restartPosition = null, live = false) {
   return owner;
 }
 
-function markRackBall(made) {
-  const state = mode?.getState();
-  const index = Math.max(0, (state?.attempts || 1) - 1);
+function setActiveRackBall(sequenceIndex) {
+  const node = $("#three-point-progress");
+  if (!node) return;
+  $$("i", node).forEach((dot, index) => {
+    dot.classList.toggle("is-active", index === sequenceIndex);
+  });
+}
+
+function markRackBall(rackIndex, ballIndex, made) {
+  const ballsPerRack = mode?.getRules?.().ballsPerRack || 5;
+  const index = Math.max(0, rackIndex * ballsPerRack + ballIndex);
   const dot = $(`[data-ball="${index}"]`, $("#three-point-progress"));
   dot?.classList.add(made ? "is-made" : "is-missed");
+  dot?.classList.remove("is-active");
 }
 
 function bindEngineEvents() {
@@ -954,7 +1044,9 @@ function bindEngineEvents() {
     const meter = $("#shot-meter");
     const makePercent = Math.round(event.makePercent ?? (event.makeProbability || 0) * 100);
     const coveragePercent = Math.round(clamp(event.coverage || 0) * 100);
+    const shotId = `${runToken}-${Math.round(performance.now())}`;
     pendingShot = {
+      shotId,
       player: event.player,
       scored: false,
       time: performance.now(),
@@ -987,7 +1079,7 @@ function bindEngineEvents() {
     );
     audio.playSfx(event.context === "dunk" ? "dunk" : "shoot", 0.9);
     handleModeEvent("SHOT_ATTEMPT", {
-      shotId: `${runToken}-${Math.round(performance.now())}`,
+      shotId,
       playerId: event.player?.id,
       teamId: event.player?.team,
       isThree: event.points === 3,
@@ -998,6 +1090,7 @@ function bindEngineEvents() {
     const points = currentModeKey === "fives" ? event.points : event.points === 3 ? 2 : 1;
     const callType = pendingShot?.context === "dunk" ? "dunk" : event.swish ? "swish" : event.points === 3 ? "three" : "score";
     handleModeEvent("BASKET", {
+      shotId: pendingShot?.shotId,
       teamId: event.team,
       playerId: event.player?.id,
       points: currentModeKey === "threePoint" ? undefined : points,
@@ -1023,7 +1116,11 @@ function bindEngineEvents() {
   engine.on("backboard", () => audio.playSfx("backboard"));
   engine.on("rebound", (event) => {
     if (pendingShot && !pendingShot.scored) {
-      handleModeEvent("MISS", { playerId: pendingShot.player?.id, teamId: pendingShot.player?.team });
+      handleModeEvent("MISS", {
+        shotId: pendingShot.shotId,
+        playerId: pendingShot.player?.id,
+        teamId: pendingShot.player?.team,
+      });
       pendingShot = null;
     }
     handleModeEvent("REBOUND", { playerId: event.player?.id, teamId: event.team, offensive: event.offensive });
@@ -1069,7 +1166,12 @@ function bindEngineEvents() {
   engine.on("outofbounds", (event) => {
     audio.playSfx("whistle");
     if (pendingShot && !pendingShot.scored) {
-      handleModeEvent("MISS", { playerId: pendingShot.player?.id, teamId: pendingShot.player?.team, reason: "out_of_bounds" });
+      handleModeEvent("MISS", {
+        shotId: pendingShot.shotId,
+        playerId: pendingShot.player?.id,
+        teamId: pendingShot.player?.team,
+        reason: "out_of_bounds",
+      });
       pendingShot = null;
     }
     if (currentModeKey === "practice") {
@@ -1267,7 +1369,9 @@ function updateHUD() {
     $("#home-score").textContent = state.score ?? 0;
     $("#away-score").textContent = state.targetScore ?? 18;
     $("#game-clock").textContent = uiState.clockText || "1:00";
-    $("#possession-label").textContent = `${uiState.rackLabel || "RACK"} · BALL ${uiState.ballProgress || "1/5"}`;
+    $("#possession-label").textContent = uiState.complete
+      ? `ALL ${state.totalBalls || 25} BALLS COMPLETE`
+      : `${uiState.rackLabel || "RACK"} ${uiState.rackProgress || "1/5"} · BALL ${uiState.ballProgress || "1/5"}${uiState.isMoneyBall ? " · MONEY BALL / 2 PTS" : ""}`;
   } else {
     $("#home-score").textContent = state.scores?.home ?? 0;
     $("#away-score").textContent = state.scores?.away ?? 0;
