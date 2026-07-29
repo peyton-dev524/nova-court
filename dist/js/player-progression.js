@@ -2,11 +2,19 @@ import {
   BASKETBALL_SHOE_STYLES,
   normalizeBasketballShoeStyle,
 } from "./basketball-shoes.js?v=1.1";
+import {
+  HAIR_STYLES,
+  normalizeHairStyle,
+  normalizePlayerHeight,
+  normalizeSkinTone,
+  PLAYER_HEIGHT_RANGE,
+  SKIN_TONES,
+} from "./player-appearance.js?v=1.0";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 
-export const PROFILE_SCHEMA_VERSION = 4;
+export const PROFILE_SCHEMA_VERSION = 5;
 export const PROFILE_STORAGE_KEY = "nova-court-my-player-v2";
 export const WIN_CREDIT_BONUS = 10;
 export const ATTRIBUTE_GROUPS = Object.freeze({
@@ -101,11 +109,17 @@ export const COSMETIC_PALETTES = Object.freeze([
 ]);
 
 export const AVATAR_APPEARANCES = Object.freeze([
-  Object.freeze({ id: "classic", name: "Classic", hair: "crop", headShape: "round", skin: 0x9d6548 }),
-  Object.freeze({ id: "highTop", name: "High Top", hair: "highTop", headShape: "long", skin: 0x75442f }),
-  Object.freeze({ id: "braided", name: "Braided", hair: "braids", headShape: "round", skin: 0x4f2f25 }),
-  Object.freeze({ id: "fade", name: "Fade", hair: "fade", headShape: "wide", skin: 0xc88a68 }),
+  Object.freeze({ id: "classic", name: "Classic", hair: "crop", headShape: "round", skinToneId: "warm-brown" }),
+  Object.freeze({ id: "highTop", name: "High Top", hair: "highTop", headShape: "long", skinToneId: "deep-brown" }),
+  Object.freeze({ id: "braided", name: "Braided", hair: "braids", headShape: "round", skinToneId: "deep-espresso" }),
+  Object.freeze({ id: "fade", name: "Fade", hair: "fade", headShape: "wide", skinToneId: "warm-tan" }),
+  Object.freeze({ id: "waves", name: "Waves", hair: "waves", headShape: "round", skinToneId: "golden-brown" }),
+  Object.freeze({ id: "afro", name: "Afro", hair: "afro", headShape: "round", skinToneId: "rich-umber" }),
+  Object.freeze({ id: "locs", name: "Locs", hair: "locs", headShape: "long", skinToneId: "deep-brown" }),
+  Object.freeze({ id: "bun", name: "Court Bun", hair: "bun", headShape: "round", skinToneId: "light-beige" }),
 ]);
+
+const skinToneById = (id) => SKIN_TONES.find((tone) => tone.id === id) || SKIN_TONES[3];
 
 const MILESTONE_TITLE_NAMES = Object.freeze({
   25: "PROSPECT",
@@ -170,6 +184,9 @@ export function createDefaultProfile() {
       displayName: "",
       jerseyNumber: 1,
       appearanceId: "classic",
+      hairStyleId: "crop",
+      skinToneId: "warm-brown",
+      heightM: PLAYER_HEIGHT_RANGE.defaultM,
       shoeStyleId: "nova-flight",
       selectedTitle: "ovr-25",
     },
@@ -238,11 +255,16 @@ export function normalizeProfile(candidate) {
   const legacyProfile = Number(source.version) > 0 && Number(source.version) < PROFILE_SCHEMA_VERSION;
   const displayName = normalizeDisplayName(source.identity?.displayName ?? source.displayName);
   const validAppearances = new Set(AVATAR_APPEARANCES.map((item) => item.id));
+  const appearanceId = validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic";
+  const legacyAppearance = AVATAR_APPEARANCES.find((item) => item.id === appearanceId) || AVATAR_APPEARANCES[0];
   const identity = {
     created: Boolean(source.identity?.created ?? legacyProfile),
     displayName: displayName || (legacyProfile ? "Ace Nova" : ""),
     jerseyNumber: Math.round(clamp(source.identity?.jerseyNumber ?? source.jerseyNumber ?? 1, 0, 99)),
-    appearanceId: validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic",
+    appearanceId,
+    hairStyleId: normalizeHairStyle(source.identity?.hairStyleId, legacyAppearance.hair),
+    skinToneId: normalizeSkinTone(source.identity?.skinToneId, legacyAppearance.skinToneId),
+    heightM: normalizePlayerHeight(source.identity?.heightM, POSITION_PRESETS[selectedPosition].height),
     shoeStyleId: normalizeBasketballShoeStyle(source.identity?.shoeStyleId ?? source.shoeStyleId),
     selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
   };
@@ -293,12 +315,29 @@ export function updatePlayerIdentity(profile, changes = {}) {
       && normalizeBasketballShoeStyle(changes.shoeStyleId) !== changes.shoeStyleId) {
     return { ok: false, reason: "invalid-shoe-style", profile: next };
   }
+  if (changes.hairStyleId !== undefined
+      && normalizeHairStyle(changes.hairStyleId, "") !== changes.hairStyleId) {
+    return { ok: false, reason: "invalid-hair-style", profile: next };
+  }
+  if (changes.skinToneId !== undefined
+      && normalizeSkinTone(changes.skinToneId, "") !== changes.skinToneId) {
+    return { ok: false, reason: "invalid-skin-tone", profile: next };
+  }
+  const heightM = changes.heightM === undefined
+    ? next.identity.heightM
+    : normalizePlayerHeight(changes.heightM);
+  const selectedAppearance = changes.appearanceId === undefined
+    ? null
+    : AVATAR_APPEARANCES.find((item) => item.id === changes.appearanceId);
   next.identity = {
     ...next.identity,
     created: true,
     displayName,
     jerseyNumber: Math.round(clamp(changes.jerseyNumber ?? next.identity.jerseyNumber, 0, 99)),
     appearanceId: changes.appearanceId ?? next.identity.appearanceId,
+    hairStyleId: changes.hairStyleId ?? selectedAppearance?.hair ?? next.identity.hairStyleId,
+    skinToneId: changes.skinToneId ?? selectedAppearance?.skinToneId ?? next.identity.skinToneId,
+    heightM,
     shoeStyleId: changes.shoeStyleId ?? next.identity.shoeStyleId,
   };
   return { ok: true, profile: next };
@@ -407,12 +446,14 @@ export function getEnginePlayerConfig(profile) {
   const preset = POSITION_PRESETS[build.position];
   const palette = COSMETIC_PALETTES.find((item) => item.id === normalized.cosmetics.equipped) || COSMETIC_PALETTES[0];
   const appearance = AVATAR_APPEARANCES.find((item) => item.id === normalized.identity.appearanceId) || AVATAR_APPEARANCES[0];
+  const hairStyle = normalizeHairStyle(normalized.identity.hairStyleId, appearance.hair);
+  const skinTone = skinToneById(normalized.identity.skinToneId);
   const average = (...keys) => keys.reduce((total, key) => total + attributes[key], 0) / keys.length / 100;
   const ratingsMap = { ...attributes };
   return {
     role: preset.role,
     positionRole: build.position,
-    height: preset.height,
+    height: normalized.identity.heightM,
     speed: 3.55 + average("speed", "acceleration", "speedWithBall") * 1.25,
     shooting: average("midRange", "threePoint", "freeThrow"),
     finishing: average("closeShot", "drivingLayup", "drivingDunk"),
@@ -430,12 +471,14 @@ export function getEnginePlayerConfig(profile) {
     primary: palette.colors.primary,
     accent: palette.colors.accent,
     shoeColor: palette.colors.shoes,
-    skinColor: appearance.skin,
+    skinColor: skinTone.color,
     name: normalized.identity.displayName || "Ace Nova",
     jerseyNumber: normalized.identity.jerseyNumber,
     appearanceId: appearance.id,
     shoeStyleId: normalized.identity.shoeStyleId,
-    hairStyle: appearance.hair,
+    hairStyle,
+    hairStyleId: hairStyle,
+    skinToneId: skinTone.id,
     headShape: appearance.headShape,
   };
 }
@@ -459,6 +502,9 @@ export function getProfileSummary(profile) {
     displayName: normalized.identity.displayName || "UNNAMED PLAYER",
     jerseyNumber: normalized.identity.jerseyNumber,
     appearance: AVATAR_APPEARANCES.find((item) => item.id === normalized.identity.appearanceId) || AVATAR_APPEARANCES[0],
+    hairStyle: HAIR_STYLES.find((item) => item.id === normalized.identity.hairStyleId) || HAIR_STYLES[0],
+    skinTone: skinToneById(normalized.identity.skinToneId),
+    heightM: normalized.identity.heightM,
     shoeStyle: BASKETBALL_SHOE_STYLES.find((item) => item.id === normalized.identity.shoeStyleId)
       || BASKETBALL_SHOE_STYLES[0],
     title,
