@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070b0e">
+  <title>NOVA COURT · Stadium / Gym Lab</title>
+  <link rel="stylesheet" href="./js/gym-lab.css?v=1.0">
+</head>
+<body>
+  <main id="gym-lab" aria-label="NOVA COURT procedural gym visual harness">
+    <div id="gym-stage" aria-label="Interactive Three.js compact high-school gym preview"></div>
+    <header class="gym-brand">
+      <span>NOVA COURT · ENVIRONMENT TOOLS</span>
+      <h1>STADIUM / GYM LAB</h1>
+      <p>Montgomery-inspired compact shell · regulation 84 × 50 ft court</p>
+    </header>
+    <aside class="gym-controls">
+      <label>Camera
+        <select id="gym-view">
+          <option value="reference-baseline">Reference baseline</option>
+          <option value="sideline">Sideline</option>
+          <option value="bleachers">Bleachers</option>
+          <option value="rafters">Rafters + lighting</option>
+          <option value="scoreboard">Scoreboard end wall</option>
+          <option value="court-wide">Court-wide</option>
+        </select>
+      </label>
+      <label>Quality tier
+        <select id="gym-quality">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high" selected>High</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend>OPTIONAL GROUPS</legend>
+        <label><input data-group="gym-architecture" type="checkbox" checked> Architecture</label>
+        <label><input data-group="gym-bleachers" type="checkbox" checked> Bleachers</label>
+        <label><input data-group="gym-signage" type="checkbox" checked> Signage</label>
+        <label><input data-group="gym-lighting" type="checkbox" checked> Lights</label>
+      </fieldset>
+      <div class="gym-toggles">
+        <label><input id="gym-wireframe" type="checkbox"> Wireframe</label>
+        <label><input id="gym-lights" type="checkbox" checked> Scene lights</label>
+        <label><input id="gym-guides" type="checkbox" checked> Scale guides</label>
+      </div>
+      <div class="gym-actions">
+        <button id="gym-reload" type="button">RELOAD SCENE</button>
+        <button id="gym-unload" type="button">UNLOAD OPTIONAL</button>
+      </div>
+      <button id="gym-capture" type="button">SAVE NAMED PNG</button>
+      <p id="gym-capture-name">gym-reference-baseline-high.png</p>
+    </aside>
+    <nav class="gym-views" aria-label="Named gym camera views">
+      <button data-view="reference-baseline">01 BASELINE</button>
+      <button data-view="sideline">02 SIDELINE</button>
+      <button data-view="bleachers">03 BLEACHERS</button>
+      <button data-view="rafters">04 RAFTERS</button>
+      <button data-view="scoreboard">05 SCOREBOARD</button>
+      <button data-view="court-wide">06 COURT</button>
+    </nav>
+    <section class="gym-metrics">
+      <span id="gym-phase">READY</span>
+      <dl>
+        <div><dt>FPS</dt><dd id="gym-fps">60</dd></div>
+        <div><dt>DRAWS</dt><dd id="gym-calls">0</dd></div>
+        <div><dt>TRIS</dt><dd id="gym-triangles">0</dd></div>
+        <div><dt>GEO</dt><dd id="gym-geometries">0</dd></div>
+        <div><dt>TEX</dt><dd id="gym-textures">0</dd></div>
+      </dl>
+    </section>
+    <section id="gym-loading" class="gym-loading" aria-live="polite">
+      <div>
+        <span>NOVA ENVIRONMENT STREAM</span>
+        <strong id="gym-loading-phase">SHELL FALLBACK</strong>
+        <p id="gym-loading-group">Preparing compact gym…</p>
+        <i><b id="gym-loading-fill"></b></i>
+        <output id="gym-loading-progress">0%</output>
+      </div>
+    </section>
+  </main>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/gym-lab.js?v=1.0"></script>
+</body>
+</html>

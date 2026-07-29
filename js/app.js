@@ -111,6 +111,13 @@ let pendingModeKey = "street";
 let pendingBallStyle = ui.settings.ballStyle;
 let ballSelectionOrigin = "modes";
 let contestRackVisuals = null;
+let sceneLoadState = {
+  sceneId: "boot",
+  phase: "idle",
+  progress: 0,
+  loadedIds: [],
+  loadErrors: [],
+};
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
@@ -134,6 +141,28 @@ function setHidden(node, hidden) {
   node.classList.toggle("is-hidden", hidden);
   node.hidden = hidden;
   node.setAttribute("aria-hidden", String(hidden));
+}
+
+function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState.loadedIds) {
+  const nextProgress = Math.max(
+    sceneLoadState.sceneId === sceneId ? sceneLoadState.progress : 0,
+    Math.min(1, progress),
+  );
+  sceneLoadState = {
+    sceneId,
+    phase,
+    progress: nextProgress,
+    loadedIds: [...new Set(loadedIds)],
+    loadErrors: sceneLoadState.sceneId === sceneId ? sceneLoadState.loadErrors : [],
+  };
+  const label = {
+    shell: "Preparing court fallback…",
+    required: "Loading court, hoops, and players…",
+    optional: "Adding venue details…",
+    ready: "Court ready.",
+  }[phase] || "Preparing NOVA COURT…";
+  if ($("#loader-fill")) $("#loader-fill").style.width = `${Math.round(nextProgress * 100)}%`;
+  if ($("#loader-copy")) $("#loader-copy").textContent = label;
 }
 
 function showMainMenu() {
@@ -565,6 +594,11 @@ function createEngine(modeKey, preview = false, roster = null) {
       advanceThreePointContest: (sequenceIndex = 4, made = false) =>
         advanceThreePointContestForQA(sequenceIndex, made),
       presentation: () => presentationDirector?.getSnapshot?.() || null,
+      sceneLoading: () => ({
+        ...sceneLoadState,
+        loadedIds: [...sceneLoadState.loadedIds],
+        loadErrors: [...sceneLoadState.loadErrors],
+      }),
     };
   }
   return engine;
@@ -690,7 +724,15 @@ function startMode(modeKey = selectedModeKey) {
   unlockAudio().catch(() => {});
   currentDifficulty = $("#difficulty-select")?.value || "pro";
   const token = runToken;
+  setHidden($("#loading-screen"), false);
+  updateSceneLoading(currentModeKey, "shell", 0.12, ["court-fallback"]);
   createEngine(currentModeKey);
+  updateSceneLoading(currentModeKey, "required", 0.68, [
+    "court-fallback",
+    "court",
+    "hoops",
+    "players",
+  ]);
   engine.setCameraMode(currentModeKey === "threePoint"
     ? "broadcast"
     : cameraPresetForTeamMode(currentModeKey).mode);
@@ -709,6 +751,14 @@ function startMode(modeKey = selectedModeKey) {
     teamIds: currentModeKey === "threePoint" || currentModeKey === "practice" ? [] : null,
     debug: new URLSearchParams(location.search).has("aiDebug"),
   });
+  updateSceneLoading(currentModeKey, "optional", 0.9, [
+    "court-fallback",
+    "court",
+    "hoops",
+    "players",
+    ...(contestRackVisuals ? ["three-point-racks"] : []),
+    "venue-details",
+  ]);
   const meta = MODE_META[currentModeKey];
   $("#mode-label").textContent = meta.label;
   $("#home-label").textContent = meta.home;
@@ -734,6 +784,10 @@ function startMode(modeKey = selectedModeKey) {
           : "CHECK BALL";
   feedback(openingCall, "accent", 1200);
   updateHUD();
+  updateSceneLoading(currentModeKey, "ready", 1);
+  requestAnimationFrame(() => {
+    if (token === runToken) setHidden($("#loading-screen"), true);
+  });
 }
 
 function buildRackProgress() {
@@ -1779,14 +1833,13 @@ async function boot() {
   bindUI();
   try {
     if (!globalThis.THREE || !globalThis.WebGLRenderingContext) throw new Error("WebGL is unavailable in this browser.");
-    $("#loader-fill").style.width = "34%";
+    updateSceneLoading("boot", "shell", 0.14, ["court-fallback"]);
     $("#loader-copy").textContent = "Lighting the night court…";
     createEngine("street", true);
-    $("#loader-fill").style.width = "76%";
+    updateSceneLoading("boot", "required", 0.72, ["court-fallback", "court", "hoops", "players"]);
     $("#loader-copy").textContent = "Calibrating ball physics…";
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    $("#loader-fill").style.width = "100%";
-    await new Promise((resolve) => setTimeout(resolve, 220));
+    updateSceneLoading("boot", "optional", 0.92, ["court-fallback", "court", "hoops", "players", "venue-details"]);
+    updateSceneLoading("boot", "ready", 1);
     if (getProfileSummary(playerProfile).needsOnboarding) {
       setHidden($("#loading-screen"), true);
       setHidden($("#create-player-screen"), false);

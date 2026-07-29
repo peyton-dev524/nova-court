@@ -5,7 +5,7 @@ const root = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "
 const dist = join(root, "dist");
 if (existsSync(dist)) rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
-for (const item of ["index.html", "player-lab.html", "dribble-lab.html", "styles.css", "og.png", "js", "vendor", "assets", "ASSET_LICENSES.md", "README.md"]) {
+for (const item of ["index.html", "player-lab.html", "dribble-lab.html", "gym-lab.html", "styles.css", "og.png", "js", "vendor", "assets", "ASSET_LICENSES.md", "README.md"]) {
   cpSync(join(root, item), join(dist, item), { recursive: true });
 }
 console.log("Built NOVA COURT to dist/");
