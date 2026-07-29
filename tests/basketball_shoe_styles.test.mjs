@@ -6,6 +6,8 @@ import { readFile } from "node:fs/promises";
 import {
   BASKETBALL_SHOE_STYLE_IDS,
   COURT_CLASSIC_DIMENSIONS,
+  PRECISION_7_COLORWAYS,
+  PRECISION_7_DIMENSIONS,
   basketballShoeLowerLegFit,
   courtClassicEllipsePoint,
   courtClassicRockerHeight,
@@ -13,7 +15,12 @@ import {
   createBasketballShoe,
   createNovaCourtClassicShoe,
   createNovaFlightShoe,
+  createPrecision7Shoe,
   normalizeBasketballShoeStyle,
+  normalizePrecision7Colorway,
+  precision7EllipsePoint,
+  precision7HalfWidth,
+  precision7RockerHeight,
 } from "../js/basketball-shoes.js";
 
 const root = new URL("../", import.meta.url);
@@ -38,12 +45,100 @@ function dimensionsOf(T, object) {
   return { width: size.x, height: size.y, length: size.z };
 }
 
-test("shoe styles normalize to two canonical IDs with a compatible Flight fallback", () => {
-  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic"]);
+test("shoe styles normalize to three canonical IDs with a compatible Flight fallback", () => {
+  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic", "precision-7"]);
   assert.equal(normalizeBasketballShoeStyle("court-classic"), "court-classic");
+  assert.equal(normalizeBasketballShoeStyle("precision-7"), "precision-7");
   assert.equal(normalizeBasketballShoeStyle("nova-flight"), "nova-flight");
   assert.equal(normalizeBasketballShoeStyle("unknown"), "nova-flight");
   assert.equal(normalizeBasketballShoeStyle(undefined), "nova-flight");
+});
+
+test("Precision 7 colorways and trigonometric profiles stay deterministic and continuous", () => {
+  assert.deepEqual(PRECISION_7_COLORWAYS.map(({ id }) => id), [
+    "summit-silver",
+    "photon-navy",
+    "black-volt",
+  ]);
+  assert.equal(normalizePrecision7Colorway("black-volt"), "black-volt");
+  assert.equal(normalizePrecision7Colorway("missing"), "summit-silver");
+
+  const point = precision7EllipsePoint(0.054, 0.018, Math.PI * 0.23);
+  const opposite = precision7EllipsePoint(0.054, 0.018, Math.PI * 1.23);
+  assert.ok(Math.abs(point.x + opposite.x) < 1e-12);
+  assert.ok(Math.abs(point.y + opposite.y) < 1e-12);
+
+  const rockerSamples = Array.from({ length: 33 }, (_, index) => (
+    precision7RockerHeight(-1 + index / 16)
+  ));
+  for (let index = 1; index < rockerSamples.length; index += 1) {
+    assert.ok(Math.abs(rockerSamples[index] - rockerSamples[index - 1]) < 0.004);
+  }
+  assert.ok(precision7RockerHeight(1) > precision7RockerHeight(0));
+
+  const widthSamples = Array.from({ length: 81 }, (_, index) => (
+    precision7HalfWidth(-1 + index / 40)
+  ));
+  assert.ok(Math.max(...widthSamples) <= PRECISION_7_DIMENSIONS.widthMeters * 0.5 + 1e-12);
+  assert.ok(Math.min(...widthSamples) > 0.009);
+  for (let index = 1; index < widthSamples.length; index += 1) {
+    assert.ok(Math.abs(widthSamples[index] - widthSamples[index - 1]) < 0.004);
+  }
+});
+
+test("Precision 7 meets measured bounds, mirrored mounting, named-part, and render budgets", async () => {
+  const T = await loadThree();
+  const right = createPrecision7Shoe(T, {
+    detail: "high",
+    side: 1,
+    colorwayId: "summit-silver",
+  });
+  const left = createPrecision7Shoe(T, {
+    detail: "high",
+    side: -1,
+    colorwayId: "black-volt",
+  });
+  const dimensions = dimensionsOf(T, right.root);
+  const target = PRECISION_7_DIMENSIONS;
+
+  assert.ok(Math.abs(dimensions.length - target.lengthMeters) <= target.toleranceMeters.length);
+  assert.ok(Math.abs(dimensions.width - target.widthMeters) <= target.toleranceMeters.width);
+  assert.ok(Math.abs(dimensions.height - target.heightMeters) <= target.toleranceMeters.height);
+  assert.deepEqual(dimensionsOf(T, left.root), dimensions);
+  assert.equal(right.root.userData.sculptRuntime.colorwayId, "summit-silver");
+  assert.equal(left.root.userData.sculptRuntime.colorwayId, "black-volt");
+  assert.equal(right.root.userData.sculptRuntime.sourceEvidence.outerDimensionsInferred, true);
+  assert.match(right.root.userData.sculptRuntime.profileMath.rocker, /cos/);
+  assert.match(right.root.userData.sculptRuntime.profileMath.section, /sin/);
+
+  assert.ok(right.metrics.triangles <= 16_000, `triangle budget exceeded: ${right.metrics.triangles}`);
+  assert.ok(right.metrics.drawCalls <= 24, `draw-call budget exceeded: ${right.metrics.drawCalls}`);
+  assert.ok(right.metrics.materials <= 10);
+  assert.equal(right.metrics.textures, 0);
+
+  const names = new Set();
+  right.root.traverse((object) => {
+    if (object.name) names.add(object.name);
+  });
+  for (const name of [
+    "precision-7-outsole",
+    "precision-7-sculpted-midsole",
+    "precision-7-breathable-upper",
+    "precision-7-padded-heel-quarter",
+    "precision-7-plush-tongue",
+    "precision-7-low-collar",
+    "precision-7-no-sew-eyestays",
+    "precision-7-six-station-laces",
+    "precision-7-lateral-overlay",
+    "precision-7-molded-speed-mark",
+    "precision-7-lateral-ribs",
+    "precision-7-heel-counter",
+    "precision-7-forefoot-rubber-wrap",
+    "precision-7-quarter-perforations",
+    "precision-7-herringbone-traction",
+  ]) {
+    assert.equal(names.has(name), true, `${name} must be independently named/pickable`);
+  }
 });
 
 test("Court Classic lower-leg fit inserts a tapered sock without covering the high-top collar", () => {

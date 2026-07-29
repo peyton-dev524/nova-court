@@ -4,6 +4,7 @@ const TAU = Math.PI * 2;
 export const BASKETBALL_SHOE_STYLE_IDS = Object.freeze([
   "nova-flight",
   "court-classic",
+  "precision-7",
 ]);
 
 export const BASKETBALL_SHOE_STYLES = Object.freeze([
@@ -16,6 +17,11 @@ export const BASKETBALL_SHOE_STYLES = Object.freeze([
     id: "court-classic",
     name: "NOVA Court Classic",
     description: "Canvas high-top with a curved rubber toe",
+  }),
+  Object.freeze({
+    id: "precision-7",
+    name: "Precision 7 Study",
+    description: "Stylized low-top mesh court shoe with a sculpted foam sole",
   }),
 ]);
 
@@ -31,6 +37,95 @@ export const COURT_CLASSIC_DIMENSIONS = Object.freeze({
   }),
   modelUnitsPerMeter: 1,
 });
+
+export const PRECISION_7_DIMENSIONS = Object.freeze({
+  sourcedFootLengthMeters: 0.283,
+  lengthMeters: 0.298,
+  widthMeters: 0.108,
+  heightMeters: 0.104,
+  toleranceMeters: Object.freeze({
+    length: 0.003,
+    width: 0.0025,
+    height: 0.003,
+  }),
+  modelUnitsPerMeter: 1,
+});
+
+export const PRECISION_7_COLORWAYS = Object.freeze([
+  Object.freeze({
+    id: "summit-silver",
+    name: "Summit Silver",
+    upper: 0xf1f0ec,
+    upperShade: 0xd6d6d2,
+    midsole: 0xf4f2ec,
+    outsole: 0x303236,
+    mark: 0xa7a9ac,
+    lace: 0xf7f6f1,
+    lining: 0x55585e,
+  }),
+  Object.freeze({
+    id: "photon-navy",
+    name: "Photon Navy",
+    upper: 0xe4e5e1,
+    upperShade: 0xc8cbd0,
+    midsole: 0xf5f4ef,
+    outsole: 0x17233d,
+    mark: 0x203968,
+    lace: 0xf8f8f2,
+    lining: 0x1d2944,
+  }),
+  Object.freeze({
+    id: "black-volt",
+    name: "Black Volt",
+    upper: 0x17191d,
+    upperShade: 0x2b2f34,
+    midsole: 0x454b50,
+    outsole: 0x0d0f12,
+    mark: 0xb8f23a,
+    lace: 0xdde3d7,
+    lining: 0x090a0c,
+  }),
+]);
+
+export function normalizePrecision7Colorway(value) {
+  return PRECISION_7_COLORWAYS.some((colorway) => colorway.id === value)
+    ? value
+    : PRECISION_7_COLORWAYS[0].id;
+}
+
+export function precision7Colorway(value) {
+  const id = normalizePrecision7Colorway(value);
+  return PRECISION_7_COLORWAYS.find((colorway) => colorway.id === id);
+}
+
+export function precision7EllipsePoint(halfWidth, halfHeight, angle) {
+  return Object.freeze({
+    x: Math.cos(angle) * halfWidth,
+    y: Math.sin(angle) * halfHeight,
+  });
+}
+
+export function precision7RockerHeight(normalizedLength) {
+  const z = Math.max(-1, Math.min(1, Number(normalizedLength) || 0));
+  if (z > 0.48) {
+    const progress = (z - 0.48) / 0.52;
+    return 0.002 + (1 - Math.cos(progress * Math.PI * 0.5)) * 0.01;
+  }
+  if (z < -0.82) {
+    const progress = (-z - 0.82) / 0.18;
+    return 0.002 + (1 - Math.cos(progress * Math.PI * 0.5)) * 0.002;
+  }
+  return 0.002;
+}
+
+export function precision7HalfWidth(normalizedLength) {
+  const z = Math.max(-1, Math.min(1, Number(normalizedLength) || 0));
+  const heel = Math.exp(-(((z + 0.83) / 0.29) ** 2)) * 0.0405;
+  const waist = Math.exp(-(((z + 0.15) / 0.34) ** 2)) * 0.031;
+  const forefoot = Math.exp(-(((z - 0.53) / 0.43) ** 2)) * 0.054;
+  const toeTaper = 1 - Math.max(0, (z - 0.7) / 0.3) ** 1.6 * 0.42;
+  return Math.max(heel, waist, forefoot) * toeTaper;
+}
 
 export function normalizeBasketballShoeStyle(value) {
   return BASKETBALL_SHOE_STYLE_IDS.includes(value) ? value : "nova-flight";
@@ -69,6 +164,21 @@ const BASKETBALL_SHOE_LOWER_LEG_FITS = Object.freeze({
     }),
     collarJoinY: -0.469,
     collarInnerRadius: 0.034,
+  }),
+  "precision-7": Object.freeze({
+    shin: Object.freeze({ length: 0.28, centerY: -0.218 }),
+    sock: Object.freeze({
+      radiusTop: 0.079,
+      radiusBottom: 0.05,
+      height: 0.17,
+      centerY: -0.397,
+    }),
+    shoe: Object.freeze({
+      position: Object.freeze([0, -0.603, 0.08]),
+      rotationX: -0.025,
+    }),
+    collarJoinY: -0.506,
+    collarInnerRadius: 0.052,
   }),
 });
 
@@ -1061,8 +1171,401 @@ export function createNovaCourtClassicShoe(T, {
   };
 }
 
+function precision7SoleSections({ inset = 0, verticalOffset = 0, height = 0.007 } = {}) {
+  const halfLength = PRECISION_7_DIMENSIONS.lengthMeters * 0.5;
+  return [-1, -0.82, -0.58, -0.28, 0.05, 0.34, 0.58, 0.78, 1].map((normalized) => ({
+    z: normalized * halfLength,
+    halfWidth: Math.max(0.018, precision7HalfWidth(normalized) - inset),
+    centerY: precision7RockerHeight(normalized) + verticalOffset,
+    halfHeight: height * (0.9 + Math.cos(normalized * Math.PI * 0.5) * 0.1),
+    lowerSquash: normalized > 0.55 ? 0.78 : 0.92,
+  }));
+}
+
+function precision7UpperSections() {
+  const halfLength = PRECISION_7_DIMENSIONS.lengthMeters * 0.5;
+  return [
+    { z: -halfLength + 0.013, halfWidth: 0.034, centerY: 0.047, halfHeight: 0.026, crown: 1.08 },
+    { z: -0.105, halfWidth: 0.041, centerY: 0.058, halfHeight: 0.035, crown: 1.1 },
+    { z: -0.055, halfWidth: 0.044, centerY: 0.058, halfHeight: 0.034, crown: 1.08 },
+    { z: 0.005, halfWidth: 0.039, centerY: 0.052, halfHeight: 0.029, crown: 1.08 },
+    { z: 0.058, halfWidth: 0.048, centerY: 0.044, halfHeight: 0.024, crown: 1.1 },
+    { z: 0.105, halfWidth: 0.047, centerY: 0.038, halfHeight: 0.019, crown: 1.08 },
+    { z: halfLength - 0.007, halfWidth: 0.022, centerY: 0.036, halfHeight: 0.009, crown: 1.02 },
+  ];
+}
+
+export function createPrecision7Shoe(T, {
+  colorwayId = "summit-silver",
+  detail = DEFAULT_DETAIL,
+  side = 1,
+} = {}) {
+  const root = new T.Group();
+  root.name = "precision-7-shoe";
+  const colorway = precision7Colorway(colorwayId);
+
+  const upperMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.upper,
+    roughness: 0.72,
+    metalness: 0,
+    clearcoat: 0.04,
+    clearcoatRoughness: 0.82,
+  });
+  const overlayMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.upperShade,
+    roughness: 0.52,
+    metalness: 0,
+    clearcoat: 0.16,
+    clearcoatRoughness: 0.52,
+  });
+  const foamMaterial = new T.MeshStandardMaterial({
+    color: colorway.midsole,
+    roughness: 0.68,
+    metalness: 0,
+  });
+  const rubberMaterial = new T.MeshStandardMaterial({
+    color: colorway.outsole,
+    roughness: 0.9,
+    metalness: 0,
+  });
+  const tractionMaterial = new T.MeshStandardMaterial({
+    color: colorShift(T, colorway.outsole, 0.18),
+    roughness: 0.94,
+    metalness: 0,
+  });
+  const markMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.mark,
+    roughness: 0.28,
+    metalness: 0.22,
+    clearcoat: 0.42,
+    clearcoatRoughness: 0.24,
+  });
+  const laceMaterial = new T.MeshStandardMaterial({
+    color: colorway.lace,
+    roughness: 0.92,
+    metalness: 0,
+  });
+  const liningMaterial = new T.MeshStandardMaterial({
+    color: colorway.lining,
+    roughness: 0.96,
+    metalness: 0,
+  });
+
+  const outsole = mesh(
+    T,
+    createLoftGeometry(T, densifySections(precision7SoleSections(), 3), 16),
+    rubberMaterial,
+    "precision-7-outsole",
+  );
+  root.add(outsole);
+
+  const midsole = mesh(
+    T,
+    createLoftGeometry(T, densifySections(precision7SoleSections({
+      inset: 0.0014,
+      verticalOffset: 0.017,
+      height: 0.011,
+    }), 3), 16),
+    foamMaterial,
+    "precision-7-sculpted-midsole",
+  );
+  root.add(midsole);
+
+  const upper = mesh(
+    T,
+    createLoftGeometry(T, densifySections(precision7UpperSections(), 3), 18),
+    upperMaterial,
+    "precision-7-breathable-upper",
+  );
+  root.add(upper);
+
+  const heelQuarter = mesh(
+    T,
+    createLoftGeometry(T, densifySections([
+      { z: -0.145, halfWidth: 0.026, centerY: 0.054, halfHeight: 0.025, crown: 1.04 },
+      { z: -0.125, halfWidth: 0.041, centerY: 0.064, halfHeight: 0.033, crown: 1.08 },
+      { z: -0.09, halfWidth: 0.044, centerY: 0.064, halfHeight: 0.034, crown: 1.08 },
+      { z: -0.055, halfWidth: 0.041, centerY: 0.061, halfHeight: 0.031, crown: 1.06 },
+      { z: -0.025, halfWidth: 0.032, centerY: 0.055, halfHeight: 0.023, crown: 1.04 },
+    ], 2), 14),
+    overlayMaterial,
+    "precision-7-padded-heel-quarter",
+  );
+  root.add(heelQuarter);
+
+  const tongue = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.084, y: 0.096 },
+      { z: -0.052, y: 0.098 },
+      { z: 0.075, y: 0.072 },
+      { z: 0.096, y: 0.06 },
+      { z: 0.079, y: 0.052 },
+      { z: -0.079, y: 0.083 },
+    ], 0, 0.052, 1),
+    liningMaterial,
+    "precision-7-plush-tongue",
+  );
+  root.add(tongue);
+
+  const collarPoints = [];
+  for (let index = 0; index < 30; index += 1) {
+    const angle = index / 30 * TAU;
+    const point = precision7EllipsePoint(0.044, 0.031, angle);
+    const frontDip = Math.max(0, Math.sin(angle)) * 0.014;
+    const rearRise = Math.max(0, -Math.sin(angle)) * 0.006;
+    collarPoints.push([point.x, 0.087 + rearRise - frontDip, -0.087 + point.y]);
+  }
+  const collar = mesh(
+    T,
+    curveTube(T, collarPoints, 0.0042, 28, 6, true),
+    liningMaterial,
+    "precision-7-low-collar",
+  );
+  root.add(collar);
+
+  const eyestayProfile = [
+    { z: -0.074, y: 0.091 },
+    { z: -0.045, y: 0.094 },
+    { z: 0.09, y: 0.067 },
+    { z: 0.104, y: 0.057 },
+    { z: 0.089, y: 0.052 },
+    { z: -0.056, y: 0.081 },
+  ];
+  const eyestays = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, eyestayProfile, 0.032, 0.005, 1),
+      createSidePrismGeometry(T, eyestayProfile, -0.032, 0.005, -1),
+    ]),
+    overlayMaterial,
+    "precision-7-no-sew-eyestays",
+  );
+  root.add(eyestays);
+
+  const laceGeometries = [];
+  const laceStations = [];
+  for (let index = 0; index < 6; index += 1) {
+    const progress = index / 5;
+    laceStations.push({
+      z: -0.052 + progress * 0.129,
+      y: 0.091 - progress * 0.025 + Math.sin(progress * Math.PI) * 0.0025,
+      width: 0.028 + progress * 0.005,
+    });
+  }
+  for (let index = 0; index < laceStations.length - 1; index += 1) {
+    const from = laceStations[index];
+    const to = laceStations[index + 1];
+    laceGeometries.push(
+      cylinderBetween(T, new T.Vector3(-from.width, from.y, from.z), new T.Vector3(to.width, to.y + 0.0015, to.z), 0.0015, 5),
+      cylinderBetween(T, new T.Vector3(from.width, from.y, from.z), new T.Vector3(-to.width, to.y + 0.0015, to.z), 0.0015, 5),
+    );
+  }
+  const laces = mesh(
+    T,
+    mergeGeometries(T, laceGeometries),
+    laceMaterial,
+    "precision-7-six-station-laces",
+  );
+  root.add(laces);
+
+  const lateralX = side * 0.048;
+  const sideOverlay = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.112, y: 0.036 },
+      { z: -0.105, y: 0.074 },
+      { z: -0.058, y: 0.084 },
+      { z: 0.016, y: 0.069 },
+      { z: 0.092, y: 0.045 },
+      { z: 0.072, y: 0.033 },
+      { z: -0.02, y: 0.04 },
+    ], lateralX, 0.004, side),
+    overlayMaterial,
+    "precision-7-lateral-overlay",
+  );
+  root.add(sideOverlay);
+
+  const mark = mesh(
+    T,
+    curveTube(T, [
+      [lateralX + side * 0.0032, 0.067, -0.078],
+      [lateralX + side * 0.0035, 0.058, -0.03],
+      [lateralX + side * 0.0035, 0.05, 0.031],
+      [lateralX + side * 0.003, 0.044, 0.088],
+    ], 0.0022, 24, 6),
+    markMaterial,
+    "precision-7-molded-speed-mark",
+  );
+  root.add(mark);
+
+  const ribGeometries = [];
+  for (let rib = 0; rib < 3; rib += 1) {
+    const x = lateralX + side * (0.002 + rib * 0.0002);
+    const rise = rib * 0.007;
+    ribGeometries.push(curveTube(T, [
+      [x, 0.075 - rise * 0.25, -0.068],
+      [x + side * 0.0007, 0.068 - rise * 0.35, -0.015],
+      [x + side * 0.0004, 0.055 - rise * 0.25, 0.045 + rise],
+      [x, 0.045, 0.097],
+    ], 0.00075, 18, 4));
+  }
+  const sideRibs = mesh(
+    T,
+    mergeGeometries(T, ribGeometries),
+    markMaterial,
+    "precision-7-lateral-ribs",
+  );
+  root.add(sideRibs);
+
+  const heelCounterProfile = [
+    { z: -0.146, y: 0.026 },
+    { z: -0.142, y: 0.063 },
+    { z: -0.124, y: 0.082 },
+    { z: -0.103, y: 0.075 },
+    { z: -0.098, y: 0.038 },
+  ];
+  const heelCounter = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, heelCounterProfile, 0.043, 0.005, 1),
+      createSidePrismGeometry(T, heelCounterProfile, -0.043, 0.005, -1),
+    ]),
+    overlayMaterial,
+    "precision-7-heel-counter",
+  );
+  root.add(heelCounter);
+
+  const wrapGeometries = [];
+  for (const xSign of [-1, 1]) {
+    wrapGeometries.push(curveTube(T, [
+      [xSign * 0.048, 0.023, 0.055],
+      [xSign * 0.052, 0.025, 0.09],
+      [xSign * 0.047, 0.032, 0.126],
+      [xSign * 0.026, 0.04, 0.145],
+    ], 0.0032, 22, 6));
+  }
+  const forefootWrap = mesh(
+    T,
+    mergeGeometries(T, wrapGeometries),
+    rubberMaterial,
+    "precision-7-forefoot-rubber-wrap",
+  );
+  root.add(forefootWrap);
+
+  const perforationGeometries = [];
+  if (detail === "high") {
+    for (let row = 0; row < 3; row += 1) {
+      for (let column = 0; column < 5; column += 1) {
+        const z = -0.125 + column * 0.011 + row * 0.003;
+        const y = 0.051 + row * 0.008 + Math.sin(column / 4 * Math.PI) * 0.003;
+        const vent = new T.CylinderGeometry(0.00115, 0.00115, 0.003, 6);
+        vent.rotateZ(Math.PI * 0.5);
+        vent.translate(lateralX + side * 0.003, y, z);
+        perforationGeometries.push(vent);
+      }
+    }
+  }
+  const perforations = perforationGeometries.length
+    ? mesh(T, mergeGeometries(T, perforationGeometries), liningMaterial, "precision-7-quarter-perforations")
+    : null;
+  if (perforations) root.add(perforations);
+
+  const treadGeometries = [];
+  if (detail === "high") {
+    const stations = [-0.115, -0.088, -0.052, 0.036, 0.072, 0.108];
+    for (const z of stations) {
+      for (const x of [-0.031, 0, 0.031]) {
+        for (const direction of [-1, 1]) {
+          const bar = new T.BoxGeometry(0.022, 0.004, 0.0055);
+          bar.rotateY(direction * (Math.PI / 5));
+          bar.translate(x + direction * 0.004, -0.0015, z);
+          treadGeometries.push(bar);
+        }
+      }
+    }
+  }
+  const tread = treadGeometries.length
+    ? mesh(T, mergeGeometries(T, treadGeometries), tractionMaterial, "precision-7-herringbone-traction")
+    : null;
+  if (tread) root.add(tread);
+
+  const detailMeshes = [laces, mark, sideRibs, forefootWrap, perforations, tread].filter(Boolean);
+  const nodes = {
+    root,
+    outsole,
+    midsole,
+    upper,
+    heelQuarter,
+    tongue,
+    collar,
+    eyestays,
+    laces,
+    sideOverlay,
+    mark,
+    sideRibs,
+    heelCounter,
+    forefootWrap,
+    perforations,
+    tread,
+  };
+  for (const object of Object.values(nodes)) {
+    if (!object) continue;
+    object.userData.sculptPart = object.name;
+  }
+  root.userData.sculptRuntime = {
+    id: "precision-7-procedural-study",
+    styleId: "precision-7",
+    socket: "foot",
+    approximation: "Stylized procedural study inspired by the official Nike Precision 7 lateral view.",
+    dimensionsMeters: PRECISION_7_DIMENSIONS,
+    colorwayId: colorway.id,
+    colorwayName: colorway.name,
+    inferredSurfaces: ["medial-overlay", "collar-interior", "outsole-depth"],
+    sourceEvidence: {
+      product: "Nike Precision 7",
+      style: "HJ9153-102",
+      footLengthMeters: PRECISION_7_DIMENSIONS.sourcedFootLengthMeters,
+      outerDimensionsInferred: true,
+    },
+    profileMath: {
+      section: "x=cos(theta)*halfWidth(z); y=centerY(z)+sin(theta)*halfHeight(z)",
+      rocker: "0.002+(1-cos(progress*pi/2))*toeRise",
+      width: "max(heelGaussian,waistGaussian,forefootGaussian)*toeTaper",
+      sideRibs: "CatmullRom curve sweep with fixed measured radii",
+    },
+    detailTier: detail,
+    nodes,
+    colliders: [
+      { type: "box", center: [0, 0.047, 0], size: [0.108, 0.104, 0.298] },
+    ],
+    destructionGroups: {
+      sole: ["precision-7-outsole", "precision-7-sculpted-midsole"],
+      upper: ["precision-7-breathable-upper", "precision-7-padded-heel-quarter"],
+      closure: ["precision-7-no-sew-eyestays", "precision-7-six-station-laces"],
+      lateral: ["precision-7-lateral-overlay", "precision-7-molded-speed-mark", "precision-7-lateral-ribs"],
+    },
+  };
+  const metrics = triangleCount(root);
+  root.userData.metrics = Object.freeze({
+    ...metrics,
+    detailTier: detail,
+    materials: 8,
+    textures: 0,
+  });
+  return {
+    root,
+    outsole,
+    detailMeshes,
+    metrics: root.userData.metrics,
+  };
+}
+
 export function createBasketballShoe(T, options = {}) {
   const styleId = normalizeBasketballShoeStyle(options.styleId ?? options.shoeStyleId ?? options.style);
+  if (styleId === "precision-7") {
+    return createPrecision7Shoe(T, options);
+  }
   if (styleId === "court-classic") {
     return createNovaCourtClassicShoe(T, options);
   }

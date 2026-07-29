@@ -54,7 +54,7 @@ import {
   basketballShoeLowerLegFit,
   createBasketballShoe,
   normalizeBasketballShoeStyle,
-} from "./basketball-shoes.js?v=1.2";
+} from "./basketball-shoes.js?v=1.3";
 import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,

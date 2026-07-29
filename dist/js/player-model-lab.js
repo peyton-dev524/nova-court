@@ -10,7 +10,7 @@ import {
   BASKETBALL_SHOE_STYLE_IDS,
   createBasketballShoe,
   normalizeBasketballShoeStyle,
-} from "./basketball-shoes.js?v=1.1";
+} from "./basketball-shoes.js?v=1.3";
 import {
   HAIR_STYLES,
   SKIN_TONES,

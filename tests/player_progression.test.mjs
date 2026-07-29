@@ -157,7 +157,7 @@ test("fresh profiles require a normalized player name and save customization", (
 
 test("shoe style selection validates, normalizes legacy saves, and persists through storage", () => {
   const profile = createDefaultProfile();
-  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic"]);
+  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic", "precision-7"]);
   assert.equal(profile.identity.shoeStyleId, "nova-flight");
   assert.equal(updatePlayerIdentity(profile, {
     displayName: "Ace Nova",

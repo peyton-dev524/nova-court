@@ -1,7 +1,7 @@
 import {
   BASKETBALL_SHOE_STYLES,
   normalizeBasketballShoeStyle,
-} from "./basketball-shoes.js?v=1.1";
+} from "./basketball-shoes.js?v=1.3";
 import {
   HAIR_STYLES,
   normalizeHairStyle,
