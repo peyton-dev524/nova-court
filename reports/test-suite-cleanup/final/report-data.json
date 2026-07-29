@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-07-29",
+  "baseline": {
+    "reportedTests": 262,
+    "namedScenarios": 262,
+    "passed": 262,
+    "failed": 0,
+    "testFiles": 39,
+    "testLoc": 5555,
+    "assertionCallProxy": 1344,
+    "nodeDurationMs": 980.987,
+    "observedShellWallSeconds": 1.3
+  },
+  "final": {
+    "reportedTests": 175,
+    "namedScenarios": 262,
+    "passed": 175,
+    "failed": 0,
+    "testFiles": 39,
+    "testLoc": 5590,
+    "assertionCallProxy": 1344,
+    "nodeDurationMs": 1155.4035,
+    "observedShellWallSeconds": 1.6
+  },
+  "comparison": {
+    "reportedTestReduction": 87,
+    "reportedTestReductionPercent": 33.2,
+    "namedScenarioChange": 0,
+    "assertionCallProxyChange": 0,
+    "testLocChange": 35,
+    "nodeDurationChangeMs": 174.4165,
+    "nodeDurationChangePercent": 17.8,
+    "targetMaximumReportedTests": 190,
+    "targetMet": true
+  },
+  "consolidatedFiles": [
+    "tests/contact_rules.test.mjs",
+    "tests/dunk_choreography.test.mjs",
+    "tests/live_ball_duels.test.mjs",
+    "tests/performance_profile.test.mjs",
+    "tests/player_progression.test.mjs",
+    "tests/replay_flow.test.mjs",
+    "tests/shot_coverage.test.mjs"
+  ],
+  "slowestBaselineTests": [
+    {
+      "name": "runtime style switching replaces one albedo map without growing the texture registry",
+      "file": "tests/basketball_visuals.test.mjs",
+      "durationMs": 509.4013
+    },
+    {
+      "name": "Precision 7 meets measured bounds, mirrored mounting, named-part, and render budgets",
+      "file": "tests/basketball_shoe_styles.test.mjs",
+      "durationMs": 183.7514
+    },
+    {
+      "name": "red, white, and blue finish changes only the authored color panels",
+      "file": "tests/basketball_visuals.test.mjs",
+      "durationMs": 127.0373
+    },
+    {
+      "name": "basketball texture channels stay compact, independent, and deterministic",
+      "file": "tests/basketball_visuals.test.mjs",
+      "durationMs": 102.9622
+    },
+    {
+      "name": "Court Classic is lighter than NOVA Flight and preserves mirrored left/right mounting bounds",
+      "file": "tests/basketball_shoe_styles.test.mjs",
+      "durationMs": 54.9422
+    }
+  ],
+  "slowestFileSamples": [
+    {
+      "file": "tests/basketball_visuals.test.mjs",
+      "isolatedWallMs": 841.2
+    },
+    {
+      "file": "tests/basketball_shoe_styles.test.mjs",
+      "isolatedWallMs": 198.1
+    },
+    {
+      "file": "tests/team_modes_upgrade.test.mjs",
+      "isolatedWallMs": 144.0
+    },
+    {
+      "file": "tests/full_court_mode.test.mjs",
+      "isolatedWallMs": 138.1
+    },
+    {
+      "file": "tests/three_point_contest.test.mjs",
+      "isolatedWallMs": 128.8
+    }
+  ],
+  "commands": {
+    "npm test": "pass",
+    "npm run test:gameplay": "pass",
+    "npm run test:labs": "pass",
+    "npm run test:smoke": "pass",
+    "npm run check": "pass",
+    "npm run build": "pass",
+    "git diff --check": "pass"
+  },
+  "notes": [
+    "Assertion-call proxy counts direct assert(...) and assert.method(...) calls in test files; it is not line or branch coverage.",
+    "All 262 original named scenarios still execute; seven fragmented domains now report as contract tests.",
+    "Duration is Node's internal test-runner duration from one observed run and varies with machine load.",
+    "The 35-LOC increase is the reusable contract helper plus explicit runner/reporting infrastructure; scenario bodies were retained."
+  ]
+}

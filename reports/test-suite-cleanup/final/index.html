@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NOVA COURT · Test Suite Cleanup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #f5f7ff;
+        --muted: #a7b0c5;
+        --panel: rgba(17, 23, 39, 0.88);
+        --line: rgba(255, 255, 255, 0.1);
+        --green: #61f2a4;
+        --blue: #62b7ff;
+        --orange: #ff9a53;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 720px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 76% 10%, rgba(98, 183, 255, .18), transparent 34%),
+          radial-gradient(circle at 4% 92%, rgba(255, 154, 83, .17), transparent 34%),
+          #090d17;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main { padding: 48px 58px 42px; }
+      header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+      .eyebrow { color: var(--blue); font-size: 13px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+      h1 { margin: 8px 0 7px; font-size: 40px; letter-spacing: -.04em; line-height: 1; }
+      .subtitle { margin: 0; color: var(--muted); font-size: 16px; }
+      .status {
+        display: flex; align-items: center; gap: 9px; margin-top: 6px; padding: 10px 14px;
+        border: 1px solid rgba(97, 242, 164, .35); border-radius: 999px;
+        background: rgba(97, 242, 164, .08); color: var(--green); font-weight: 800; font-size: 13px;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 15px var(--green); }
+      .grid { display: grid; grid-template-columns: 1.36fr .84fr; gap: 22px; }
+      .panel { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+      .comparison { padding: 28px; }
+      .panel-title { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      .counts { display: grid; grid-template-columns: 1fr 56px 1fr; align-items: center; gap: 14px; margin-top: 24px; }
+      .count-card { padding: 22px; border-radius: 16px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+      .label { color: var(--muted); font-weight: 700; font-size: 14px; }
+      .number { margin-top: 2px; font-size: 64px; font-weight: 900; line-height: 1; letter-spacing: -.06em; }
+      .after .number { color: var(--green); }
+      .arrow { color: var(--blue); font-size: 34px; font-weight: 300; text-align: center; }
+      .delta { margin-top: 11px; color: var(--green); font-size: 13px; font-weight: 800; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; margin-top: 18px; }
+      .metric { padding: 13px 14px; border-radius: 13px; background: rgba(255,255,255,.03); border: 1px solid var(--line); }
+      .metric strong { display: block; font-size: 20px; }
+      .metric span { color: var(--muted); font-size: 11px; }
+      .side { padding: 26px; }
+      .checks { margin: 18px 0 22px; display: grid; gap: 9px; }
+      .check { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.035); font-size: 13px; }
+      .pass { color: var(--green); font-weight: 900; }
+      .preserved { padding: 15px; border-radius: 13px; border: 1px solid rgba(98,183,255,.24); background: rgba(98,183,255,.07); }
+      .preserved strong { color: var(--blue); font-size: 19px; }
+      .preserved p { color: var(--muted); margin: 6px 0 0; font-size: 12px; line-height: 1.5; }
+      footer { display: flex; justify-content: space-between; margin-top: 22px; color: #7f899f; font-size: 11px; }
+      code { color: #cbd4e9; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <div class="eyebrow">NOVA COURT · Engineering QA</div>
+          <h1>Test suite, consolidated.</h1>
+          <p class="subtitle">Less fragmented output. Every behavior contract preserved.</p>
+        </div>
+        <div class="status"><span class="dot"></span> ALL VALIDATION GREEN</div>
+      </header>
+      <section class="grid">
+        <article class="panel comparison">
+          <div class="panel-title">Reported test count</div>
+          <div class="counts">
+            <div class="count-card">
+              <div class="label">Before</div>
+              <div class="number">262</div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="count-card after">
+              <div class="label">After</div>
+              <div class="number">175</div>
+              <div class="delta">−87 · 33.2% cleaner</div>
+            </div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><strong>262</strong><span>named scenarios retained</span></div>
+            <div class="metric"><strong>1,344</strong><span>assertion calls retained</span></div>
+            <div class="metric"><strong>39 / 39</strong><span>test files discovered once</span></div>
+          </div>
+        </article>
+        <aside class="panel side">
+          <div class="panel-title">Command status</div>
+          <div class="checks">
+            <div class="check"><code>npm test</code><span class="pass">PASS</span></div>
+            <div class="check"><code>test:gameplay</code><span class="pass">PASS</span></div>
+            <div class="check"><code>test:labs</code><span class="pass">PASS</span></div>
+            <div class="check"><code>test:smoke</code><span class="pass">PASS</span></div>
+            <div class="check"><code>check · build · diff</code><span class="pass">PASS</span></div>
+          </div>
+          <div class="preserved">
+            <strong>0 scenarios removed</strong>
+            <p>Contract failures still report the exact scenario name with the original assertion diff and stack.</p>
+          </div>
+        </aside>
+      </section>
+      <footer>
+        <span>Full suite: 1,155 ms observed · target ≤ 190 tests met</span>
+        <span>Evidence captured 2026-07-29 · 1280×720</span>
+      </footer>
+    </main>
+  </body>
+</html>

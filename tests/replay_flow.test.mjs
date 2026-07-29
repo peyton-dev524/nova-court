@@ -1,11 +1,14 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 import {
   REPLAY_FLOW_EVENTS,
   REPLAY_FLOW_PHASES,
   createReplayFlow,
   replayRestoreEase,
 } from "../js/replay-flow.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 function readyAndStart(flow, token) {
   flow.advance(0.36);
@@ -147,3 +150,5 @@ test("restore easing is clamped, monotonic, and finishes exactly", () => {
     previous = value;
   }
 });
+
+register(nodeTest, "replay freeze, restoration, interruption, and easing contracts");

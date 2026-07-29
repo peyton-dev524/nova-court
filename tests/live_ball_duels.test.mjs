@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 import {
   DRIBBLE_LEVERAGE,
   STEAL_OUTCOMES,
@@ -12,6 +13,8 @@ import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
 } from "../js/live-ball-duels.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 const owner = {
   id: "ace",
@@ -309,3 +312,5 @@ test("high or distant ball does not produce a premature pickup", () => {
   assert.equal(high.ready, false);
   assert.equal(distant.ready, false);
 });
+
+register(nodeTest, "dribble leverage, steal, loose-ball, and pickup contracts");

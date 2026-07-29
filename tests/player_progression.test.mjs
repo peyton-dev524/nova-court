@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 
 import {
   ATTRIBUTE_GROUPS,
@@ -27,6 +28,8 @@ import {
   updatePlayerIdentity,
   upgradeAttribute,
 } from "../js/player-progression.js";
+
+const { scenario: test, register } = collectContractScenarios();
 import { BASKETBALL_SHOE_STYLE_IDS } from "../js/basketball-shoes.js";
 
 test("five independent position builds and six original palettes are available", () => {
@@ -239,4 +242,6 @@ test("engine configuration exposes applied ratings, physique, and palette", () =
   assert.equal(config.primary, COSMETIC_PALETTES[0].colors.primary);
   assert.equal(config.overall, getProfileSummary(profile).overall);
 });
+
+register(nodeTest, "player identity, progression, rewards, and customization contracts");
 

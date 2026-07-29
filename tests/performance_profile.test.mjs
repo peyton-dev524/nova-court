@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 
 import {
   QUALITY_PRESETS,
@@ -12,6 +13,8 @@ import {
   recommendQualityTier,
   resolveQualitySettings,
 } from "../js/performance-profile.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 test("frame analysis reports 60 FPS budget and ignores invalid samples", () => {
   const samples = [16, 17, 15, Number.NaN, -5, 20];
@@ -138,3 +141,5 @@ test("foot correction damping is frame-rate independent and releases more softly
   const release = dampFootGroundCorrection(0.35, 0, 1 / 60);
   assert.ok(rise > 0.35 - release);
 });
+
+register(nodeTest, "frame budget, quality, pooling, and foot-correction contracts");
