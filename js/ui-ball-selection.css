@@ -1,23 +1,11 @@
 .screen--ball-select {
   z-index: 24;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 52%, rgba(56, 232, 255, .16), transparent 31%),
-    radial-gradient(circle at 84% 14%, rgba(255, 100, 56, .13), transparent 30%),
-    linear-gradient(125deg, #03070a 0%, #06131a 54%, #090d13 100%);
+  background: #03080c;
 }
 
 .screen--ball-select::before {
-  position: absolute;
-  inset: 0;
-  content: "";
-  pointer-events: none;
-  opacity: .38;
-  background-image:
-    linear-gradient(rgba(94, 226, 245, .07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(94, 226, 245, .07) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(circle at center, black, transparent 76%);
+  display: none;
 }
 
 .ball-locker {
@@ -85,26 +73,16 @@
   position: relative;
   display: grid;
   min-height: 430px;
-  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  grid-template-columns: 54px minmax(0, 1fr) 54px;
   align-items: center;
-  border: 1px solid rgba(104, 235, 255, .24);
-  border-radius: 28px;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, .035), transparent 24%),
-    radial-gradient(circle at center, rgba(34, 111, 131, .28), rgba(4, 12, 17, .74) 60%);
-  box-shadow:
-    inset 0 0 70px rgba(58, 224, 255, .08),
-    0 28px 90px rgba(0, 0, 0, .42);
+  column-gap: clamp(12px, 1.4vw, 20px);
+  padding-inline: clamp(14px, 1.8vw, 24px);
+  overflow: visible;
 }
 
 .ball-locker__picker::before,
 .ball-locker__picker::after {
-  position: absolute;
-  z-index: 0;
-  content: "";
-  pointer-events: none;
-  border-radius: 50%;
+  display: none;
 }
 
 .ball-locker__picker::before {
@@ -161,7 +139,8 @@
 .ball-arrow:focus-visible {
   border-color: var(--cyan);
   background: rgba(30, 115, 133, .34);
-  transform: scale(1.05);
+  box-shadow: 0 0 0 2px rgba(56, 232, 255, .16);
+  transform: translateY(-2px);
 }
 
 .ball-locker__dots {
@@ -273,8 +252,15 @@
   .ball-locker__mode p { margin: 0; font-size: .6rem; }
   .ball-locker__picker,
   .ball-locker__preview { min-height: 320px; }
-  .ball-locker__picker { grid-template-columns: 50px minmax(0, 1fr) 50px; }
+  .ball-locker__picker {
+    --ball-arrow-inset: clamp(0px, calc((100vw - 420px) * .34), 88px);
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    column-gap: 8px;
+    padding-inline: 10px;
+  }
   .ball-arrow { width: 42px; height: 58px; }
+  #previous-ball { translate: var(--ball-arrow-inset) 0; }
+  #next-ball { translate: calc(var(--ball-arrow-inset) * -1) 0; }
   .ball-locker__details {
     display: block;
     padding: 0 0 16px;

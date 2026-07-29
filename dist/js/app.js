@@ -114,7 +114,7 @@ for (const href of [
   "./js/ui-hud-polish.css?v=1.1",
   "./js/ui-profile-polish.css?v=1.1",
   "./js/ui-shooting-settings.css?v=1.0",
-  "./js/ui-ball-selection.css?v=1.0",
+  "./js/ui-ball-selection.css?v=1.4",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
