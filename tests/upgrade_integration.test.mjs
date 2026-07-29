@@ -54,7 +54,9 @@ test("engine source wires perfect greens, animated replay, park, swish, and boun
   assert.match(source, /perfectRelease: override\.perfectRelease \?\? meterWindow\.perfect/);
   assert.doesNotMatch(source, /atApex \? 1 : timingQuality/);
   assert.match(source, /this\.ball\.plannedMade = shotResult\.made/);
-  assert.match(source, /ball\.state === "shot" && ball\.guaranteedMake[\s\S]{0,100}ball\.plannedRimResult === RIM_RESULTS\.CLEAN_SWISH/);
+  assert.match(source, /this\._checkActiveBlocks\(\)[\s\S]{0,700}resolveGuaranteedHoopCrossing/);
+  assert.match(source, /guaranteedMake:\s*ball\.guaranteedMake/);
+  assert.match(source, /bankShot:\s*ball\.bankShot/);
   assert.match(source, /rimContacts === 0 && b\.backboardContacts === 0/);
   assert.match(source, /pose:\s*\[/);
   assert.match(source, /_applyReplayPose/);

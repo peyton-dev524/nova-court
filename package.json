@@ -10,6 +10,7 @@
     "test:gameplay": "node scripts/run-tests.mjs gameplay",
     "test:labs": "node scripts/run-tests.mjs labs",
     "test:smoke": "node scripts/run-tests.mjs smoke",
+    "qa:shooting": "node scripts/run-shooting-qa.mjs",
     "check": "node scripts/check-source.mjs",
     "build": "node scripts/build.mjs",
     "audio:voices": "node scripts/generate-elevenlabs-audio.mjs --voices"

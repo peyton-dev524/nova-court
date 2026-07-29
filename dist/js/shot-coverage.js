@@ -340,8 +340,9 @@ function difficultyAdjustment(difficulty, isAI) {
 
 /**
  * Explainable make probability. A valid wide-open perfect release is always
- * guaranteed. User-controlled greens also keep that promise through grounded
- * closeouts; a meaningful active jump/block window can still disrupt them.
+ * guaranteed. Every valid user-controlled green keeps that promise through
+ * coverage; the live ball/block collision system can still reject the shot
+ * when a defender actually touches it.
  */
 export function calculateShotMakePercentage({
   coverage,
@@ -382,9 +383,7 @@ export function calculateShotMakePercentage({
   const validShot = shotDistance <= Math.max(1, finite(maxValidDistance, 12));
   const perfectTiming = release.quality >= 0.999;
   const jumpContested = hasMeaningfulJumpContest(coverageResult);
-  const guaranteed = validShot && perfectTiming && (
-    wideOpen || (userControlled && !jumpContested)
-  );
+  const guaranteed = validShot && perfectTiming && (wideOpen || userControlled);
   const baseByRange = {
     [RANGE_LABELS.AT_RIM]: 0.7,
     [RANGE_LABELS.MID_RANGE]: 0.47,

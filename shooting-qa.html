@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NOVA COURT · Shooting Quick QA</title>
+  <link rel="stylesheet" href="./js/shooting-qa-lab.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">DETERMINISTIC GAMEPLAY HARNESS</p>
+        <h1>GREEN WINDOW QUICK QA</h1>
+        <p class="subtitle">Production meter verdict → outcome guarantee → hoop-crossing ballistics</p>
+      </div>
+      <section class="score-card" aria-label="Test summary">
+        <strong id="pass-count">—</strong>
+        <span>GREEN AUTO-MAKES</span>
+        <i id="overall-status">RUNNING</i>
+      </section>
+    </header>
+    <section class="debug-strip" aria-label="Shot pipeline">
+      <div><b>1</b><span>VISIBLE METER</span><strong>Canonical window</strong></div>
+      <i>→</i>
+      <div><b>2</b><span>SHOT VERDICT</span><strong>100% guaranteed</strong></div>
+      <i>→</i>
+      <div><b>3</b><span>LIVE BLOCK CHECK</span><strong>Contact still wins</strong></div>
+      <i>→</i>
+      <div><b>4</b><span>BALLISTICS</span><strong>Safe hoop crossing</strong></div>
+    </section>
+    <section id="shot-grid" class="shot-grid" aria-label="Twenty shot QA results"></section>
+    <footer>
+      <span><i class="status-dot"></i> SAME PRODUCTION FUNCTIONS AS LIVE GAME</span>
+      <span id="coverage-summary"></span>
+      <span>Run: <code>npm run qa:shooting</code></span>
+    </footer>
+  </main>
+  <script type="module" src="./js/shooting-qa-lab.js"></script>
+</body>
+</html>

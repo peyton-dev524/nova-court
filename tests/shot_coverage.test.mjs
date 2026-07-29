@@ -208,7 +208,7 @@ test("grounded contest strength is exactly 60 percent of its former value", () =
   assert.equal(reduced.breakdown.contestStrengthMultiplier, 0.6);
 });
 
-test("an active jumping block window keeps full contest strength and can break a user guarantee", () => {
+test("an active jumping block window keeps full contest strength without turning a green into a random miss", () => {
   const input = {
     shooterPosition: { x: 0, y: 0, z: 2 },
     rimPosition: { x: 0, y: 3.05, z: -5.7 },
@@ -244,8 +244,8 @@ test("an active jumping block window keeps full contest strength and can break a
     ratings: { threePoint: 0.8 },
   });
   assert.equal(percentage.jumpContested, true);
-  assert.equal(percentage.guaranteed, false);
-  assert.ok(percentage.makeProbability < 1);
+  assert.equal(percentage.guaranteed, true);
+  assert.equal(percentage.makeProbability, 1);
 });
 
 test("shot facing always points from the shooter to the active rim", () => {

@@ -44,6 +44,7 @@ import {
   SHOT_METER_PERFECT_HALF_WIDTH,
   shotFacingDirection,
 } from "./shot-coverage.js?v=1.1";
+import { resolveGuaranteedHoopCrossing } from "./shot-guarantee.js?v=1.0";
 import {
   DEFAULT_SHOOTING_ASSIST,
   normalizeShootingAssist,
@@ -3558,14 +3559,32 @@ export class NovaCourtEngine {
     this._checkActiveBlocks();
     if (ball.owner) return;
     const activeBasket = this._activeBasket();
-    // A user green at the apex is a gameplay promise: preserve blocks, but
-    // remove integration/rim-edge variance from an otherwise perfect release.
-    if (ball.state === "shot" && ball.guaranteedMake
-        && ball.plannedRimResult === RIM_RESULTS.CLEAN_SWISH && ball.velocity.y < 0
-        && ball.previousPosition.y >= activeBasket.y
-        && ball.position.y < activeBasket.y + 0.22) {
-      ball.previousPosition.y = Math.max(ball.previousPosition.y, activeBasket.y + 0.02);
-      ball.position.set(activeBasket.x, activeBasket.y - 0.02, activeBasket.z);
+    // A user green is a gameplay promise: active blocks were checked above,
+    // then integration/rim-edge variance is removed for the surviving shot.
+    const guaranteedCrossing = resolveGuaranteedHoopCrossing({
+      state: ball.state,
+      guaranteedMake: ball.guaranteedMake,
+      bankShot: ball.bankShot,
+      plannedRimResult: ball.plannedRimResult,
+      velocityY: ball.velocity.y,
+      previousY: ball.previousPosition.y,
+      currentY: ball.position.y,
+      currentX: ball.position.x,
+      basketX: activeBasket.x,
+      basketY: activeBasket.y,
+      basketZ: activeBasket.z,
+    });
+    if (guaranteedCrossing.corrected) {
+      ball.previousPosition.y = guaranteedCrossing.previousY;
+      ball.position.set(
+        guaranteedCrossing.position.x,
+        guaranteedCrossing.position.y,
+        guaranteedCrossing.position.z,
+      );
+      ball.rimContacts = Math.max(
+        ball.rimContacts,
+        guaranteedCrossing.minimumRimContacts,
+      );
     }
     this.ballMesh.rotation.x += ball.angularVelocity.x * dt;
     this.ballMesh.rotation.y += ball.angularVelocity.y * dt;

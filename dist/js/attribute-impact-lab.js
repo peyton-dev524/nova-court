@@ -38,7 +38,7 @@ document.querySelector("#zones").innerHTML = shotResults.map((result) => `
   </div>`).join("");
 document.querySelector("#shooting-notes").innerHTML = `
   <div class="legend"><div class="build low"><strong>40 OVR ATTRIBUTE</strong><p>Profile values normalize from 0–100 before entering the probability model.</p></div><div class="build high"><strong>92 OVR ATTRIBUTE</strong><p>Same release, stamina, coverage, range, and difficulty. Only the selected rating changes.</p></div></div>
-  <div class="formula">P(make) = range base + (rating − .50) × context weight<br>+ timing − stamina − distance − coverage<br><br>Perfect user green = 100% unless an active jump/block window disrupts it.<br>CPU greens remain probabilistic. User-only assist changes meter width, not ratings.</div>
+  <div class="formula">P(make) = range base + (rating − .50) × context weight<br>+ timing − stamina − distance − coverage<br><br>Perfect user green = 100%; a live hand-on-ball block can still reject it.<br>CPU greens remain probabilistic. User-only assist changes meter width, not ratings.</div>
   <div class="build high"><strong>FREE THROW</strong><p>freeThrow is resolved by the timing flow; closeShot, drivingLayup, drivingDunk, midRange, and threePoint are selected explicitly by live shot context.</p></div>`;
 
 const commonSteal = { distance: 0.9, alignment: 0.72, reachTiming: 0.72, ballExposure: 0.65, ballFirst: true };
