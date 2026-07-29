@@ -46,8 +46,8 @@ test("original roster includes every basketball position in 5v5", () => {
 });
 
 test("full court bounds and restart spots are direction aware", () => {
-  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 15.9 }), false);
-  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 16.2 }), true);
+  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 13.9 }), false);
+  assert.equal(isOutsideCourt(TEAM_FORMAT_IDS.FULL_FIVE, { x: 0, z: 14.2 }), true);
   const homeRestart = restartSpotForTeam(TEAM_FORMAT_IDS.FULL_FIVE, "home");
   const awayRestart = restartSpotForTeam(TEAM_FORMAT_IDS.FULL_FIVE, "away");
   assert.ok(homeRestart.z > 0);

@@ -26,7 +26,7 @@ export function createCourtRuntime(modeKey) {
 
 export function basketForPossession(runtime, teamId = "home") {
   const basket = runtime?.baskets?.[teamId] || runtime?.baskets?.home;
-  if (!basket) return { x: 0, y: 3.05, z: -5.7, backboardZ: -6.16, attackSign: -1 };
+  if (!basket) return { ...COURT_SPECS.half.baskets.home };
   return basket;
 }
 

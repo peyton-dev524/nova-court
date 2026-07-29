@@ -1,6 +1,6 @@
 /**
- * Code-native full-court extension. It replaces the legacy half-court playing
- * surface and hoop visuals without loading textures, models, or licensed art.
+ * Code-native full-court basket extension. The shared arena builder supplies
+ * the regulation surface and markings; this module adds the second hoop.
  */
 
 const near = (a, b, tolerance = 0.002) => Math.abs((Number(a) || 0) - b) <= tolerance;
@@ -16,6 +16,10 @@ function hideLegacyHoop(engine) {
     [0.18, 0.18, 0.86],
   ];
   for (const child of engine.worldRoot.children) {
+    if (child.name?.startsWith("legacy-basket-")) {
+      child.visible = false;
+      continue;
+    }
     const p = child.geometry?.parameters;
     if (!p || Math.abs(child.position.x) > 0.05 || child.position.z > -6) continue;
     if (legacyBoxes.some(([w, h, d]) => near(p.width, w) && near(p.height, h) && near(p.depth, d))) {
@@ -41,42 +45,6 @@ function hideLegacyArenaFull(engine) {
     const legacyTruss = near(width, 0.12) && near(depth, 18);
     if (legacyWall || legacyStand || legacyRibbon || legacyTruss) child.visible = false;
   }
-}
-
-function addLine(T, parent, material, coordinates, closed = false) {
-function hideLegacyArena(engine) {
-  for (const child of engine.worldRoot.children) {
-    if (child.isInstancedMesh) {
-      child.visible = false;
-      continue;
-    }
-    const p = child.geometry?.parameters;
-    if (!p) continue;
-    const width = Number(p.width) || 0;
-    const depth = Number(p.depth) || 0;
-    const legacyWall = (near(width, 22) && near(depth, 0.7))
-      || (near(width, 0.7) && near(depth, 19));
-    const legacyStand = (near(width, 18.1) && near(depth, 0.56))
-      || (near(width, 0.46) && near(depth, 15.8));
-    const legacyRibbon = near(width, 13.8) && (near(p.height, 0.76) || near(p.height, 0.62));
-    const legacyTruss = near(width, 0.12) && near(depth, 18);
-    if (legacyWall || legacyStand || legacyRibbon || legacyTruss) child.visible = false;
-  }
-}
-  const points = coordinates.map(([x, z]) => new T.Vector3(x, 0.047, z));
-  if (closed) points.push(points[0].clone());
-  const line = new T.Line(new T.BufferGeometry().setFromPoints(points), material);
-  parent.add(line);
-  return line;
-}
-
-function addCircle(T, parent, material, radius, x, z, start = 0, end = Math.PI * 2, segments = 72) {
-  const coordinates = [];
-  for (let index = 0; index <= segments; index += 1) {
-    const angle = start + (end - start) * (index / segments);
-    coordinates.push([x + Math.cos(angle) * radius, z + Math.sin(angle) * radius]);
-  }
-  return addLine(T, parent, material, coordinates);
 }
 
 function buildNet(T, parent, basket) {
@@ -164,29 +132,6 @@ function buildBasket(T, parent, basket, teamId) {
   return { group, rim, board, nets };
 }
 
-function buildEndMarkings(T, parent, lineMaterial, basket, runtime) {
-  const sign = Math.sign(basket.z) || 1;
-  const baseline = sign * (runtime.halfLength - 0.18);
-  const freeThrowZ = basket.z - sign * 2.75;
-  addLine(T, parent, lineMaterial, [
-    [-2.45, baseline],
-    [-2.45, freeThrowZ],
-    [2.45, freeThrowZ],
-    [2.45, baseline],
-  ], true);
-  addCircle(T, parent, lineMaterial, 1.15, 0, freeThrowZ);
-  addCircle(T, parent, lineMaterial, 0.72, basket.x, basket.z);
-  const start = sign < 0 ? 0.13 : Math.PI + 0.13;
-  const end = sign < 0 ? Math.PI - 0.13 : Math.PI * 2 - 0.13;
-  addCircle(T, parent, lineMaterial, 6.75, basket.x, basket.z, start, end, 92);
-  for (const side of [-1, 1]) {
-    addLine(T, parent, lineMaterial, [
-      [side * Math.min(runtime.halfWidth - 0.28, 6.72), basket.z - sign * 0.82],
-      [side * Math.min(runtime.halfWidth - 0.28, 6.72), baseline],
-    ]);
-  }
-}
-
 export function installFullCourtVisuals(engine, runtime) {
   if (!engine?.T || !engine.worldRoot || runtime?.kind !== "full") return null;
   if (engine.fullCourtVisuals) return engine.fullCourtVisuals;
@@ -195,29 +140,6 @@ export function installFullCourtVisuals(engine, runtime) {
   hideLegacyArenaFull(engine);
   const root = new T.Group();
   root.name = "nova-full-court";
-  const floor = new T.Mesh(
-    new T.PlaneGeometry(runtime.width, runtime.length),
-    new T.MeshStandardMaterial({
-      color: 0xc99361,
-      roughness: 0.43,
-      metalness: 0.01,
-    }),
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0.018;
-  floor.receiveShadow = true;
-  root.add(floor);
-  const lineMaterial = new T.LineBasicMaterial({ color: 0xf7eee0, transparent: true, opacity: 0.94 });
-  addLine(T, root, lineMaterial, [
-    [-runtime.halfWidth + 0.16, -runtime.halfLength + 0.16],
-    [runtime.halfWidth - 0.16, -runtime.halfLength + 0.16],
-    [runtime.halfWidth - 0.16, runtime.halfLength - 0.16],
-    [-runtime.halfWidth + 0.16, runtime.halfLength - 0.16],
-  ], true);
-  addLine(T, root, lineMaterial, [[-runtime.halfWidth + 0.16, 0], [runtime.halfWidth - 0.16, 0]]);
-  addCircle(T, root, lineMaterial, 1.8, 0, 0);
-  buildEndMarkings(T, root, lineMaterial, runtime.baskets.home, runtime);
-  buildEndMarkings(T, root, lineMaterial, runtime.baskets.away, runtime);
   const baskets = {
     home: buildBasket(T, root, runtime.baskets.home, "home"),
     away: buildBasket(T, root, runtime.baskets.away, "away"),

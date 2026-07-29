@@ -7,6 +7,8 @@
  * AI snapshots and browser tests deterministic.
  */
 
+import { createRegulationCourtSpec } from "./court-dimensions.js";
+
 export const TEAM_FORMAT_IDS = Object.freeze({
   DUOS: "half_court_2v2",
   TRIOS: "half_court_3v3",
@@ -15,30 +17,8 @@ export const TEAM_FORMAT_IDS = Object.freeze({
 });
 
 export const COURT_SPECS = Object.freeze({
-  half: Object.freeze({
-    kind: "half",
-    width: 15,
-    length: 14,
-    halfWidth: 7.5,
-    halfLength: 7,
-    threePointRadius: 6.15,
-    baskets: Object.freeze({
-      home: Object.freeze({ x: 0, y: 3.05, z: -5.7, backboardZ: -6.16, attackSign: -1 }),
-      away: Object.freeze({ x: 0, y: 3.05, z: -5.7, backboardZ: -6.16, attackSign: -1 }),
-    }),
-  }),
-  full: Object.freeze({
-    kind: "full",
-    width: 18,
-    length: 32,
-    halfWidth: 9,
-    halfLength: 16,
-    threePointRadius: 6.75,
-    baskets: Object.freeze({
-      home: Object.freeze({ x: 0, y: 3.05, z: -14.68, backboardZ: -15.14, attackSign: -1 }),
-      away: Object.freeze({ x: 0, y: 3.05, z: 14.68, backboardZ: 15.14, attackSign: 1 }),
-    }),
-  }),
+  half: createRegulationCourtSpec("half"),
+  full: createRegulationCourtSpec("full"),
 });
 
 const HOME_STYLE = Object.freeze({

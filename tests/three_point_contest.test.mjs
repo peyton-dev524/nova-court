@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createGameMode, MODE_IDS, MODE_PHASES } from "../js/modes.js";
+import { createRegulationCourtSpec } from "../js/court-dimensions.js";
 import {
   ARC_RUN_GRAB_DURATION,
   createArcRunCameraSnapshot,
@@ -21,6 +22,8 @@ import {
   sampleArcRunGrab,
   THREE_POINT_RACK_SPACE,
 } from "../js/three-point-contest.js";
+
+const HALF_COURT_BASKET = createRegulationCourtSpec("half").baskets.home;
 
 function startLive(config = {}) {
   const mode = createGameMode(MODE_IDS.THREE_POINT_CONTEST, {
@@ -99,7 +102,7 @@ test("every rack runs radially toward the hoop with bounded footprint and pickup
 test("Arc Run camera is behind the shooter, aims toward the hoop, and has smooth finite rack endpoints", () => {
   const snapshots = THREE_POINT_RACKS.map((rack) => createArcRunCameraSnapshot({
     shooter: { x: rack.x, y: 0, z: rack.z },
-    basket: { x: 0, y: 3.05, z: -5.7 },
+    basket: HALF_COURT_BASKET,
     rack,
   }));
   for (const [index, snapshot] of snapshots.entries()) {
@@ -337,8 +340,8 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   assert.ok(Math.abs(topNormal.x - topMoney.x) < 1e-12, "top rack is vertical in court coordinates");
   assert.ok(topNormal.z < topMoney.z, "normal ball is at the hoop/top end");
   assert.ok(
-    Math.hypot(topNormal.x, topNormal.z + 5.7)
-      < Math.hypot(topMoney.x, topMoney.z + 5.7),
+    Math.hypot(topNormal.x, topNormal.z - HALF_COURT_BASKET.z)
+      < Math.hypot(topMoney.x, topMoney.z - HALF_COURT_BASKET.z),
     "money ball is at the down-court/bottom end",
   );
   assert.ok(
@@ -349,7 +352,8 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
     const first = visuals.getBallPlacement(rackIndex, 0);
     const money = visuals.getBallPlacement(rackIndex, 4);
     assert.ok(
-      Math.hypot(first.x, first.z + 5.7) < Math.hypot(money.x, money.z + 5.7),
+      Math.hypot(first.x, first.z - HALF_COURT_BASKET.z)
+        < Math.hypot(money.x, money.z - HALF_COURT_BASKET.z),
       `${THREE_POINT_RACKS[rackIndex].id} keeps normal ball at hoop/top end`,
     );
   }

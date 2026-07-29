@@ -1,3 +1,5 @@
+import { createRegulationCourtSpec } from "./court-dimensions.js";
+
 export const THREE_POINT_BALLS_PER_RACK = 5;
 export const THREE_POINT_NORMAL_BALL_POINTS = 1;
 export const THREE_POINT_MONEY_BALL_POINTS = 2;
@@ -5,7 +7,8 @@ export const THREE_POINT_NORMAL_BALL_STYLE = "classic";
 export const THREE_POINT_MONEY_BALL_STYLE = "redWhiteBlue";
 export const ARC_RUN_GRAB_DURATION = 0.64;
 
-const BASKET = Object.freeze({ x: 0, z: -5.7 });
+const HALF_COURT_BASKET = createRegulationCourtSpec("half").baskets.home;
+const BASKET = Object.freeze({ x: HALF_COURT_BASKET.x, z: HALF_COURT_BASKET.z });
 
 export const NBA_CORNER_THREE_METERS = 22 * 0.3048;
 export const NBA_ABOVE_BREAK_THREE_METERS = 23.75 * 0.3048;
@@ -302,7 +305,7 @@ export function createArcRunCameraSnapshot({
   const hoop = {
     x: Number(basket?.x) || 0,
     y: Number(basket?.y) || 3.05,
-    z: Number(basket?.z) || -5.7,
+    z: Number(basket?.z) || BASKET.z,
   };
   const forward = normalized2(hoop.x - player.x, hoop.z - player.z);
   const right = { x: forward.z, z: -forward.x };

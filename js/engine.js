@@ -71,6 +71,11 @@ import {
 } from "./court-runtime.js";
 import { installFullCourtVisuals } from "./full-court-visuals.js?v=1.2";
 import {
+  createRegulationCourtMarkings,
+  createRegulationCourtSpec,
+  FIBA_COURT,
+} from "./court-dimensions.js?v=1.0";
+import {
   CONTEXTUAL_I_ACTIONS,
   FreeThrowFlow,
   planLayupBank,
@@ -103,14 +108,16 @@ import {
 
 export const ENGINE_VERSION = "1.0.0";
 
+const DEFAULT_COURT_SPEC = createRegulationCourtSpec("half");
+
 export const COURT = Object.freeze({
-  width: 15,
-  length: 14,
+  width: DEFAULT_COURT_SPEC.width,
+  length: DEFAULT_COURT_SPEC.length,
   floorY: 0,
-  basketZ: -5.7,
-  backboardZ: -6.16,
-  rimY: 3.05,
-  rimRadius: 0.23,
+  basketZ: DEFAULT_COURT_SPEC.baskets.home.z,
+  backboardZ: DEFAULT_COURT_SPEC.baskets.home.backboardZ,
+  rimY: FIBA_COURT.rimHeight,
+  rimRadius: FIBA_COURT.rimRadius,
   ballRadius: 0.12,
 });
 
@@ -1340,7 +1347,8 @@ export class NovaCourtEngine {
       this.accentLights.push(light);
     }
     const rimGlow = new T.PointLight(0xff8d4f, 2.2, 8, 2);
-    rimGlow.position.set(0, 4.1, -6.4);
+    const litBasket = this.courtRuntime.baskets.home;
+    rimGlow.position.set(litBasket.x, litBasket.y + 1.05, litBasket.z - 0.7);
     this.scene.add(rimGlow);
     const courtFill = new T.DirectionalLight(0x8edfff, 0.24);
     courtFill.position.set(-7.5, 5.8, 8.5);
@@ -1349,6 +1357,7 @@ export class NovaCourtEngine {
 
   _buildArena() {
     const T = this.T;
+    const runtime = this.courtRuntime;
     const woodTexture = this._makeCanvasTexture(1024, 1024, (ctx, canvas) => {
       ctx.fillStyle = "#a96835";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1381,9 +1390,15 @@ export class NovaCourtEngine {
       ctx.fillStyle = sheen;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     });
+    woodTexture.wrapS = T.RepeatWrapping;
+    woodTexture.wrapT = T.RepeatWrapping;
+    woodTexture.repeat.set(runtime.width / 15, runtime.length / 14);
 
     const surround = new T.Mesh(
-      new T.PlaneGeometry(COURT.width + 3.4, COURT.length + 3.6),
+      new T.PlaneGeometry(
+        runtime.width + FIBA_COURT.boundaryLane * 2,
+        runtime.length + FIBA_COURT.boundaryLane * 2,
+      ),
       new T.MeshStandardMaterial({ color: 0x080b10, roughness: 0.72, metalness: 0.05 }),
     );
     surround.rotation.x = -Math.PI / 2;
@@ -1392,7 +1407,7 @@ export class NovaCourtEngine {
     this.worldRoot.add(surround);
 
     const floor = new T.Mesh(
-      new T.PlaneGeometry(COURT.width, COURT.length),
+      new T.PlaneGeometry(runtime.width, runtime.length),
       new T.MeshStandardMaterial({
         map: this.venue === "park" ? null : woodTexture,
         color: this.venue === "park" ? 0x31545c : 0xd8b48c,
@@ -1404,25 +1419,8 @@ export class NovaCourtEngine {
     floor.receiveShadow = true;
     this.worldRoot.add(floor);
 
-    const paintMat = new T.MeshStandardMaterial({
-      color: 0x18283d,
-      roughness: 0.34,
-      metalness: 0.04,
-      transparent: true,
-      opacity: 0.94,
-    });
-    const lanePaint = new T.Mesh(new T.PlaneGeometry(4.9, 3.9), paintMat);
-    lanePaint.rotation.x = -Math.PI / 2;
-    lanePaint.position.set(0, 0.011, -4.875);
-    lanePaint.receiveShadow = true;
-    this.worldRoot.add(lanePaint);
-    const baselinePaint = new T.Mesh(
-      new T.PlaneGeometry(COURT.width - 0.3, 0.48),
-      new T.MeshStandardMaterial({ color: 0x101b2a, roughness: 0.38 }),
-    );
-    baselinePaint.rotation.x = -Math.PI / 2;
-    baselinePaint.position.set(0, 0.01, -6.7);
-    this.worldRoot.add(baselinePaint);
+    this.courtMarkings = createRegulationCourtMarkings(T, runtime);
+    this.worldRoot.add(this.courtMarkings);
 
     const logoTexture = this._makeCanvasTexture(512, 512, (ctx, canvas) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1476,39 +1474,12 @@ export class NovaCourtEngine {
       new T.MeshBasicMaterial({ map: baselineTexture, transparent: true, depthWrite: false, toneMapped: false }),
     );
     baselineWordmark.rotation.x = -Math.PI / 2;
-    baselineWordmark.position.set(0, 0.026, -6.47);
+    baselineWordmark.position.set(0, 0.026, -runtime.halfLength + 0.53);
     this.worldRoot.add(baselineWordmark);
 
-    const lineMat = new T.LineBasicMaterial({ color: 0xf5ede0, transparent: true, opacity: 0.92 });
-    const addLine = (points, closed = false) => {
-      const pts = points.map(([x, z]) => new T.Vector3(x, 0.034, z));
-      if (closed) pts.push(pts[0].clone());
-      const geometry = new T.BufferGeometry().setFromPoints(pts);
-      const line = new T.Line(geometry, lineMat);
-      this.worldRoot.add(line);
-      return line;
-    };
-    addLine([
-      [-COURT.width / 2 + 0.16, -COURT.length / 2 + 0.16],
-      [COURT.width / 2 - 0.16, -COURT.length / 2 + 0.16],
-      [COURT.width / 2 - 0.16, COURT.length / 2 - 0.16],
-      [-COURT.width / 2 + 0.16, COURT.length / 2 - 0.16],
-    ], true);
-    addLine([[-2.45, -6.82], [-2.45, -2.95], [2.45, -2.95], [2.45, -6.82]], true);
-    const circle = (radius, cx, cz, start = 0, end = Math.PI * 2, segments = 72) => {
-      const pts = [];
-      for (let i = 0; i <= segments; i++) {
-        const angle = lerp(start, end, i / segments);
-        pts.push([cx + Math.cos(angle) * radius, cz + Math.sin(angle) * radius]);
-      }
-      return addLine(pts);
-    };
-    circle(1.15, 0, -2.95);
-    circle(0.72, 0, COURT.basketZ);
-    circle(6.35, 0, COURT.basketZ, 0.13, Math.PI - 0.13, 84);
-    addLine([[-6.3, COURT.basketZ + 0.85], [-6.3, -6.82]]);
-    addLine([[6.3, COURT.basketZ + 0.85], [6.3, -6.82]]);
-
+    const basket = runtime.baskets.home;
+    const basketSign = Math.sign(basket.attackSign || basket.z) || -1;
+    const behindBoard = basket.backboardZ + basketSign * 0.7;
     const metal = new T.MeshStandardMaterial({ color: 0x586575, roughness: 0.24, metalness: 0.86 });
     const padding = new T.MeshStandardMaterial({ color: 0x10263a, roughness: 0.66 });
     const glass = new T.MeshPhysicalMaterial({
@@ -1520,24 +1491,30 @@ export class NovaCourtEngine {
       opacity: 0.38,
     });
     const pole = new T.Mesh(new T.BoxGeometry(0.32, 3.55, 0.32), metal);
-    pole.position.set(0, 1.78, -6.82);
+    pole.position.set(0, 1.78, behindBoard);
+    pole.name = "legacy-basket-pole";
     pole.castShadow = true;
     this.worldRoot.add(pole);
     const base = new T.Mesh(new T.BoxGeometry(1.18, 0.76, 1.3), padding);
-    base.position.set(0, 0.38, -6.75);
+    base.position.set(0, 0.38, behindBoard);
+    base.name = "legacy-basket-base";
     base.castShadow = true;
     this.worldRoot.add(base);
     const baseStripe = new T.Mesh(
       new T.BoxGeometry(1.2, 0.08, 1.32),
       new T.MeshBasicMaterial({ color: 0x48dbea, toneMapped: false }),
     );
-    baseStripe.position.set(0, 0.62, -6.75);
+    baseStripe.position.set(0, 0.62, behindBoard);
+    baseStripe.name = "legacy-basket-base-stripe";
     this.worldRoot.add(baseStripe);
-    const support = new T.Mesh(new T.BoxGeometry(0.18, 0.18, 0.86), metal);
-    support.position.set(0, 3.55, -6.47);
+    const supportLength = Math.abs(behindBoard - basket.backboardZ) + 0.12;
+    const support = new T.Mesh(new T.BoxGeometry(0.18, 0.18, supportLength), metal);
+    support.position.set(0, 3.55, (behindBoard + basket.backboardZ) / 2);
+    support.name = "legacy-basket-support";
     this.worldRoot.add(support);
     this.backboard = new T.Mesh(new T.BoxGeometry(1.84, 1.08, 0.05), glass);
-    this.backboard.position.set(0, 3.52, COURT.backboardZ);
+    this.backboard.name = "legacy-basket-backboard";
+    this.backboard.position.set(0, 3.52, basket.backboardZ);
     this.backboard.castShadow = true;
     this.worldRoot.add(this.backboard);
     const boardFrame = new T.LineSegments(
@@ -1545,19 +1522,22 @@ export class NovaCourtEngine {
       new T.LineBasicMaterial({ color: 0xf8f8ef }),
     );
     boardFrame.position.copy(this.backboard.position);
+    boardFrame.name = "legacy-basket-frame";
     this.worldRoot.add(boardFrame);
     const square = new T.LineSegments(
       new T.EdgesGeometry(new T.PlaneGeometry(0.62, 0.46)),
       new T.LineBasicMaterial({ color: 0xffffff }),
     );
-    square.position.set(0, 3.34, COURT.backboardZ + 0.033);
+    square.position.set(0, 3.34, basket.backboardZ - basketSign * 0.033);
+    square.name = "legacy-basket-square";
     this.worldRoot.add(square);
     this.rim = new T.Mesh(
-      new T.TorusGeometry(COURT.rimRadius, 0.027, 12, 56),
+      new T.TorusGeometry(FIBA_COURT.rimRadius, 0.027, 12, 56),
       new T.MeshStandardMaterial({ color: 0xf36c21, roughness: 0.3, metalness: 0.58 }),
     );
+    this.rim.name = "legacy-basket-rim";
     this.rim.rotation.x = Math.PI / 2;
-    this.rim.position.set(0, COURT.rimY, COURT.basketZ);
+    this.rim.position.set(basket.x, basket.y, basket.z);
     this.rim.castShadow = true;
     this.worldRoot.add(this.rim);
     this._buildNet();
@@ -1578,21 +1558,9 @@ export class NovaCourtEngine {
       new T.PlaneGeometry(0.72, 0.38),
       new T.MeshBasicMaterial({ map: shotClockTexture, toneMapped: false }),
     );
-    shotClock.position.set(0, 4.35, -6.12);
+    shotClock.position.set(0, 4.35, basket.backboardZ - basketSign * 0.04);
+    shotClock.name = "legacy-basket-shot-clock";
     this.worldRoot.add(shotClock);
-
-    const restrictedArc = [];
-    for (let i = 0; i <= 28; i++) {
-      const angle = lerp(0.12, Math.PI - 0.12, i / 28);
-      restrictedArc.push([Math.cos(angle) * 1.18, COURT.basketZ + Math.sin(angle) * 1.18]);
-    }
-    addLine(restrictedArc);
-    for (const side of [-1, 1]) {
-      for (let mark = 0; mark < 4; mark++) {
-        const z = -5.12 + mark * 0.42;
-        addLine([[side * 2.45, z], [side * 2.7, z]]);
-      }
-    }
 
     if (this.venue === "arena") {
     const wallMat = new T.MeshStandardMaterial({ color: 0x080d16, roughness: 0.94 });
@@ -1729,6 +1697,7 @@ export class NovaCourtEngine {
 
   _buildNet() {
     const T = this.T;
+    const basket = this.courtRuntime.baskets.home;
     const mat = new T.LineBasicMaterial({ color: 0xeaffff, transparent: true, opacity: 0.72 });
     this.netLines = [];
     const strands = 12;
@@ -1738,15 +1707,16 @@ export class NovaCourtEngine {
       const pts = [];
       for (let row = 0; row < 5; row++) {
         const t = row / 4;
-        const radius = lerp(COURT.rimRadius, 0.115, t);
+        const radius = lerp(FIBA_COURT.rimRadius, 0.115, t);
         const angle = row % 2 ? next : a;
         pts.push(new T.Vector3(
-          Math.cos(angle) * radius,
-          COURT.rimY - t * 0.48,
-          COURT.basketZ + Math.sin(angle) * radius
+          basket.x + Math.cos(angle) * radius,
+          basket.y - t * 0.48,
+          basket.z + Math.sin(angle) * radius
         ));
       }
       const line = new T.Line(new T.BufferGeometry().setFromPoints(pts), mat);
+      line.name = "legacy-basket-net";
       line.userData.basePositions = Array.from(line.geometry.attributes.position.array);
       this.worldRoot.add(line);
       this.netLines.push(line);
@@ -1814,7 +1784,7 @@ export class NovaCourtEngine {
       new T.MeshBasicMaterial({ color: 0x70ffe1, transparent: true, opacity: 0, depthWrite: false })
     );
     this.aimRing.rotation.x = -Math.PI / 2;
-    this.aimRing.position.set(0, 0.028, COURT.basketZ);
+    this.aimRing.position.set(0, 0.028, this.courtRuntime.baskets.home.z);
     this.vfxRoot.add(this.aimRing);
     this.handleRing = new T.Mesh(
       new T.RingGeometry(0.58, 0.67, 48),
@@ -1841,7 +1811,11 @@ export class NovaCourtEngine {
       }),
     );
     this.scoreRing.rotation.x = Math.PI / 2;
-    this.scoreRing.position.set(0, COURT.rimY - 0.02, COURT.basketZ);
+    this.scoreRing.position.set(
+      this.courtRuntime.baskets.home.x,
+      this.courtRuntime.baskets.home.y - 0.02,
+      this.courtRuntime.baskets.home.z,
+    );
     this.vfxRoot.add(this.scoreRing);
   }
 
@@ -3992,6 +3966,7 @@ export class NovaCourtEngine {
     }
     if (this.netPulse > 0.001) {
       this.netPulse = Math.max(0, this.netPulse - dt * 2.45);
+      const netBasket = this.courtRuntime.baskets.home;
       for (let strand = 0; strand < this.netLines.length; strand++) {
         const attribute = this.netLines[strand].geometry.attributes.position;
         const base = this.netLines[strand].userData.basePositions;
@@ -4001,9 +3976,9 @@ export class NovaCourtEngine {
           const squeeze = this.netPulse * row * 0.28;
           attribute.setXYZ(
             index,
-            base[index * 3] * (1 - squeeze),
+            netBasket.x + (base[index * 3] - netBasket.x) * (1 - squeeze),
             base[index * 3 + 1] - Math.sin(row * Math.PI) * this.netPulse * 0.09,
-            COURT.basketZ + (base[index * 3 + 2] - COURT.basketZ) * (1 - squeeze),
+            netBasket.z + (base[index * 3 + 2] - netBasket.z) * (1 - squeeze),
           );
         }
         attribute.needsUpdate = true;

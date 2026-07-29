@@ -133,11 +133,11 @@ test("inbound spots place the inbounder outside the correct boundary", () => {
   assert.ok(awayBaseline.z < -COURT_SPECS.full.halfLength);
 });
 
-test("5v5 uses a materially larger two-hoop court and stable team cameras", () => {
-  assert.ok(COURT_SPECS.full.width >= 18);
-  assert.ok(COURT_SPECS.full.length >= 32);
-  assert.ok(COURT_SPECS.full.baskets.home.z < -14);
-  assert.ok(COURT_SPECS.full.baskets.away.z > 14);
+test("5v5 uses a regulation two-hoop court and stable team cameras", () => {
+  assert.equal(COURT_SPECS.full.width, 15);
+  assert.equal(COURT_SPECS.full.length, 28);
+  assert.equal(COURT_SPECS.full.baskets.home.z, -12.425);
+  assert.equal(COURT_SPECS.full.baskets.away.z, 12.425);
   for (const key of ["duos", "team", "quads", "fives"]) {
     const contract = getTeamCameraContract(key);
     assert.equal(contract.mode, "broadcast");

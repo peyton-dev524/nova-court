@@ -1327,7 +1327,11 @@ function getThreePointContestQASnapshot() {
     ? rules.racks[state.rackIndex]
     : null;
   const player = engine?.controlledPlayer?.root?.position;
-  const basket = engine?.courtRuntime?.baskets?.home || { x: 0, y: 3.05, z: -5.7 };
+  const basket = engine?.courtRuntime?.baskets?.home || {
+    x: 0,
+    y: COURT.rimY,
+    z: COURT.basketZ,
+  };
   const rackPresentation = rack ? getThreePointRackPresentation(rack, basket) : null;
   const facing = engine?.controlledPlayer?.facing;
   const shooterToHoopLength = player
@@ -1557,12 +1561,12 @@ function placeAtRack(rack, giveBall = false) {
   player.root.position.set(Number(rack.x) || 0, 0, Number(rack.z) || 2.4);
   player.velocity.set(0, 0, 0);
   player.desiredVelocity.set(0, 0, 0);
-  const basket = engine.courtRuntime?.baskets?.home || { x: 0, z: -5.7 };
+  const basket = engine.courtRuntime?.baskets?.home || { x: 0, z: COURT.basketZ };
   engine.setArcRunRack?.(rack);
   player.facing.set(
     (Number(basket.x) || 0) - player.root.position.x,
     0,
-    (Number(basket.z) || -5.7) - player.root.position.z,
+    (Number(basket.z) || COURT.basketZ) - player.root.position.z,
   ).normalize();
   player.root.rotation.y = Math.atan2(player.facing.x, player.facing.z);
   if (giveBall) {
@@ -2185,6 +2189,34 @@ function prepareGameplayHudCaptureState(modeKey = "street") {
   };
 }
 
+function prepareCourtWideCaptureState(modeKey = "practice") {
+  gameActive = false;
+  engine?.controls?.setEnabled(false);
+  if (engine) {
+    engine.paused = true;
+    // The QA view is deliberately orthographic-like and above the venue roof.
+    // Hide only optional venue shells so the regulation surface remains
+    // unobstructed; this never runs during an interactive game.
+    engine.worldRoot?.traverse?.((node) => {
+      if (node.userData?.productionVenue) node.visible = false;
+    });
+    if (engine.playerRoot) engine.playerRoot.visible = false;
+    if (engine.ballMesh) engine.ballMesh.visible = false;
+    engine.snapCourtWideCameraForQA?.();
+  }
+  setHidden($("#hud"), true);
+  for (const id of ["feedback", "subtitles", "toast"]) setHidden($(`#${id}`), true);
+  setHidden($(".caption-bubble"), true);
+  app.dataset.state = "court-wide-capture";
+  app.dataset.courtWideCapture = modeKey;
+  return {
+    mode: currentModeKey,
+    kind: engine?.courtRuntime?.kind,
+    width: engine?.courtRuntime?.width,
+    length: engine?.courtRuntime?.length,
+  };
+}
+
 function bindUI() {
   ensurePracticeCard();
   ensureBroadcastChrome();
@@ -2528,6 +2560,7 @@ async function boot() {
     const venueSelectCapture = bootQuery.get("venueSelectCapture");
     const gameplayVenueCapture = bootQuery.get("gameplayVenueCapture");
     const gameplayHudCapture = bootQuery.get("gameplayHudCapture");
+    const courtWideCapture = bootQuery.get("courtWideCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
@@ -2539,6 +2572,11 @@ async function boot() {
       const captureMode = MODE_META[gameplayHudCapture] ? gameplayHudCapture : "street";
       await startMode(captureMode);
       prepareGameplayHudCaptureState(captureMode);
+      setHidden($("#loading-screen"), true);
+    } else if (courtWideCapture) {
+      const captureMode = MODE_META[courtWideCapture] ? courtWideCapture : "practice";
+      await startMode(captureMode);
+      prepareCourtWideCaptureState(captureMode);
       setHidden($("#loading-screen"), true);
     } else if (gameplayVenueCapture) {
       pendingVenueId = getVenueOption(gameplayVenueCapture).id;
