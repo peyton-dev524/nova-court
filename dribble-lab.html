@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05090d">
+  <title>NOVA COURT · Dribble Lab</title>
+  <link rel="stylesheet" href="./js/dribble-lab.css?v=1.0">
+</head>
+<body>
+  <main id="dribble-lab" aria-label="NOVA COURT deterministic dribble animation lab">
+    <div id="dribble-stage" aria-label="Three.js dribble animation preview"></div>
+
+    <header class="lab-brand">
+      <span>NOVA COURT · MOTION TOOLS</span>
+      <h1>DRIBBLE LAB</h1>
+      <p>Crossover + spin · deterministic production choreography</p>
+    </header>
+
+    <aside class="lab-controls" aria-label="Dribble animation controls">
+      <div class="move-tabs" role="group" aria-label="Move selector">
+        <button type="button" data-move="crossover" aria-pressed="true">CROSSOVER</button>
+        <button type="button" data-move="spin" aria-pressed="false">SPIN</button>
+      </div>
+
+      <div class="transport">
+        <button id="dribble-play" type="button">PLAY</button>
+        <button id="dribble-reset" type="button">RESET</button>
+        <label class="lab-toggle"><input id="dribble-loop" type="checkbox" checked><span></span>Loop</label>
+      </div>
+
+      <label class="range-control">
+        <span>Speed <output id="dribble-speed-value">1.00×</output></span>
+        <input id="dribble-speed" type="range" min="0.25" max="1.5" step="0.05" value="1">
+      </label>
+      <label class="range-control timeline-control">
+        <span>Timeline <output id="dribble-progress-value">0.000</output></span>
+        <input id="dribble-progress" type="range" min="0" max="1" step="0.001" value="0">
+      </label>
+
+      <div class="frame-buttons" aria-label="Named review frames">
+        <button type="button" data-frame="start">START</button>
+        <button type="button" data-frame="carry">CARRY</button>
+        <button type="button" data-frame="handoff">HANDOFF</button>
+        <button type="button" data-frame="finish">FINISH</button>
+      </div>
+
+      <div class="toggle-grid">
+        <label class="lab-toggle"><input id="dribble-mirror" type="checkbox"><span></span>Left-hand start</label>
+        <label class="lab-toggle"><input id="dribble-trace" type="checkbox" checked><span></span>Ball path</label>
+        <label class="lab-toggle"><input id="dribble-wireframe" type="checkbox"><span></span>Wireframe</label>
+        <label class="lab-toggle"><input id="dribble-guides" type="checkbox" checked><span></span>Scale guides</label>
+      </div>
+
+      <section class="coordinate-panel" aria-label="Live numeric animation coordinates">
+        <div><span>FRAME</span><strong id="dribble-frame">START</strong></div>
+        <div><span>BALL XYZ</span><strong id="dribble-ball">0.000, 0.000, 0.000</strong></div>
+        <div><span>START HAND</span><strong id="dribble-start-hand">RIGHT</strong></div>
+        <div><span>HAND WEIGHTS</span><strong id="dribble-hand-weights">1.000 / 0.000</strong></div>
+        <div><span>BODY TURN</span><strong id="dribble-spin-angle">0.0°</strong></div>
+        <div><span>CLEARANCE</span><strong id="dribble-clearance">0.000 m</strong></div>
+      </section>
+
+      <button id="dribble-capture" class="capture" type="button">SAVE NAMED PNG</button>
+      <p class="capture-name" id="dribble-capture-name">dribble-crossover-start-right.png</p>
+    </aside>
+
+    <section class="lab-metrics" aria-live="polite">
+      <span>PRODUCTION RIG · NO EXTERNAL ASSETS</span>
+      <dl>
+        <div><dt>FPS</dt><dd id="dribble-fps">60</dd></div>
+        <div><dt>DRAWS</dt><dd id="dribble-draws">0</dd></div>
+        <div><dt>TRIS</dt><dd id="dribble-tris">0</dd></div>
+        <div><dt>TEXTURES</dt><dd id="dribble-textures">0</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <noscript>The dribble lab requires JavaScript.</noscript>
+  <script src="./vendor/three.min.js"></script>
+  <script type="module" src="./js/dribble-lab.js?v=1.0"></script>
+</body>
+</html>
