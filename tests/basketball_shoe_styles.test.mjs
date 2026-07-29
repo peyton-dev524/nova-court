@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import {
   BASKETBALL_SHOE_STYLE_IDS,
   COURT_CLASSIC_DIMENSIONS,
+  basketballShoeLowerLegFit,
   courtClassicEllipsePoint,
   courtClassicRockerHeight,
   courtClassicToeCapRise,
@@ -43,6 +44,31 @@ test("shoe styles normalize to two canonical IDs with a compatible Flight fallba
   assert.equal(normalizeBasketballShoeStyle("nova-flight"), "nova-flight");
   assert.equal(normalizeBasketballShoeStyle("unknown"), "nova-flight");
   assert.equal(normalizeBasketballShoeStyle(undefined), "nova-flight");
+});
+
+test("Court Classic lower-leg fit inserts a tapered sock without covering the high-top collar", () => {
+  const fit = basketballShoeLowerLegFit("court-classic");
+  const sockBottom = fit.sock.centerY - fit.sock.height * 0.5;
+  const shinBottom = fit.shin.centerY - (fit.shin.length * 0.5 + 0.086);
+
+  assert.ok(sockBottom < fit.collarJoinY, "sock must insert slightly inside the collar");
+  assert.ok(fit.collarJoinY - sockBottom <= 0.005, "collar insertion must stay subtle");
+  assert.ok(fit.sock.radiusBottom < fit.collarInnerRadius, "sock must fit inside the collar opening");
+  assert.ok(shinBottom > fit.collarJoinY, "skin shin must stop above the visible shoe collar");
+  assert.ok(fit.sock.radiusTop > fit.sock.radiusBottom * 2, "sock should taper anatomically into the shoe");
+});
+
+test("NOVA Flight keeps its established low-top leg and mounting profile", () => {
+  const fit = basketballShoeLowerLegFit("nova-flight");
+  assert.deepEqual(fit.shin, { length: 0.315, centerY: -0.235 });
+  assert.deepEqual(fit.sock, {
+    radiusTop: 0.091,
+    radiusBottom: 0.083,
+    height: 0.18,
+    centerY: -0.425,
+  });
+  assert.deepEqual(fit.shoe.position, [0, -0.603, 0.08]);
+  assert.equal(fit.shoe.rotationX, -0.025);
 });
 
 test("Court Classic trigonometric profiles preserve ellipse symmetry and curved monotonic rises", () => {
@@ -137,6 +163,7 @@ test("engine, player lab, and profile UI wire the canonical shoe style through r
   ]);
 
   assert.match(engine, /normalizeBasketballShoeStyle/);
+  assert.match(engine, /basketballShoeLowerLegFit/);
   assert.match(engine, /createBasketballShoe/);
   assert.match(engine, /styleId: this\.metadata\.shoeStyleId/);
   assert.match(lab, /selectedShoeStyle = normalizeBasketballShoeStyle\(query\.get\("shoe"\)\)/);

@@ -36,6 +36,46 @@ export function normalizeBasketballShoeStyle(value) {
   return BASKETBALL_SHOE_STYLE_IDS.includes(value) ? value : "nova-flight";
 }
 
+const BASKETBALL_SHOE_LOWER_LEG_FITS = Object.freeze({
+  "nova-flight": Object.freeze({
+    shin: Object.freeze({ length: 0.315, centerY: -0.235 }),
+    sock: Object.freeze({
+      radiusTop: 0.091,
+      radiusBottom: 0.083,
+      height: 0.18,
+      centerY: -0.425,
+    }),
+    shoe: Object.freeze({
+      position: Object.freeze([0, -0.603, 0.08]),
+      rotationX: -0.025,
+    }),
+    collarJoinY: -0.515,
+    collarInnerRadius: 0.083,
+  }),
+  "court-classic": Object.freeze({
+    // The high-top receives the ankle instead of being covered by it. The
+    // narrow sock end sits 4 mm inside the collar while the skin shin stops
+    // above the collar and remains hidden beneath the visible crew sock.
+    shin: Object.freeze({ length: 0.28, centerY: -0.218 }),
+    sock: Object.freeze({
+      radiusTop: 0.082,
+      radiusBottom: 0.0315,
+      height: 0.166,
+      centerY: -0.39,
+    }),
+    shoe: Object.freeze({
+      position: Object.freeze([0, -0.603, 0.08]),
+      rotationX: -0.025,
+    }),
+    collarJoinY: -0.469,
+    collarInnerRadius: 0.034,
+  }),
+});
+
+export function basketballShoeLowerLegFit(styleId) {
+  return BASKETBALL_SHOE_LOWER_LEG_FITS[normalizeBasketballShoeStyle(styleId)];
+}
+
 const clampUnit = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
 export function courtClassicEllipsePoint(halfWidth, halfHeight, angle) {

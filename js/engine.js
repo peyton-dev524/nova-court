@@ -51,9 +51,10 @@ import {
 } from "./shooting-assist.js";
 import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
 import {
+  basketballShoeLowerLegFit,
   createBasketballShoe,
   normalizeBasketballShoeStyle,
-} from "./basketball-shoes.js?v=1.1";
+} from "./basketball-shoes.js?v=1.2";
 import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
@@ -571,6 +572,7 @@ export class ProceduralPlayer {
 
     this.legs = [];
     for (const side of [-1, 1]) {
+      const lowerLegFit = basketballShoeLowerLegFit(this.metadata.shoeStyleId);
       const hip = new T.Group();
       hip.position.set(side * 0.165, -0.05, 0);
       this.hips.add(hip);
@@ -584,11 +586,16 @@ export class ProceduralPlayer {
       kneeCap.position.z = 0.012;
       kneeCap.scale.set(0.9, 0.82, 0.94);
       knee.add(kneeCap);
-      const shin = this._mesh(new T.CapsuleGeometry(0.086, 0.315, 4, 9), skin);
-      shin.position.y = -0.235;
+      const shin = this._mesh(new T.CapsuleGeometry(0.086, lowerLegFit.shin.length, 4, 9), skin);
+      shin.position.y = lowerLegFit.shin.centerY;
       knee.add(shin);
-      const sockMesh = this._mesh(new T.CylinderGeometry(0.091, 0.083, 0.18, 10), sock);
-      sockMesh.position.y = -0.425;
+      const sockMesh = this._mesh(new T.CylinderGeometry(
+        lowerLegFit.sock.radiusTop,
+        lowerLegFit.sock.radiusBottom,
+        lowerLegFit.sock.height,
+        10,
+      ), sock);
+      sockMesh.position.y = lowerLegFit.sock.centerY;
       knee.add(sockMesh);
       this.detailMeshes.push(sockMesh);
       const shoe = createBasketballShoe(T, {
@@ -598,13 +605,15 @@ export class ProceduralPlayer {
         detail: "high",
         side,
       });
-      shoe.root.position.set(0, -0.603, 0.08);
-      shoe.root.rotation.x = -0.025;
+      shoe.root.position.fromArray(lowerLegFit.shoe.position);
+      shoe.root.rotation.x = lowerLegFit.shoe.rotationX;
       knee.add(shoe.root);
       this.detailMeshes.push(...shoe.detailMeshes);
       this.legs.push({
         hip,
         knee,
+        shin,
+        sock: sockMesh,
         shoe: shoe.root,
         shoeRig: shoe,
         outsole: shoe.outsole,
