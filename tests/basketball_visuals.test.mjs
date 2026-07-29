@@ -114,6 +114,17 @@ test("runtime style switching replaces one albedo map without growing the textur
   }), "redWhiteBlue");
   assert.equal(mesh.material.map, selectedMap);
   assert.equal(registry.length, 3);
+
+  for (let index = 0; index < 12; index += 1) {
+    const previous = mesh.material.map;
+    const style = index % 2 === 0 ? "classic" : "redWhiteBlue";
+    assert.equal(applyBasketballStyle(T, mesh, style, {
+      textureRegistry: registry,
+    }), style);
+    assert.equal(registry.length, 3, "style swaps must replace, not append, albedo maps");
+    assert.equal(registry[0], mesh.material.map);
+    assert.equal(previous.disposed, true);
+  }
 });
 
 test("basketball scale and channel width follow regulation-size measurements", () => {

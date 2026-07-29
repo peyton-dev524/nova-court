@@ -15,6 +15,14 @@
  * mode state is authoritative for scoring, clocks, and completion.
  */
 
+import {
+  THREE_POINT_BALLS_PER_RACK,
+  THREE_POINT_MONEY_BALL_POINTS,
+  THREE_POINT_NORMAL_BALL_POINTS,
+  THREE_POINT_RACKS,
+  createContestBallSequence,
+} from "./three-point-contest.js";
+
 export const MODE_IDS = Object.freeze({
   STREET_1V1: "street_1v1",
   THREE_POINT_CONTEST: "three_point_contest",
@@ -45,7 +53,7 @@ export const MODE_CATALOG = Object.freeze([
     id: MODE_IDS.THREE_POINT_CONTEST,
     name: "Arc Circuit",
     shortName: "3PT",
-    description: "Five timed racks, money balls, and a selectable all-value rack.",
+    description: "Five timed racks with a two-point tricolor money ball closing every rack.",
     players: "Solo",
     icon: "arc",
   }),
@@ -471,30 +479,32 @@ export class StreetOneOnOneMode extends BaseMode {
   }
 }
 
-const DEFAULT_RACKS = Object.freeze([
-  Object.freeze({ id: "left_corner", label: "Left Corner", x: -6.6, z: 2.1 }),
-  Object.freeze({ id: "left_wing", label: "Left Wing", x: -5.3, z: 5.1 }),
-  Object.freeze({ id: "top", label: "Top", x: 0, z: 7.05 }),
-  Object.freeze({ id: "right_wing", label: "Right Wing", x: 5.3, z: 5.1 }),
-  Object.freeze({ id: "right_corner", label: "Right Corner", x: 6.6, z: 2.1 }),
-]);
-
 export class ThreePointContestMode extends BaseMode {
   constructor(config = {}) {
     super(MODE_IDS.THREE_POINT_CONTEST, config);
     this.duration = asPositiveNumber(config.duration, 60);
     this.countdownDuration = asPositiveNumber(config.countdown, 3);
     this.targetScore = asPositiveNumber(config.targetScore, 18);
-    this.ballsPerRack = Math.max(1, Math.floor(asPositiveNumber(config.ballsPerRack, 5)));
-    this.moneyRackIndex = clamp(
-      Math.floor(Number(config.moneyRackIndex) || 2),
-      0,
-      DEFAULT_RACKS.length - 1,
+    this.ballsPerRack = Math.max(
+      1,
+      Math.floor(asPositiveNumber(config.ballsPerRack, THREE_POINT_BALLS_PER_RACK)),
     );
-    this.racks = (config.racks || DEFAULT_RACKS).map((rack, index) => ({
+    this.moneyBallSlot = clamp(
+      Math.floor(Number.isFinite(Number(config.moneyBallSlot))
+        ? Number(config.moneyBallSlot)
+        : this.ballsPerRack - 1),
+      0,
+      this.ballsPerRack - 1,
+    );
+    this.racks = (config.racks || THREE_POINT_RACKS).map((rack, index) => ({
       ...rack,
       id: rack.id || `rack_${index}`,
     }));
+    this.ballSequence = createContestBallSequence({
+      rackCount: this.racks.length,
+      ballsPerRack: this.ballsPerRack,
+      moneyBallSlot: this.moneyBallSlot,
+    });
     this.shotResolveTimeout = asPositiveNumber(config.shotResolveTimeout, 2.4);
   }
 
@@ -507,6 +517,7 @@ export class ThreePointContestMode extends BaseMode {
     this.countdown = this.countdownDuration;
     this.rackIndex = 0;
     this.ballIndex = 0;
+    this.sequenceIndex = 0;
     this.pendingShot = null;
     this.finishedRacks = [];
     this.rackStats = this.racks.map((rack) => ({
@@ -547,28 +558,32 @@ export class ThreePointContestMode extends BaseMode {
     switch (event.type) {
       case "SHOT_ATTEMPT":
         if (this.phase !== MODE_PHASES.LIVE || this.pendingShot) return false;
+        if (!this.#currentBall()) return false;
         this.pendingShot = {
           rackIndex: this.rackIndex,
           ballIndex: this.ballIndex,
-          value: this.#currentBallValue(),
+          sequenceIndex: this.sequenceIndex,
+          value: this.#currentBall().value,
+          ballStyle: this.#currentBall().ballStyle,
           shotId: event.shotId ?? `${this.runNumber}-${this.attempts + 1}`,
           timeRemaining: this.shotResolveTimeout,
         };
         this.emit("LOCK_RACK_BALL", {
           rackIndex: this.rackIndex,
           ballIndex: this.ballIndex,
+          sequenceIndex: this.sequenceIndex,
           shotId: this.pendingShot.shotId,
         });
         return true;
       case "BASKET":
         if (this.phase !== MODE_PHASES.LIVE) return false;
-        if (!this.pendingShot) this.#createImplicitAttempt(event.shotId);
+        if (!this.#matchesPendingShot(event.shotId)) return false;
         this.#resolveShot(true, event);
         return true;
       case "MISS":
       case "BLOCK":
         if (this.phase !== MODE_PHASES.LIVE) return false;
-        if (!this.pendingShot) this.#createImplicitAttempt(event.shotId);
+        if (!this.#matchesPendingShot(event.shotId)) return false;
         this.#resolveShot(false, event);
         return true;
       case "SKIP_BALL":
@@ -582,13 +597,22 @@ export class ThreePointContestMode extends BaseMode {
   }
 
   #createImplicitAttempt(shotId) {
+    const currentBall = this.#currentBall();
+    if (!currentBall) return;
     this.pendingShot = {
       rackIndex: this.rackIndex,
       ballIndex: this.ballIndex,
-      value: this.#currentBallValue(),
+      sequenceIndex: this.sequenceIndex,
+      value: currentBall.value,
+      ballStyle: currentBall.ballStyle,
       shotId: shotId ?? `${this.runNumber}-${this.attempts + 1}`,
       timeRemaining: this.shotResolveTimeout,
     };
+  }
+
+  #matchesPendingShot(shotId) {
+    if (!this.pendingShot) return false;
+    return shotId == null || shotId === this.pendingShot.shotId;
   }
 
   #resolveShot(made, event) {
@@ -610,6 +634,9 @@ export class ThreePointContestMode extends BaseMode {
       shotId: shot.shotId,
       rackIndex: shot.rackIndex,
       ballIndex: shot.ballIndex,
+      sequenceIndex: shot.sequenceIndex,
+      ballStyle: shot.ballStyle,
+      isMoneyBall: shot.value === THREE_POINT_MONEY_BALL_POINTS,
       score: this.score,
       perfectRelease: Boolean(event.perfectRelease),
     });
@@ -618,38 +645,47 @@ export class ThreePointContestMode extends BaseMode {
   }
 
   #advanceBall() {
-    this.ballIndex += 1;
-    if (this.ballIndex >= this.ballsPerRack) {
+    this.sequenceIndex += 1;
+    const nextBall = this.#currentBall();
+    if (!nextBall) {
       this.finishedRacks.push(this.rackIndex);
-      this.rackIndex += 1;
+      this.rackIndex = this.racks.length;
       this.ballIndex = 0;
-      if (this.rackIndex >= this.racks.length) {
-        this.#finishRun("all_racks");
-        return;
-      }
+      this.#finishRun("all_racks");
+      return;
+    }
+    const changingRack = nextBall.rackIndex !== this.rackIndex;
+    if (changingRack) {
+      this.finishedRacks.push(this.rackIndex);
+      this.rackIndex = nextBall.rackIndex;
+      this.ballIndex = nextBall.ballIndex;
       this.emit("MOVE_TO_RACK", {
         rackIndex: this.rackIndex,
         rack: { ...this.racks[this.rackIndex] },
       });
+    } else {
+      this.ballIndex = nextBall.ballIndex;
     }
     this.#spawnCurrentBall();
   }
 
   #spawnCurrentBall() {
     if (this.phase !== MODE_PHASES.LIVE) return;
+    const currentBall = this.#currentBall();
+    if (!currentBall) return;
     this.emit("SPAWN_RACK_BALL", {
       rackIndex: this.rackIndex,
       ballIndex: this.ballIndex,
+      sequenceIndex: this.sequenceIndex,
       rack: { ...this.racks[this.rackIndex] },
-      value: this.#currentBallValue(),
-      isMoneyBall: this.#currentBallValue() === 2,
+      value: currentBall.value,
+      isMoneyBall: currentBall.isMoneyBall,
+      ballStyle: currentBall.ballStyle,
     });
   }
 
-  #currentBallValue() {
-    return this.rackIndex === this.moneyRackIndex || this.ballIndex === this.ballsPerRack - 1
-      ? 2
-      : 1;
+  #currentBall() {
+    return this.ballSequence[this.sequenceIndex] || null;
   }
 
   #finishRun(reason) {
@@ -682,6 +718,10 @@ export class ThreePointContestMode extends BaseMode {
       countdown: this.countdown,
       rackIndex: this.rackIndex,
       ballIndex: this.ballIndex,
+      sequenceIndex: this.sequenceIndex,
+      totalBalls: this.ballSequence.length,
+      currentBall: this.#currentBall() ? { ...this.#currentBall() } : null,
+      finishedRacks: [...(this.finishedRacks || [])],
       rackStats: (this.rackStats || []).map((stat) => ({ ...stat })),
       pendingShot: this.pendingShot ? { ...this.pendingShot } : null,
       targetScore: this.targetScore,
@@ -689,7 +729,9 @@ export class ThreePointContestMode extends BaseMode {
   }
 
   getUIState() {
-    const currentRack = this.racks[Math.min(this.rackIndex, this.racks.length - 1)];
+    const complete = this.phase === MODE_PHASES.FINISHED || this.sequenceIndex >= this.ballSequence.length;
+    const currentRack = complete ? null : this.racks[this.rackIndex];
+    const currentBall = this.#currentBall();
     return {
       ...this.getState(),
       title: "Arc Circuit",
@@ -699,11 +741,19 @@ export class ThreePointContestMode extends BaseMode {
         ? String(Math.ceil(this.countdown))
         : this.phase === MODE_PHASES.FINISHED
           ? (this.score >= this.targetScore ? "Target cleared" : "Target missed")
-          : currentRack?.label || "",
+          : currentRack?.label || "Run complete",
       rackLabel: currentRack?.label || "Complete",
-      rackProgress: `${Math.min(this.rackIndex + 1, this.racks.length)}/${this.racks.length}`,
-      ballProgress: `${Math.min(this.ballIndex + 1, this.ballsPerRack)}/${this.ballsPerRack}`,
-      nextBallValue: this.phase === MODE_PHASES.LIVE ? this.#currentBallValue() : 0,
+      rackProgress: complete
+        ? `${this.racks.length}/${this.racks.length}`
+        : `${this.rackIndex + 1}/${this.racks.length}`,
+      ballProgress: complete
+        ? `${this.ballsPerRack}/${this.ballsPerRack}`
+        : `${this.ballIndex + 1}/${this.ballsPerRack}`,
+      sequenceProgress: `${Math.min(this.sequenceIndex + 1, this.ballSequence.length)}/${this.ballSequence.length}`,
+      nextBallValue: this.phase === MODE_PHASES.LIVE ? currentBall?.value || 0 : 0,
+      nextBallStyle: this.phase === MODE_PHASES.LIVE ? currentBall?.ballStyle || null : null,
+      isMoneyBall: Boolean(currentBall?.isMoneyBall),
+      complete,
       targetDelta: this.score - this.targetScore,
     };
   }
@@ -715,12 +765,14 @@ export class ThreePointContestMode extends BaseMode {
       countdown: this.countdownDuration,
       targetScore: this.targetScore,
       rackCount: this.racks.length,
+      racks: this.racks.map((rack) => ({ ...rack })),
       ballsPerRack: this.ballsPerRack,
-      moneyRackIndex: this.moneyRackIndex,
-      normalBallPoints: 1,
-      moneyBallPoints: 2,
-      maximumScore: this.racks.length * (this.ballsPerRack + 1)
-        + this.ballsPerRack - 1,
+      totalBalls: this.ballSequence.length,
+      moneyBallSlot: this.moneyBallSlot,
+      normalBallPoints: THREE_POINT_NORMAL_BALL_POINTS,
+      moneyBallPoints: THREE_POINT_MONEY_BALL_POINTS,
+      ballSequence: this.ballSequence.map((ball) => ({ ...ball })),
+      maximumScore: this.ballSequence.reduce((total, ball) => total + ball.value, 0),
     };
   }
 

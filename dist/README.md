@@ -30,10 +30,27 @@ The build task writes the deployable static game to `dist/`.
 - **Night Threes (3v3):** first to 15, win by two, with off-ball cuts, rotations, shot selection, and teammate control switching.
 - **NOVA Fours (4v4):** first to 19 with four-out spacing, pass-gated inbound restarts, and a 21-second possession clock.
 - **NOVA Five (5v5):** a true two-basket full court with ten players, transition offense/defense, a game clock, 2/3-point scoring, and both backcourts.
-- **Arc Run:** a timed five-rack three-point contest with standard and money balls.
+- **Arc Run:** a timed five-rack three-point contest with automatic rack progression and a two-point tricolor money ball closing each rack.
 - **Open Gym:** unlimited practice reps, automatic ball return, make/attempt and streak tracking, every dribble move, finishes, camera testing, and no loss condition.
 
 Every mode has its own rules, HUD/objective, difficulty tuning where applicable, restart/rematch or return flow, and a complete finish state. Replay playback pauses live game flow until the replay and camera restoration are finished.
+
+### Reproducible Arc Run QA
+
+Start Arc Run with `?qa` in the URL. After the game screen opens, run this in
+the browser console:
+
+```js
+__NOVA_QA__.advanceThreePointContest(4)
+```
+
+That deterministically settles the first four balls as misses and stops on rack
+1, ball 5: the two-point red/white/blue money ball. Inspect the current rack,
+slot, HUD state, ball style, and rack-render budget with:
+
+```js
+__NOVA_QA__.threePointContest()
+```
 
 ## Controls
 

@@ -452,6 +452,15 @@
 }
 
 .rack-progress i.is-money { border-color: var(--gold); }
+.rack-progress i.is-active {
+  transform: scale(1.48);
+  border-color: #f8fdff;
+  box-shadow: 0 0 0 2px rgba(91, 231, 255, .3), 0 0 12px rgba(91, 231, 255, .82);
+}
+.rack-progress i.is-money.is-active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, .3), 0 0 14px rgba(255, 209, 102, .9);
+}
 .rack-progress i.is-made { border-color: var(--good); background: var(--good); box-shadow: 0 0 9px var(--good); }
 .rack-progress i.is-missed { opacity: .28; }
 
