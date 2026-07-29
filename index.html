@@ -204,6 +204,41 @@
       </div>
     </section>
 
+    <section id="ball-select" class="screen screen--panel screen--ball-select is-hidden" aria-labelledby="ball-select-title">
+      <header class="panel-header">
+        <button id="back-from-ball-select" class="icon-button" type="button" aria-label="Back from ball selection">&larr;</button>
+        <div>
+          <span class="overline">FINAL LOADOUT</span>
+          <h2 id="ball-select-title">BALL LOCKER</h2>
+        </div>
+        <span class="panel-index">02 / 02</span>
+      </header>
+
+      <div class="ball-locker">
+        <aside class="ball-locker__mode" aria-label="Selected mode">
+          <span class="ball-locker__mode-index">MODE LOCKED</span>
+          <h3 id="ball-mode-label">NOVA PARK</h3>
+          <p id="ball-mode-objective">FIRST TO 11 / PRO DIFFICULTY</p>
+        </aside>
+
+        <div class="ball-locker__picker" aria-label="Choose your game ball">
+          <button id="previous-ball" class="ball-arrow" type="button" aria-label="Previous ball">&#8249;</button>
+          <div id="ball-preview" class="ball-locker__preview"></div>
+          <button id="next-ball" class="ball-arrow" type="button" aria-label="Next ball">&#8250;</button>
+          <div id="ball-selection-dots" class="ball-locker__dots" aria-hidden="true"></div>
+        </div>
+
+        <aside class="ball-locker__details" aria-live="polite">
+          <span id="ball-edition" class="ball-locker__edition">NOVA / 01</span>
+          <h3 id="ball-name">CLASSIC ORANGE</h3>
+          <p id="ball-finish" class="ball-locker__finish">PEBBLED ORANGE RUBBER</p>
+          <p id="ball-description" class="ball-locker__description">The regulation-inspired Nova game ball with deep black channels and a warm arena finish.</p>
+          <button id="confirm-ball-selection" class="button button--primary" type="button"><strong>ENTER GAME</strong></button>
+          <p class="ball-locker__hint">Use the arrows to preview / Your choice saves automatically</p>
+        </aside>
+      </div>
+    </section>
+
     <div id="hud" class="hud is-hidden" aria-live="polite">
       <div class="scoreboard">
         <div class="score-side score-side--home">
@@ -340,12 +375,6 @@
           <label>Visual preset
             <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
           </label>
-          <label>Game ball
-            <select id="ball-style" data-setting="ballStyle">
-              <option value="classic">Classic orange</option>
-              <option value="redWhiteBlue">Red / white / blue</option>
-            </select>
-          </label>
           <label class="toggle">Reduce motion <input id="reduced-motion" type="checkbox"><span></span></label>
           <label class="toggle">High contrast <input id="high-contrast" type="checkbox"><span></span></label>
           <label class="toggle">Sound captions <input id="captions-enabled" type="checkbox" checked><span></span></label>
@@ -366,6 +395,6 @@
 
   <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/app.js?v=7.5"></script>
+  <script type="module" src="./js/app.js?v=7.6"></script>
 </body>
 </html>

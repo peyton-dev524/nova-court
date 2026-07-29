@@ -23,6 +23,12 @@ import {
   shootingAssistDisplay,
 } from "./shooting-assist.js";
 import {
+  BALL_SELECTION_OPTIONS,
+  createBallSelectionPreview,
+  cycleBallSelection,
+  getBallSelectionOption,
+} from "./ball-selection.js?v=1.0";
+import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
   AVATAR_APPEARANCES,
@@ -94,6 +100,10 @@ let aiAccumulator = 0;
 let hudAccumulator = 0;
 let presentationDirector = null;
 let presentationKind = null;
+let ballSelectionPreview = null;
+let pendingModeKey = "street";
+let pendingBallStyle = ui.settings.ballStyle;
+let ballSelectionOrigin = "modes";
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
@@ -104,6 +114,7 @@ for (const href of [
   "./js/ui-hud-polish.css?v=1.1",
   "./js/ui-profile-polish.css?v=1.1",
   "./js/ui-shooting-settings.css?v=1.0",
+  "./js/ui-ball-selection.css?v=1.0",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -120,6 +131,7 @@ function setHidden(node, hidden) {
 
 function showMainMenu() {
   gameActive = false;
+  ballSelectionPreview?.setVisible(false);
   resetShotMeter();
   audio.setMusicMode("street");
   announcer.stop();
@@ -128,6 +140,7 @@ function showMainMenu() {
   engine?.controls?.setEnabled(false);
   setHidden($("#loading-screen"), true);
   setHidden($("#mode-select"), true);
+  setHidden($("#ball-select"), true);
   setHidden($("#pause-screen"), true);
   setHidden($("#game-over"), true);
   setHidden($("#controls-screen"), true);
@@ -143,8 +156,9 @@ function showMainMenu() {
 
 function showModeSelect() {
   engine?.setPaused(true);
+  ballSelectionPreview?.setVisible(false);
   resetShotMeter();
-  for (const id of ["main-menu", "my-player-screen", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
+  for (const id of ["main-menu", "my-player-screen", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#mode-select"), false);
@@ -155,7 +169,8 @@ function showModeSelect() {
 }
 
 function showGame() {
-  for (const id of ["main-menu", "my-player-screen", "mode-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
+  ballSelectionPreview?.setVisible(false);
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#hud"), false);
@@ -177,6 +192,82 @@ function resetShotMeter() {
   meter?.setAttribute("aria-hidden", "true");
   meter?.removeAttribute("data-quality");
   meter?.removeAttribute("data-tone");
+}
+
+function ensureBallSelectionPreview() {
+  if (!ballSelectionPreview) {
+    ballSelectionPreview = createBallSelectionPreview({
+      T: globalThis.THREE,
+      container: $("#ball-preview"),
+      initialStyle: pendingBallStyle,
+      reducedMotion: ui.settings.reducedMotion,
+    });
+  }
+  return ballSelectionPreview;
+}
+
+function renderBallSelection() {
+  const option = getBallSelectionOption(pendingBallStyle);
+  const modeMeta = MODE_META[pendingModeKey] || MODE_META.street;
+  $("#ball-mode-label").textContent = modeMeta.label;
+  $("#ball-mode-objective").textContent = `${modeMeta.objective} / ${currentDifficulty.toUpperCase()} DIFFICULTY`;
+  $("#ball-edition").textContent = option.edition;
+  $("#ball-name").textContent = option.name;
+  $("#ball-finish").textContent = option.finish;
+  $("#ball-description").textContent = option.description;
+  $("#confirm-ball-selection strong").textContent = pendingModeKey === "practice"
+    ? "ENTER OPEN GYM"
+    : `ENTER ${modeMeta.label}`;
+  $("#ball-selection-dots").replaceChildren(...BALL_SELECTION_OPTIONS.map((candidate) => {
+    const dot = document.createElement("span");
+    dot.classList.toggle("is-selected", candidate.id === option.id);
+    return dot;
+  }));
+  const preview = ensureBallSelectionPreview();
+  preview.setStyle(option.id);
+  document.documentElement.style.setProperty("--ball-selection-accent", option.accent);
+}
+
+function showBallSelection(modeKey = selectedModeKey, origin = "modes") {
+  pendingModeKey = MODE_META[modeKey] ? modeKey : "street";
+  selectedModeKey = pendingModeKey;
+  pendingBallStyle = ui.settings.ballStyle;
+  ballSelectionOrigin = origin === "menu" ? "menu" : "modes";
+  currentDifficulty = $("#difficulty-select")?.value || currentDifficulty || "pro";
+  gameActive = false;
+  engine?.setPaused(true);
+  engine?.controls?.setEnabled(false);
+  resetShotMeter();
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen", "hud"]) {
+    setHidden($(`#${id}`), true);
+  }
+  setHidden($("#ball-select"), false);
+  app.dataset.state = "ball-select";
+  audio.setMusicMode(pendingModeKey);
+  renderBallSelection();
+  requestAnimationFrame(() => {
+    ballSelectionPreview?.setVisible(true);
+    $("#confirm-ball-selection")?.focus({ preventScroll: true });
+  });
+}
+
+function moveBallSelection(direction) {
+  pendingBallStyle = cycleBallSelection(pendingBallStyle, direction);
+  renderBallSelection();
+  audio.playSfx("ui");
+}
+
+function leaveBallSelection() {
+  ballSelectionPreview?.setVisible(false);
+  if (ballSelectionOrigin === "menu") showMainMenu();
+  else showModeSelect();
+}
+
+function confirmBallSelection() {
+  const selected = getBallSelectionOption(pendingBallStyle);
+  ui.applySettings({ ...ui.settings, ballStyle: selected.id });
+  ballSelectionPreview?.setVisible(false);
+  startMode(pendingModeKey);
 }
 
 function renderShootingAssistSetting(value = ui.settings.shootingAssist) {
@@ -336,6 +427,7 @@ function showMyPlayer() {
   hideOverlay("game-over");
   setHidden($("#main-menu"), true);
   setHidden($("#mode-select"), true);
+  setHidden($("#ball-select"), true);
   setHidden($("#my-player-screen"), false);
   renderPlayerProfile();
   app.dataset.state = "profile";
@@ -491,7 +583,7 @@ function startTutorial() {
   engine.presentationUpdate = (dt) => presentationDirector?.update(dt);
   engine.setPaused(false);
   engine.controls.setEnabled(false);
-  for (const id of ["main-menu", "my-player-screen", "mode-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#hud"), true);
@@ -1316,7 +1408,7 @@ function bindUI() {
     hideOverlay("game-over");
     showModeSelect();
   }));
-  $("#quick-play")?.addEventListener("click", () => startMode("street"));
+  $("#quick-play")?.addEventListener("click", () => showBallSelection("street", "menu"));
   $("#open-modes")?.addEventListener("click", showModeSelect);
   $("#open-my-player")?.addEventListener("click", showMyPlayer);
   $("#open-controls")?.addEventListener("click", () => showOverlay("controls-screen"));
@@ -1408,7 +1500,11 @@ function bindUI() {
     $("#tutorial-replay").hidden = true;
     presentationDirector?.replay?.();
   });
-  $("#start-selected-mode")?.addEventListener("click", () => startMode(selectedModeKey));
+  $("#start-selected-mode")?.addEventListener("click", () => showBallSelection(selectedModeKey, "modes"));
+  $("#back-from-ball-select")?.addEventListener("click", leaveBallSelection);
+  $("#previous-ball")?.addEventListener("click", () => moveBallSelection(-1));
+  $("#next-ball")?.addEventListener("click", () => moveBallSelection(1));
+  $("#confirm-ball-selection")?.addEventListener("click", confirmBallSelection);
   $("#pause-button")?.addEventListener("click", pauseGame);
   $("#resume-game")?.addEventListener("click", resumeGame);
   $("#restart-game")?.addEventListener("click", () => startMode(currentModeKey));
@@ -1479,7 +1575,10 @@ function bindUI() {
     engine.setBasketballStyle(event.detail.ballStyle);
   });
   window.addEventListener("keydown", (event) => {
-    if (event.code === "Escape" && !$("#settings-screen").hidden) hideOverlay("settings-screen");
+    if (app.dataset.state === "ball-select" && event.code === "ArrowLeft") moveBallSelection(-1);
+    else if (app.dataset.state === "ball-select" && event.code === "ArrowRight") moveBallSelection(1);
+    else if (app.dataset.state === "ball-select" && event.code === "Escape") leaveBallSelection();
+    else if (event.code === "Escape" && !$("#settings-screen").hidden) hideOverlay("settings-screen");
     else if (event.code === "Escape" && !$("#controls-screen").hidden) hideOverlay("controls-screen");
     else if (event.code === "Escape" && !$("#my-player-screen").hidden) showMainMenu();
   });
