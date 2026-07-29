@@ -241,8 +241,43 @@
           <h3 id="ball-name">CLASSIC ORANGE</h3>
           <p id="ball-finish" class="ball-locker__finish">PEBBLED ORANGE RUBBER</p>
           <p id="ball-description" class="ball-locker__description">The regulation-inspired Nova game ball with deep black channels and a warm arena finish.</p>
-          <button id="confirm-ball-selection" class="button button--primary" type="button"><strong>ENTER GAME</strong></button>
+          <button id="confirm-ball-selection" class="button button--primary" type="button"><strong>CHOOSE VENUE</strong></button>
           <p class="ball-locker__hint">Use the arrows to preview / Your choice saves automatically</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="venue-select" class="screen screen--panel screen--venue-select is-hidden" aria-labelledby="venue-select-title">
+      <header class="panel-header">
+        <button id="back-from-venue-select" class="icon-button" type="button" aria-label="Back to Ball Locker">&larr;</button>
+        <div>
+          <span class="overline">FINAL LOADOUT</span>
+          <h2 id="venue-select-title">GYM / VENUE SELECT</h2>
+        </div>
+        <span class="panel-index" aria-label="Setup step 3 of 3">03 / 03</span>
+      </header>
+
+      <div class="venue-locker">
+        <aside class="venue-locker__mode" aria-label="Locked game setup">
+          <span class="venue-locker__mode-index">MODE + BALL LOCKED</span>
+          <h3 id="venue-mode-label">NOVA PARK</h3>
+          <p id="venue-ball-label">CLASSIC ORANGE / PRO DIFFICULTY</p>
+        </aside>
+
+        <div class="venue-locker__picker" aria-label="Choose your gym or venue">
+          <button id="previous-venue" class="venue-arrow" type="button" aria-label="Previous venue">&#8249;</button>
+          <div id="venue-preview" class="venue-locker__preview"></div>
+          <button id="next-venue" class="venue-arrow" type="button" aria-label="Next venue">&#8250;</button>
+          <div id="venue-selection-dots" class="venue-locker__dots" aria-hidden="true"></div>
+        </div>
+
+        <aside class="venue-locker__details" aria-live="polite">
+          <span id="venue-edition" class="venue-locker__edition">VENUE / 01</span>
+          <h3 id="venue-name">MONTGOMERY FIELDHOUSE</h3>
+          <p id="venue-capacity">COMPACT SCHOOL GYM</p>
+          <p id="venue-description">Warm maple, blue pull-out bleachers, close walls, and an intimate home-court atmosphere.</p>
+          <button id="confirm-venue-selection" class="button button--primary" type="button"><strong>ENTER GAME</strong></button>
+          <p class="venue-locker__hint">Live procedural preview / Selection persists for every mode</p>
         </aside>
       </div>
     </section>
