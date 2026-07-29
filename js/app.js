@@ -31,7 +31,7 @@ import {
 import {
   createThreePointRackVisuals,
   getThreePointRackPresentation,
-} from "./three-point-contest.js?v=1.1";
+} from "./three-point-contest.js?v=1.2";
 import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.3";
 import {
   ATTRIBUTE_GROUPS,
@@ -188,6 +188,7 @@ function showMainMenu() {
   setHidden($("#create-player-screen"), true);
   setHidden($("#tutorial-screen"), true);
   setHidden($("#hud"), true);
+  showArcRunCountdown();
   setHidden($("#main-menu"), false);
   app.dataset.state = "menu";
   renderPlayerProfile();
@@ -197,6 +198,7 @@ function showModeSelect() {
   engine?.setPaused(true);
   ballSelectionPreview?.setVisible(false);
   resetShotMeter();
+  showArcRunCountdown();
   for (const id of ["main-menu", "my-player-screen", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
     setHidden($(`#${id}`), true);
   }
@@ -340,6 +342,18 @@ function feedback(text, tone = "neutral", duration = 900) {
   requestAnimationFrame(() => node.classList.add("is-visible"));
   clearTimeout(feedback.timer);
   feedback.timer = setTimeout(() => node.classList.remove("is-visible"), duration);
+}
+
+function showArcRunCountdown(seconds = null) {
+  const overlay = $("#arc-run-countdown");
+  if (!overlay) return;
+  const visible = currentModeKey === "threePoint" && Number(seconds) > 0;
+  if (visible) {
+    const value = String(Math.ceil(Number(seconds)));
+    $("#arc-run-countdown-number").textContent = value;
+    overlay.dataset.seconds = value;
+  }
+  setHidden(overlay, !visible);
 }
 
 function profileMessage(text, tone = "neutral") {
@@ -595,6 +609,9 @@ function createEngine(modeKey, preview = false, roster = null) {
         advanceThreePointContestForQA(sequenceIndex, made),
       jumpThreePointContest: (rackIndex = 0, ballIndex = 0, made = false) =>
         jumpThreePointContestForQA(rackIndex, ballIndex, made),
+      setArcRunCountdown: (seconds = 3) => setArcRunCountdownForQA(seconds),
+      setArcRunGrab: (progress = 0.5, rackIndex = 0, ballIndex = 0) =>
+        setArcRunGrabForQA(progress, rackIndex, ballIndex),
       snapThreePointCamera: () => engine?.snapArcRunCameraForQA?.() || null,
       presentation: () => presentationDirector?.getSnapshot?.() || null,
       sceneLoading: () => ({
@@ -924,7 +941,61 @@ function getThreePointContestQASnapshot() {
     } : null,
     hoop: { ...basket },
     camera: engine?.getArcRunCameraSnapshot?.() || null,
+    grab: engine?.getArcRunGrabSnapshot?.() || null,
+    countdownOverlay: {
+      visible: !$("#arc-run-countdown")?.hidden,
+      seconds: Number($("#arc-run-countdown")?.dataset?.seconds) || 0,
+    },
   };
+}
+
+function setArcRunCountdownForQA(seconds = 3) {
+  if (currentModeKey !== "threePoint" || !mode?.setCountdownForQA) {
+    return { ok: false, reason: "three_point_mode_not_active" };
+  }
+  const state = mode.setCountdownForQA(seconds);
+  processCommands(mode.consumeCommands(), runToken);
+  engine.controls.setEnabled(false);
+  updateHUD();
+  return { ok: true, state, qa: getThreePointContestQASnapshot() };
+}
+
+function setArcRunGrabForQA(progress = 0.5, rackIndex = 0, ballIndex = 0) {
+  if (currentModeKey !== "threePoint" || !mode) {
+    return { ok: false, reason: "three_point_mode_not_active" };
+  }
+  const result = jumpThreePointContestForQA(rackIndex, ballIndex, false);
+  if (!result.ok) return result;
+  const grab = engine?.setArcRunGrabProgressForQA?.(progress) || null;
+  engine?.snapArcRunCameraForQA?.();
+  return { ok: Boolean(grab), grab, qa: getThreePointContestQASnapshot() };
+}
+
+function prepareArcRunCaptureState(name) {
+  startMode("threePoint");
+  const countdownMatch = /^countdown-([123])$/.exec(name);
+  if (countdownMatch) {
+    setArcRunCountdownForQA(Number(countdownMatch[1]));
+  } else if (name === "grab-contact") {
+    setArcRunGrabForQA(0.6, 2, 4);
+  } else if (name === "grab-gather") {
+    setArcRunGrabForQA(0.76, 2, 4);
+  } else if (name === "rack-money-ball") {
+    setArcRunGrabForQA(0.12, 2, 3);
+  }
+  gameActive = false;
+  engine.controls.setEnabled(false);
+  engine.paused = true;
+  engine.snapArcRunCameraForQA?.();
+  engine.render();
+  document.body.classList.add("arc-run-capture-mode");
+  audio.setCaptions(false);
+  for (const id of ["feedback", "subtitles", "toast"]) setHidden($(`#${id}`), true);
+  setHidden($(".caption-bubble"), true);
+  setHidden($(".toast-region"), true);
+  app.dataset.state = "arc-run-capture";
+  app.dataset.arcRunCapture = name;
+  return getThreePointContestQASnapshot();
 }
 
 function processCommands(commands = [], token = runToken) {
@@ -979,17 +1050,20 @@ function processCommands(commands = [], token = runToken) {
         engine.setBasketballStyle(command.ballStyle || "classic");
         contestRackVisuals?.setCurrent(command.rackIndex, command.ballIndex);
         setActiveRackBall(command.sequenceIndex);
-        const expectedSequenceIndex = command.sequenceIndex;
-        setTimeout(() => {
-          if (token !== runToken) return;
-          const contestState = mode?.getState?.();
-          if (currentModeKey !== "threePoint"
-            || contestState?.phase !== MODE_PHASES.LIVE
-            || contestState?.sequenceIndex !== expectedSequenceIndex) return;
-          engine.ball.pickupCooldown = 0;
-          engine.givePossession(engine.controlledPlayer, true);
-          engine.controls.setEnabled(true);
-        }, 90);
+        const placement = contestRackVisuals?.getBallPlacement?.(
+          command.rackIndex,
+          command.ballIndex,
+        );
+        contestRackVisuals?.takeBall?.(command.rackIndex, command.ballIndex);
+        engine.beginArcRunGrab?.({
+          position: placement || {
+            x: command.rack?.propX ?? command.rack?.x,
+            y: 1.01,
+            z: command.rack?.propZ ?? command.rack?.z,
+          },
+          rackIndex: command.rackIndex,
+          ballIndex: command.ballIndex,
+        });
         break;
       }
       case "RETURN_BALL":
@@ -1013,10 +1087,15 @@ function processCommands(commands = [], token = runToken) {
         feedback(command.made ? "CASH · KEEP IT GOING" : "RESET · NEXT REP", command.made ? "good" : "neutral", 700);
         break;
       case "COUNTDOWN":
+        engine.controls.setEnabled(false);
+        showArcRunCountdown(command.seconds);
         feedback(String(command.seconds), "accent", 720);
         audio.playSfx("countdown");
         break;
       case "ANNOUNCE":
+        if (currentModeKey === "threePoint" && command.tone === "start") {
+          showArcRunCountdown();
+        }
         feedback(command.text, command.tone === "overtime" ? "warning" : "good", 1100);
         announcer.announce(command.event || (command.tone === "overtime" ? "overtime" : "score"), { force: true });
         break;
@@ -1387,6 +1466,11 @@ function bindEngineEvents() {
     const fill = $("#stamina-fill");
     if (fill) fill.style.width = `${Math.round(event.value * 100)}%`;
   });
+  engine.on("arcrungrabcomplete", () => {
+    if (currentModeKey !== "threePoint" || mode?.phase !== MODE_PHASES.LIVE) return;
+    engine.controls.setEnabled(true);
+    feedback("BALL SECURED", "accent", 360);
+  });
   engine.on("pause", (event) => {
     if (event.paused) {
       mode?.pause();
@@ -1614,7 +1698,9 @@ function tick(now) {
       const response = mode.update(dt);
       processCommands(response.commands, runToken);
       applyAI(dt);
-      if (mode.phase === MODE_PHASES.LIVE) engine.controls.setEnabled(true);
+      if (mode.phase === MODE_PHASES.LIVE && !engine.getArcRunGrabSnapshot?.().active) {
+        engine.controls.setEnabled(true);
+      }
       if (["duos", "team", "quads"].includes(currentModeKey) && mode.needsClear && engine.ball.owner) {
         const p = engine.ball.owner.root.position;
         if (Math.hypot(p.x, p.z - COURT.basketZ) > 6.2) handleModeEvent("CLEAR_COMPLETE", { teamId: engine.ball.owner.team });
@@ -1913,7 +1999,11 @@ async function boot() {
     $("#loader-copy").textContent = "Calibrating ball physics…";
     updateSceneLoading("boot", "optional", 0.92, ["court-fallback", "court", "hoops", "players", "venue-details"]);
     updateSceneLoading("boot", "ready", 1);
-    if (getProfileSummary(playerProfile).needsOnboarding) {
+    const captureName = new URLSearchParams(location.search).get("arcRunCapture");
+    if (captureName) {
+      prepareArcRunCaptureState(captureName);
+      setHidden($("#loading-screen"), true);
+    } else if (getProfileSummary(playerProfile).needsOnboarding) {
       setHidden($("#loading-screen"), true);
       setHidden($("#create-player-screen"), false);
       app.dataset.state = "onboarding";

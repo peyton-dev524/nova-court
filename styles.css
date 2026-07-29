@@ -907,6 +907,40 @@ kbd {
   animation: count-pop 0.5s var(--ease-out);
 }
 
+.arc-run-countdown {
+  grid-template-rows: 1fr auto 1fr;
+}
+
+.arc-run-countdown span {
+  grid-row: 2;
+  line-height: 0.78;
+}
+
+.arc-run-countdown small {
+  grid-row: 3;
+  align-self: start;
+  margin-top: 2rem;
+  color: var(--paper);
+  font-family: inherit;
+  font-size: clamp(0.78rem, 1.4vw, 1.1rem);
+  font-style: normal;
+  letter-spacing: 0.32em;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.9);
+}
+
+.arc-run-countdown[data-seconds="1"] {
+  color: #78ff9a;
+  text-shadow: 0 0 60px rgba(120, 255, 154, 0.56);
+}
+
+#app[data-state="arc-run-capture"] :is(#feedback, #subtitles, #toast, .caption-bubble) {
+  display: none !important;
+}
+
+.arc-run-capture-mode :is(#feedback, #subtitles, #toast, .caption-bubble, .toast-region) {
+  display: none !important;
+}
+
 @keyframes count-pop {
   from {
     opacity: 0;

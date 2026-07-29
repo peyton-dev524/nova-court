@@ -3,6 +3,7 @@ export const THREE_POINT_NORMAL_BALL_POINTS = 1;
 export const THREE_POINT_MONEY_BALL_POINTS = 2;
 export const THREE_POINT_NORMAL_BALL_STYLE = "classic";
 export const THREE_POINT_MONEY_BALL_STYLE = "redWhiteBlue";
+export const ARC_RUN_GRAB_DURATION = 0.64;
 
 const BASKET = Object.freeze({ x: 0, z: -5.7 });
 
@@ -16,6 +17,40 @@ function normalized2(x, z, fallback = { x: 0, z: -1 }) {
   return length > 1e-9
     ? { x: x / length, z: z / length }
     : { ...fallback };
+}
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+const smoothstep01 = (value) => {
+  const t = clamp01(value);
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Deterministic reach/contact/gather choreography shared by the production
+ * player rig, ball path, QA hooks, and tests.
+ */
+export function sampleArcRunGrab(progress, handSign = 1) {
+  const t = clamp01(progress);
+  const reach = smoothstep01(t / 0.38);
+  const contact = smoothstep01((t - 0.32) / 0.2);
+  const gather = smoothstep01((t - 0.52) / 0.48);
+  const side = handSign < 0 ? -1 : 1;
+  return Object.freeze({
+    progress: t,
+    phase: t < 0.32 ? "reach" : t < 0.62 ? "contact" : t < 1 ? "gather" : "complete",
+    reach,
+    contact,
+    gather,
+    ballBlend: smoothstep01((t - 0.4) / 0.6),
+    handSign: side,
+    activeShoulderPitch: -0.2 - reach * 0.84 + gather * 0.42,
+    activeShoulderRoll: side * (0.1 + reach * 0.46 - gather * 0.34),
+    activeElbow: -0.24 - reach * 0.48 + gather * 0.24,
+    activeWrist: -0.18 * contact + 0.34 * gather,
+    guideShoulderPitch: -0.1 - gather * 0.5,
+    guideShoulderRoll: -side * (0.08 + gather * 0.24),
+    guideElbow: -0.18 - gather * 0.32,
+  });
 }
 
 function authorRack({
@@ -466,6 +501,15 @@ export function createThreePointRackVisuals(T, scene, {
 
   return Object.freeze({
     root,
+    getBallPlacement(rackIndex, ballIndex) {
+      const ball = ballPlacements.find(
+        (entry) => entry.rackIndex === rackIndex && entry.ballIndex === ballIndex,
+      );
+      return ball ? { ...ball.placement } : null;
+    },
+    takeBall(rackIndex, ballIndex) {
+      setConsumed(rackIndex, ballIndex, true);
+    },
     setCurrent(rackIndex, ballIndex) {
       for (const ball of ballPlacements) {
         const consumed = ball.rackIndex < rackIndex

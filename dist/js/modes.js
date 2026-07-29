@@ -554,6 +554,17 @@ export class ThreePointContestMode extends BaseMode {
     if (this.clock === 0) this.#finishRun("time");
   }
 
+  setCountdownForQA(seconds) {
+    const value = clamp(Number(seconds) || 0, 0, this.countdownDuration);
+    this.pendingShot = null;
+    this.clock = this.duration;
+    this.countdown = value;
+    this.setPhase(value > 0 ? MODE_PHASES.COUNTDOWN : MODE_PHASES.LIVE);
+    if (value > 0) this.emit("COUNTDOWN", { seconds: Math.ceil(value) });
+    else this.#spawnCurrentBall();
+    return this.getState();
+  }
+
   onEvent(event) {
     switch (event.type) {
       case "SHOT_ATTEMPT":

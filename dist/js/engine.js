@@ -87,7 +87,11 @@ import {
   playerRigScaleForHeight,
 } from "./player-anatomy.js?v=1.0";
 import { createPlayerHair } from "./player-appearance.js?v=1.0";
-import { createArcRunCameraSnapshot } from "./three-point-contest.js?v=1.1";
+import {
+  ARC_RUN_GRAB_DURATION,
+  createArcRunCameraSnapshot,
+  sampleArcRunGrab,
+} from "./three-point-contest.js?v=1.2";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -351,6 +355,7 @@ export class ProceduralPlayer {
     this.sprintBlend = 0;
     this.defenseBlend = 0;
     this.ballHandlerGuardBlend = 0;
+    this.arcRunGrab = null;
     this.airborneBlend = 0;
     this.metadata = {
       ...(options.metadata || {}),
@@ -806,9 +811,13 @@ export class ProceduralPlayer {
     const dunkPose = action === PLAYER_STATES.DUNK && this.dunkSelection
       ? sampleDunkChoreography(this.dunkSelection, this.dunkProgress)
       : null;
+    const arcRunGrabPose = this.arcRunGrab
+      ? sampleArcRunGrab(this.arcRunGrab.progress, this.arcRunGrab.handSign)
+      : null;
 
     this.hips.position.y = this.baseHipHeight + this.rigGroundOffset + breath
       - landingSquash - defensiveCrouch - moveCrouch
+      - (arcRunGrabPose?.reach || 0) * 0.14
       + Math.abs(stride) * 0.035 * locomotion
       - (shootPose?.dip || 0) * 0.055
       + (shootPose?.torsoLift || 0);
@@ -973,6 +982,18 @@ export class ProceduralPlayer {
         swing = phase * 0.85 * stumble;
         out = phase * 0.95 * stumble;
         elbow = -0.42;
+      } else if (arcRunGrabPose) {
+        const activeArm = arm.side === arcRunGrabPose.handSign;
+        swing = activeArm
+          ? arcRunGrabPose.activeShoulderPitch
+          : arcRunGrabPose.guideShoulderPitch;
+        out = activeArm
+          ? arcRunGrabPose.activeShoulderRoll
+          : arcRunGrabPose.guideShoulderRoll;
+        elbow = activeArm
+          ? arcRunGrabPose.activeElbow
+          : arcRunGrabPose.guideElbow;
+        wristX = activeArm ? arcRunGrabPose.activeWrist : 0;
       } else if (moveActive && this.hasBall) {
         const activeHand = this.dribbleHand > 0 ? 1 : 0;
         const startHand = this.dribbleMoveStartHand > 0 ? 1 : 0;
@@ -1138,6 +1159,7 @@ export class NovaCourtEngine {
     this.difficulty = options.difficulty || "pro";
     this.cameraMode = options.cameraMode || "follow";
     this.arcRunRack = null;
+    this.activeArcRunGrab = null;
     this.cameraShake = 0;
     this.handleFlash = 0;
     this.score = { home: 0, away: 0 };
@@ -2003,6 +2025,105 @@ export class NovaCourtEngine {
   setArcRunRack(rack) {
     this.arcRunRack = rack ? { ...rack } : null;
     return this.arcRunRack;
+  }
+
+  beginArcRunGrab({
+    position,
+    duration = ARC_RUN_GRAB_DURATION,
+    rackIndex = 0,
+    ballIndex = 0,
+  } = {}) {
+    const player = this.controlledPlayer;
+    if (!player || !position) return null;
+    if (this.ball.owner) this.ball.owner.hasBall = false;
+    this.ball.owner = null;
+    player.hasBall = false;
+    this.ball.state = "rack-grab";
+    this.ball.velocity.set(0, 0, 0);
+    this.ball.position.set(
+      Number(position.x) || 0,
+      Number(position.y) || 1.01,
+      Number(position.z) || 0,
+    );
+    this.ball.previousPosition.copy(this.ball.position);
+    this.ball.pickupCooldown = Math.max(0.2, duration);
+    const localStart = this.ball.position.clone()
+      .sub(player.root.position)
+      .applyAxisAngle(this._upAxis, -player.root.rotation.y);
+    const handSign = localStart.x < 0 ? -1 : 1;
+    this.activeArcRunGrab = {
+      player,
+      rackIndex,
+      ballIndex,
+      startedAt: this.elapsed,
+      duration: Math.max(0.2, Number(duration) || ARC_RUN_GRAB_DURATION),
+      start: this.ball.position.clone(),
+      handSign,
+      progress: 0,
+      phase: "reach",
+    };
+    player.arcRunGrab = { progress: 0, handSign };
+    player.actionLock = Math.max(player.actionLock, this.activeArcRunGrab.duration);
+    player.desiredVelocity.set(0, 0, 0);
+    player.velocity.set(0, 0, 0);
+    this.controls.setEnabled(false);
+    this.events.emit("arcrungrab", this.getArcRunGrabSnapshot());
+    return this.getArcRunGrabSnapshot();
+  }
+
+  _updateArcRunGrab() {
+    const grab = this.activeArcRunGrab;
+    if (!grab) return false;
+    const progress = clamp((this.elapsed - grab.startedAt) / grab.duration, 0, 1);
+    const sample = sampleArcRunGrab(progress, grab.handSign);
+    grab.progress = progress;
+    grab.phase = sample.phase;
+    grab.player.arcRunGrab = { progress, handSign: grab.handSign };
+    const target = new this.T.Vector3(grab.handSign * 0.28, 1.16, 0.2)
+      .applyAxisAngle(this._upAxis, grab.player.root.rotation.y)
+      .add(grab.player.root.position);
+    this.ball.position.lerpVectors(grab.start, target, sample.ballBlend);
+    this.ball.previousPosition.copy(this.ball.position);
+    this.ball.velocity.set(0, 0, 0);
+    this.events.emit("arcrungrab", this.getArcRunGrabSnapshot());
+    if (progress < 1) return true;
+    grab.player.arcRunGrab = null;
+    this.activeArcRunGrab = null;
+    this.ball.pickupCooldown = 0;
+    this.givePossession(grab.player, true);
+    this.events.emit("arcrungrabcomplete", {
+      rackIndex: grab.rackIndex,
+      ballIndex: grab.ballIndex,
+    });
+    return true;
+  }
+
+  setArcRunGrabProgressForQA(progress) {
+    if (!this.activeArcRunGrab) return null;
+    const safeProgress = clamp(Number(progress) || 0, 0, 0.999);
+    this.activeArcRunGrab.startedAt = this.elapsed
+      - safeProgress * this.activeArcRunGrab.duration;
+    this._updateArcRunGrab();
+    this._updateVisuals(0.5);
+    this.render();
+    return this.getArcRunGrabSnapshot();
+  }
+
+  getArcRunGrabSnapshot() {
+    const grab = this.activeArcRunGrab;
+    if (!grab) return { active: false };
+    const sample = sampleArcRunGrab(grab.progress, grab.handSign);
+    return {
+      active: true,
+      rackIndex: grab.rackIndex,
+      ballIndex: grab.ballIndex,
+      duration: grab.duration,
+      progress: grab.progress,
+      phase: sample.phase,
+      handSign: grab.handSign,
+      ballBlend: sample.ballBlend,
+      ballPosition: this.ball.position.toArray(),
+    };
   }
 
   getArcRunCameraSnapshot() {
@@ -3368,6 +3489,7 @@ export class NovaCourtEngine {
     const ball = this.ball;
     ball.rimContactCooldown = Math.max(0, ball.rimContactCooldown - dt);
     ball.previousPosition.copy(ball.position);
+    if (this._updateArcRunGrab()) return;
     if (ball.owner) {
       this._updatePossessedBall(dt);
       return;
@@ -4256,6 +4378,7 @@ export class NovaCourtEngine {
     this.chargingShot = false;
     this.queuedRelease = null;
     this.activeDunk = null;
+    this.activeArcRunGrab = null;
     this.shotCharge = 0;
     this.shotInputAction = "shoot";
     this.freeThrowFlow.reset();
@@ -4330,6 +4453,7 @@ export class NovaCourtEngine {
       player.sprintBlend = 0;
       player.defenseBlend = 0;
       player.ballHandlerGuardBlend = 0;
+      player.arcRunGrab = null;
       player.airborneBlend = 0;
       player.gaitPhase = player.animationPhaseOffset;
       player.setState(PLAYER_STATES.IDLE, true);
