@@ -80,6 +80,7 @@ import {
   createBasketballMesh,
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
+import { createArcRunCameraSnapshot } from "./three-point-contest.js?v=1.1";
 
 export const ENGINE_VERSION = "1.0.0";
 
@@ -1109,6 +1110,7 @@ export class NovaCourtEngine {
     this.venue = options.venue === "park" ? "park" : "arena";
     this.difficulty = options.difficulty || "pro";
     this.cameraMode = options.cameraMode || "follow";
+    this.arcRunRack = null;
     this.cameraShake = 0;
     this.handleFlash = 0;
     this.score = { home: 0, away: 0 };
@@ -1957,7 +1959,7 @@ export class NovaCourtEngine {
   }
 
   setCameraMode(mode) {
-    const allowed = ["follow", "broadcast", "cinematic"];
+    const allowed = ["follow", "broadcast", "cinematic", "arc-run"];
     if (!allowed.includes(mode)) return false;
     this.cameraMode = mode;
     this.events.emit("camera", { mode });
@@ -1965,8 +1967,66 @@ export class NovaCourtEngine {
   }
 
   cycleCamera() {
+    if (this.cameraMode === "arc-run") return "arc-run";
     const modes = ["follow", "broadcast", "cinematic"];
     this.setCameraMode(modes[(modes.indexOf(this.cameraMode) + 1) % modes.length]);
+    return this.cameraMode;
+  }
+
+  setArcRunRack(rack) {
+    this.arcRunRack = rack ? { ...rack } : null;
+    return this.arcRunRack;
+  }
+
+  getArcRunCameraSnapshot() {
+    const player = this.controlledPlayer?.root?.position;
+    if (!player) return null;
+    const basket = this._basketForTeam(
+      this.ball.owner?.team || this.possessionTeam || this.controlledPlayer?.team || "home",
+    );
+    const planned = createArcRunCameraSnapshot({
+      shooter: player,
+      basket,
+      rack: this.arcRunRack,
+    });
+    const actualForward = this.cameraTarget.clone().sub(this.camera.position).normalize();
+    const plannedForward = this._scratchD
+      .set(planned.forward.x, 0, planned.forward.z)
+      .normalize();
+    return {
+      ...planned,
+      actualPosition: this.camera.position.toArray(),
+      actualTarget: this.cameraTarget.toArray(),
+      actualFov: this.camera.fov,
+      actualTowardHoopDot: actualForward.x * plannedForward.x
+        + actualForward.z * plannedForward.z,
+    };
+  }
+
+  snapArcRunCameraForQA() {
+    if (this.cameraMode !== "arc-run" || !this.controlledPlayer) return null;
+    const basket = this._basketForTeam(
+      this.ball.owner?.team || this.possessionTeam || this.controlledPlayer.team || "home",
+    );
+    const snapshot = createArcRunCameraSnapshot({
+      shooter: this.controlledPlayer.root.position,
+      basket,
+      rack: this.arcRunRack,
+    });
+    this.camera.position.set(
+      snapshot.position.x,
+      snapshot.position.y,
+      snapshot.position.z,
+    );
+    this.cameraTarget.set(
+      snapshot.target.x,
+      snapshot.target.y,
+      snapshot.target.z,
+    );
+    this.camera.fov = snapshot.fov;
+    this.camera.updateProjectionMatrix();
+    this.camera.lookAt(this.cameraTarget);
+    return this.getArcRunCameraSnapshot();
   }
 
   start() {
@@ -3737,7 +3797,24 @@ export class NovaCourtEngine {
     const isShot = !this.ball.owner && this.ball.state === "shot";
     let desiredFov = 42;
     const activeBasket = this._basketForTeam(this.ball.owner?.team || this.possessionTeam || this.controlledPlayer?.team || "home");
-    if (this.cameraMode === "broadcast") {
+    if (this.cameraMode === "arc-run") {
+      const snapshot = createArcRunCameraSnapshot({
+        shooter: player,
+        basket: activeBasket,
+        rack: this.arcRunRack,
+      });
+      desired.set(
+        snapshot.position.x,
+        snapshot.position.y,
+        snapshot.position.z,
+      );
+      target.set(
+        snapshot.target.x,
+        snapshot.target.y,
+        snapshot.target.z,
+      );
+      desiredFov = snapshot.fov;
+    } else if (this.cameraMode === "broadcast") {
       const actionX = clamp((focus.x + player.x) * 0.16, -1.2, 1.2);
       if (this.courtRuntime.kind === "full") {
         const trackZ = clamp(focus.z * 0.72 + player.z * 0.28,

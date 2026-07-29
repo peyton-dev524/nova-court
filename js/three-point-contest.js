@@ -6,51 +6,220 @@ export const THREE_POINT_MONEY_BALL_STYLE = "redWhiteBlue";
 
 const BASKET = Object.freeze({ x: 0, z: -5.7 });
 
-// Shooter spots sit just outside the authored 6.35 m arc. Rack props are
-// offset beside the shooter so neither the player nor the automatic ball handoff
-// intersects the frame.
+export const NBA_CORNER_THREE_METERS = 22 * 0.3048;
+export const NBA_ABOVE_BREAK_THREE_METERS = 23.75 * 0.3048;
+export const THREE_POINT_WING_ANGLE_RADIANS = Math.PI / 4;
+export const THREE_POINT_RACK_REACH_OFFSET = 1.05;
+
+function normalized2(x, z, fallback = { x: 0, z: -1 }) {
+  const length = Math.hypot(x, z);
+  return length > 1e-9
+    ? { x: x / length, z: z / length }
+    : { ...fallback };
+}
+
+function authorRack({
+  id,
+  label,
+  x,
+  z,
+  tangentSign,
+}) {
+  const shooterToHoop = normalized2(BASKET.x - x, BASKET.z - z);
+  const tangent = {
+    x: -shooterToHoop.z * tangentSign,
+    z: shooterToHoop.x * tangentSign,
+  };
+  const propX = x + tangent.x * THREE_POINT_RACK_REACH_OFFSET;
+  const propZ = z + tangent.z * THREE_POINT_RACK_REACH_OFFSET;
+  const rackForward = normalized2(BASKET.x - propX, BASKET.z - propZ);
+  const rackTangent = { x: -rackForward.z, z: rackForward.x };
+  return Object.freeze({
+    id,
+    label,
+    x,
+    z,
+    propX,
+    propZ,
+    forwardX: rackForward.x,
+    forwardZ: rackForward.z,
+    tangentX: rackTangent.x,
+    tangentZ: rackTangent.z,
+    yaw: Math.atan2(rackForward.x, rackForward.z),
+  });
+}
+
+// NBA's piecewise line is 22 ft in the corners and 23 ft 9 in above the
+// break. The wing stations use sin/cos at 45 degrees around the rim. Corner
+// stations sit 0.48 m up-court from the rim center to keep the avatar inside
+// this game's compact half-court while remaining only 1.7 cm beyond 22 ft.
+const cornerZ = BASKET.z + 0.48;
+const wingX = Math.sin(THREE_POINT_WING_ANGLE_RADIANS) * NBA_ABOVE_BREAK_THREE_METERS;
+const wingZ = BASKET.z
+  + Math.cos(THREE_POINT_WING_ANGLE_RADIANS) * NBA_ABOVE_BREAK_THREE_METERS;
+const topZ = BASKET.z + NBA_ABOVE_BREAK_THREE_METERS;
+
 export const THREE_POINT_RACKS = Object.freeze([
-  Object.freeze({
+  authorRack({
     id: "left_corner",
     label: "Left Corner",
-    x: -6.48,
-    z: -4.84,
-    propX: -6.95,
-    propZ: -4.18,
+    x: -NBA_CORNER_THREE_METERS,
+    z: cornerZ,
+    tangentSign: -1,
   }),
-  Object.freeze({
+  authorRack({
     id: "left_wing",
     label: "Left Wing",
-    x: -5.36,
-    z: -1.94,
-    propX: -5.88,
-    propZ: -1.42,
+    x: -wingX,
+    z: wingZ,
+    tangentSign: 1,
   }),
-  Object.freeze({
+  authorRack({
     id: "top",
     label: "Top of Arc",
     x: 0,
-    z: 0.76,
-    propX: 0.7,
-    propZ: 0.92,
+    z: topZ,
+    tangentSign: -1,
   }),
-  Object.freeze({
+  authorRack({
     id: "right_wing",
     label: "Right Wing",
-    x: 5.36,
-    z: -1.94,
-    propX: 5.88,
-    propZ: -1.42,
+    x: wingX,
+    z: wingZ,
+    tangentSign: -1,
   }),
-  Object.freeze({
+  authorRack({
     id: "right_corner",
     label: "Right Corner",
-    x: 6.48,
-    z: -4.84,
-    propX: 6.95,
-    propZ: -4.18,
+    x: NBA_CORNER_THREE_METERS,
+    z: cornerZ,
+    tangentSign: 1,
   }),
 ]);
+
+export function getThreePointRackPresentation(rack, basket = BASKET) {
+  const shooter = {
+    x: Number(rack?.x) || 0,
+    z: Number(rack?.z) || 0,
+  };
+  const prop = {
+    x: Number(rack?.propX ?? rack?.x) || 0,
+    z: Number(rack?.propZ ?? rack?.z) || 0,
+  };
+  const forward = normalized2(
+    (Number(basket?.x) || 0) - prop.x,
+    (Number(basket?.z) || 0) - prop.z,
+  );
+  const tangent = { x: -forward.z, z: forward.x };
+  const shooterToHoop = normalized2(
+    (Number(basket?.x) || 0) - shooter.x,
+    (Number(basket?.z) || 0) - shooter.z,
+  );
+  const rackToShooter = normalized2(shooter.x - prop.x, shooter.z - prop.z);
+  return Object.freeze({
+    shooter,
+    prop,
+    forward,
+    tangent,
+    yaw: Math.atan2(forward.x, forward.z),
+    distanceToHoop: Math.hypot(shooter.x - (basket.x || 0), shooter.z - (basket.z || 0)),
+    playerRackDistance: Math.hypot(prop.x - shooter.x, prop.z - shooter.z),
+    forwardToHoopDot: forward.x * normalized2(
+      (basket.x || 0) - prop.x,
+      (basket.z || 0) - prop.z,
+    ).x + forward.z * normalized2(
+      (basket.x || 0) - prop.x,
+      (basket.z || 0) - prop.z,
+    ).z,
+    tangentForwardDot: tangent.x * forward.x + tangent.z * forward.z,
+    shooterFacingHoopDot: shooterToHoop.x * shooterToHoop.x
+      + shooterToHoop.z * shooterToHoop.z,
+    rackSideDot: rackToShooter.x * tangent.x + rackToShooter.z * tangent.z,
+  });
+}
+
+export function createArcRunCameraSnapshot({
+  shooter,
+  basket = BASKET,
+  rack = null,
+  behindDistance = 3.15,
+  shoulderOffset = 0.58,
+  height = 2.15,
+  cameraBounds = { halfWidth: 6.98, halfLength: 6.8 },
+} = {}) {
+  const player = {
+    x: Number(shooter?.x) || 0,
+    y: Number(shooter?.y) || 0,
+    z: Number(shooter?.z) || 0,
+  };
+  const hoop = {
+    x: Number(basket?.x) || 0,
+    y: Number(basket?.y) || 3.05,
+    z: Number(basket?.z) || -5.7,
+  };
+  const forward = normalized2(hoop.x - player.x, hoop.z - player.z);
+  const right = { x: forward.z, z: -forward.x };
+  const rackVector = rack
+    ? normalized2(
+      Number(rack.propX ?? rack.x) - player.x,
+      Number(rack.propZ ?? rack.z) - player.z,
+      right,
+    )
+    : right;
+  const rackSide = Math.sign(rackVector.x * right.x + rackVector.z * right.z) || 1;
+  const shoulderSign = -rackSide;
+  const requestedShoulderX = right.x * shoulderOffset * shoulderSign;
+  const requestedShoulderZ = right.z * shoulderOffset * shoulderSign;
+  const maxBehindX = Math.abs(forward.x) > 1e-6
+    ? Math.max(0.2, (
+      cameraBounds.halfWidth - Math.abs(player.x + requestedShoulderX)
+    ) / Math.abs(forward.x))
+    : behindDistance;
+  const maxBehindZ = Math.abs(forward.z) > 1e-6
+    ? Math.max(0.2, (
+      cameraBounds.halfLength - Math.abs(player.z + requestedShoulderZ)
+    ) / Math.abs(forward.z))
+    : behindDistance;
+  const boundedBehindDistance = Math.min(behindDistance, maxBehindX, maxBehindZ);
+  const boundedShoulderOffset = shoulderOffset;
+  const shoulderX = right.x * boundedShoulderOffset * shoulderSign;
+  const shoulderZ = right.z * boundedShoulderOffset * shoulderSign;
+  const position = {
+    x: Math.max(
+      -cameraBounds.halfWidth,
+      Math.min(cameraBounds.halfWidth, player.x - forward.x * boundedBehindDistance + shoulderX),
+    ),
+    y: player.y + height,
+    z: Math.max(
+      -cameraBounds.halfLength,
+      Math.min(cameraBounds.halfLength, player.z - forward.z * boundedBehindDistance + shoulderZ),
+    ),
+  };
+  const aimDistance = Math.min(
+    3.8,
+    Math.hypot(hoop.x - player.x, hoop.z - player.z) * 0.54,
+    0.4 + boundedBehindDistance * 1.6,
+  );
+  const target = {
+    x: player.x + forward.x * aimDistance,
+    y: 1.75,
+    z: player.z + forward.z * aimDistance,
+  };
+  const cameraToTarget = normalized2(target.x - position.x, target.z - position.z);
+  const shooterToCamera = normalized2(position.x - player.x, position.z - player.z);
+  return Object.freeze({
+    position: Object.freeze(position),
+    target: Object.freeze(target),
+    forward: Object.freeze(forward),
+    right: Object.freeze(right),
+    fov: 47 + (behindDistance - boundedBehindDistance) * 3.6,
+    behindDistance: boundedBehindDistance,
+    requestedBehindDistance: behindDistance,
+    shoulderOffset: boundedShoulderOffset * shoulderSign,
+    behindShooterDot: shooterToCamera.x * -forward.x + shooterToCamera.z * -forward.z,
+    cameraTowardHoopDot: cameraToTarget.x * forward.x + cameraToTarget.z * forward.z,
+  });
+}
 
 function asPositiveInteger(value, fallback) {
   const number = Math.floor(Number(value));
@@ -101,6 +270,7 @@ function placeInstance(T, mesh, index, {
   y,
   z,
   yaw = 0,
+  pitch = 0,
   scaleX = 1,
   scaleY = 1,
   scaleZ = 1,
@@ -108,6 +278,7 @@ function placeInstance(T, mesh, index, {
   const helper = new T.Object3D();
   helper.position.set(x, y, z);
   helper.rotation.y = yaw;
+  helper.rotation.x = pitch;
   helper.scale.set(scaleX, scaleY, scaleZ);
   helper.updateMatrix();
   mesh.setMatrixAt(index, helper.matrix);
@@ -153,11 +324,20 @@ export function createThreePointRackVisuals(T, scene, {
     roughness: 0.82,
     metalness: 0,
   });
+  const frontCueMaterial = new T.MeshStandardMaterial({
+    color: 0x38e8ff,
+    emissive: 0x073b4a,
+    emissiveIntensity: 0.42,
+    roughness: 0.4,
+    metalness: 0.55,
+  });
 
   const rackCount = racks.length;
   const shelfGeometry = new T.BoxGeometry(1.55, 0.055, 0.34);
   const legGeometry = new T.BoxGeometry(0.07, 0.78, 0.07);
   const braceGeometry = new T.BoxGeometry(1.42, 0.06, 0.06);
+  const railGeometry = new T.BoxGeometry(1.48, 0.065, 0.065);
+  const wheelGeometry = new T.BoxGeometry(0.13, 0.13, 0.09);
   const ballGeometry = new T.SphereGeometry(0.12, 16, 12);
   const bandGeometry = new T.TorusGeometry(0.121, 0.014, 6, 20);
 
@@ -165,6 +345,9 @@ export function createThreePointRackVisuals(T, scene, {
   const leftLeg = new T.InstancedMesh(legGeometry, rackMaterial, rackCount);
   const rightLeg = new T.InstancedMesh(legGeometry, rackMaterial, rackCount);
   const brace = new T.InstancedMesh(braceGeometry, rackMaterial, rackCount);
+  const backRail = new T.InstancedMesh(railGeometry, rackMaterial, rackCount);
+  const frontCue = new T.InstancedMesh(railGeometry, frontCueMaterial, rackCount);
+  const wheels = new T.InstancedMesh(wheelGeometry, rackMaterial, rackCount * 2);
   const normalCount = rackCount * Math.max(0, ballsPerRack - 1);
   const normalBalls = new T.InstancedMesh(ballGeometry, orangeMaterial, normalCount);
   const moneyBalls = new T.InstancedMesh(ballGeometry, moneyBaseMaterial, rackCount);
@@ -175,6 +358,9 @@ export function createThreePointRackVisuals(T, scene, {
     leftLeg,
     rightLeg,
     brace,
+    backRail,
+    frontCue,
+    wheels,
     normalBalls,
     moneyBalls,
     moneyRedBands,
@@ -186,12 +372,11 @@ export function createThreePointRackVisuals(T, scene, {
   racks.forEach((rack, rackIndex) => {
     const x = Number(rack.propX ?? rack.x) || 0;
     const z = Number(rack.propZ ?? rack.z) || 0;
-    const yaw = Math.atan2(BASKET.x - x, BASKET.z - z);
-    placeInstance(T, shelf, rackIndex, { x, y: 0.82, z, yaw });
-    const tangentX = Math.cos(yaw);
-    const tangentZ = -Math.sin(yaw);
-    const forwardX = Math.sin(yaw);
-    const forwardZ = Math.cos(yaw);
+    const presentation = getThreePointRackPresentation(rack);
+    const { yaw } = presentation;
+    const { x: tangentX, z: tangentZ } = presentation.tangent;
+    const { x: forwardX, z: forwardZ } = presentation.forward;
+    placeInstance(T, shelf, rackIndex, { x, y: 0.82, z, yaw, pitch: 0.075 });
     for (const [mesh, localX] of [[leftLeg, -0.62], [rightLeg, 0.62]]) {
       placeInstance(T, mesh, rackIndex, {
         x: x + tangentX * localX,
@@ -201,6 +386,26 @@ export function createThreePointRackVisuals(T, scene, {
       });
     }
     placeInstance(T, brace, rackIndex, { x, y: 0.27, z, yaw });
+    placeInstance(T, backRail, rackIndex, {
+      x: x - forwardX * 0.19,
+      y: 1.2,
+      z: z - forwardZ * 0.19,
+      yaw,
+    });
+    placeInstance(T, frontCue, rackIndex, {
+      x: x + forwardX * 0.19,
+      y: 0.75,
+      z: z + forwardZ * 0.19,
+      yaw,
+    });
+    for (const [wheelOffset, localX] of [[rackIndex * 2, -0.62], [rackIndex * 2 + 1, 0.62]]) {
+      placeInstance(T, wheels, wheelOffset, {
+        x: x + tangentX * localX - forwardX * 0.16,
+        y: 0.12,
+        z: z + tangentZ * localX - forwardZ * 0.16,
+        yaw,
+      });
+    }
 
     for (let ballIndex = 0; ballIndex < ballsPerRack; ballIndex += 1) {
       const localX = (ballIndex - (ballsPerRack - 1) / 2) * 0.285;
@@ -278,6 +483,10 @@ export function createThreePointRackVisuals(T, scene, {
         rackCount,
         ballCount: rackCount * ballsPerRack,
         drawCalls: root.children.length,
+        racks: racks.map((rack) => ({
+          id: rack.id,
+          ...getThreePointRackPresentation(rack),
+        })),
       };
     },
   });
