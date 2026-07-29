@@ -53,6 +53,7 @@ import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
 import {
   basketballShoeLowerLegFit,
   createBasketballShoe,
+  normalizeBasketballShoeColorway,
   normalizeBasketballShoeStyle,
 } from "./basketball-shoes.js?v=1.3";
 import {
@@ -375,6 +376,9 @@ export class ProceduralPlayer {
       shoeStyleId: normalizeBasketballShoeStyle(
         options.shoeStyleId ?? options.shoeStyle ?? options.metadata?.shoeStyleId,
       ),
+      shoeColorwayId: normalizeBasketballShoeColorway(
+        options.shoeColorwayId ?? options.metadata?.shoeColorwayId,
+      ),
     };
     this.colors = {
       jersey: options.jerseyColor ?? options.primary ?? (this.team === "home" ? 0x32e6c4 : 0xff5a76),
@@ -620,6 +624,7 @@ export class ProceduralPlayer {
       this.detailMeshes.push(sockMesh);
       const shoe = createBasketballShoe(T, {
         styleId: this.metadata.shoeStyleId,
+        colorwayId: this.metadata.shoeColorwayId,
         shellColor: this.colors.shoes,
         accentColor: this.colors.trim,
         detail: "high",

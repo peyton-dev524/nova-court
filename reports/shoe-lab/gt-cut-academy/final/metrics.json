@@ -1,0 +1,34 @@
+{
+  "styleId": "cut-academy",
+  "colorwayId": "glacier-silver",
+  "dimensionsMeters": {
+    "length": 0.296999990940094,
+    "width": 0.11135944724082947,
+    "height": 0.10409871772490442
+  },
+  "targetDimensionsMeters": {
+    "length": 0.297,
+    "width": 0.109,
+    "height": 0.105
+  },
+  "runtime": {
+    "triangles": 5840,
+    "drawCallsFactory": 19,
+    "drawCallsLab": 20,
+    "materials": 9,
+    "textures": 0,
+    "fpsObserved": 60
+  },
+  "multiAngle": {
+    "degenerate": false,
+    "profileAreaFraction": 0.14487697791688403,
+    "threeQuarterToProfileAreaRatio": 0.6437251519015827,
+    "topToProfileAreaRatio": 0.6200210036756433
+  },
+  "visualReview": {
+    "strictSpec": "pass",
+    "referenceFidelityGate": "fail",
+    "silhouetteIoU": 0.2562,
+    "reason": "The output is a stylized original NOVA study, not an exact branded geometry or logo reproduction; profile height and panel silhouette intentionally diverge."
+  }
+}

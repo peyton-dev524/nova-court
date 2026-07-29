@@ -1,9 +1,9 @@
 import {
+  BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLES,
-  PRECISION_7_COLORWAYS,
   createBasketballShoe,
+  normalizeBasketballShoeColorway,
   normalizeBasketballShoeStyle,
-  normalizePrecision7Colorway,
 } from "./basketball-shoes.js?v=1.3";
 
 const T = globalThis.THREE;
@@ -11,10 +11,12 @@ if (!T) throw new Error("Shoe Lab requires THREE.");
 
 const $ = (selector) => document.querySelector(selector);
 const query = new URLSearchParams(location.search);
+const reviewMode = query.get("review") === "1";
+document.body.classList.toggle("reference-review", reviewMode);
 const viewNames = Object.freeze(["front", "three-quarter", "profile", "top", "outsole"]);
 const state = {
   styleId: normalizeBasketballShoeStyle(query.get("shoe") || "precision-7"),
-  colorwayId: normalizePrecision7Colorway(query.get("colorway")),
+  colorwayId: normalizeBasketballShoeColorway(query.get("colorway")),
   view: viewNames.includes(query.get("view")) ? query.get("view") : "three-quarter",
   wireframe: query.get("wireframe") === "1",
   guides: query.get("guides") !== "0",
@@ -26,8 +28,8 @@ const state = {
 
 const stage = $("#shoe-lab-stage");
 const scene = new T.Scene();
-scene.background = new T.Color(0x071018);
-scene.fog = new T.Fog(0x071018, 1.7, 4.5);
+scene.background = new T.Color(reviewMode ? 0xf5f5f3 : 0x071018);
+scene.fog = new T.Fog(reviewMode ? 0xf5f5f3 : 0x071018, 1.7, 4.5);
 
 const camera = new T.PerspectiveCamera(35, 1, 0.01, 20);
 const renderer = new T.WebGLRenderer({
@@ -68,7 +70,7 @@ scene.add(outsoleLight);
 
 const floor = new T.Mesh(
   new T.CircleGeometry(0.58, 64),
-  new T.MeshStandardMaterial({ color: 0x0d1a22, roughness: 0.92, metalness: 0 }),
+  new T.MeshStandardMaterial({ color: reviewMode ? 0xefefec : 0x0d1a22, roughness: 0.92, metalness: 0 }),
 );
 floor.rotation.x = -Math.PI * 0.5;
 floor.position.y = -0.013;
@@ -78,6 +80,7 @@ const grid = new T.GridHelper(1.2, 24, 0x2d7e91, 0x17343d);
 grid.position.y = -0.011;
 grid.material.transparent = true;
 grid.material.opacity = 0.28;
+grid.visible = !reviewMode;
 scene.add(grid);
 
 const styleSelect = $("#shoe-lab-style");
@@ -88,7 +91,7 @@ styleSelect.replaceChildren(...BASKETBALL_SHOE_STYLES.map((style) => {
   option.textContent = style.name;
   return option;
 }));
-colorwaySelect.replaceChildren(...PRECISION_7_COLORWAYS.map((colorway) => {
+colorwaySelect.replaceChildren(...BASKETBALL_SHOE_COLORWAYS.map((colorway) => {
   const option = document.createElement("option");
   option.value = colorway.id;
   option.textContent = colorway.name;
@@ -146,7 +149,7 @@ function updateLabels() {
   });
   styleSelect.value = state.styleId;
   colorwaySelect.value = state.colorwayId;
-  colorwaySelect.disabled = state.styleId !== "precision-7";
+  colorwaySelect.disabled = false;
   $("#shoe-lab-view").value = state.view;
   $("#shoe-lab-turntable").checked = state.turntable;
   $("#shoe-lab-wireframe").checked = state.wireframe;
@@ -192,7 +195,7 @@ function buildShoe() {
 
 function updateCamera() {
   const span = Math.max(shoeSize.x, shoeSize.y, shoeSize.z);
-  const distance = span * 2.55 * state.zoom;
+  const distance = span * (reviewMode ? 1.95 : 2.55) * state.zoom;
   const target = shoeCenter.clone();
   camera.up.set(0, 1, 0);
   if (state.view === "front") {
@@ -219,7 +222,7 @@ function updateCamera() {
   }
   camera.lookAt(target);
   boxHelper.visible = state.guides;
-  grid.visible = state.guides && state.view !== "outsole";
+  grid.visible = !reviewMode && state.guides && state.view !== "outsole";
   floor.visible = state.view !== "outsole";
 }
 
@@ -243,7 +246,7 @@ function setStyle(styleId) {
 }
 
 function setColorway(colorwayId) {
-  const next = normalizePrecision7Colorway(colorwayId);
+  const next = normalizeBasketballShoeColorway(colorwayId);
   if (next !== colorwayId) return false;
   state.colorwayId = next;
   buildShoe();
@@ -361,7 +364,7 @@ globalThis.__NOVA_SHOE_LAB__ = Object.freeze({
         ...(shoe.root.userData.sculptRuntime?.inferredSurfaces || []),
       ]),
       availableStyles: BASKETBALL_SHOE_STYLES.map(({ id }) => id),
-      availableColorways: PRECISION_7_COLORWAYS.map(({ id }) => id),
+      availableColorways: BASKETBALL_SHOE_COLORWAYS.map(({ id }) => id),
       assetLoadStatus: "procedural-no-external-models",
     });
   },

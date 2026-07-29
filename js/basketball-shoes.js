@@ -5,6 +5,7 @@ export const BASKETBALL_SHOE_STYLE_IDS = Object.freeze([
   "nova-flight",
   "court-classic",
   "precision-7",
+  "cut-academy",
 ]);
 
 export const BASKETBALL_SHOE_STYLES = Object.freeze([
@@ -22,6 +23,11 @@ export const BASKETBALL_SHOE_STYLES = Object.freeze([
     id: "precision-7",
     name: "Precision 7 Study",
     description: "Stylized low-top mesh court shoe with a sculpted foam sole",
+  }),
+  Object.freeze({
+    id: "cut-academy",
+    name: "NOVA Cut Academy",
+    description: "Stylized low-top speed shoe with dual foam and directional traction",
   }),
 ]);
 
@@ -51,7 +57,20 @@ export const PRECISION_7_DIMENSIONS = Object.freeze({
   modelUnitsPerMeter: 1,
 });
 
-export const PRECISION_7_COLORWAYS = Object.freeze([
+export const CUT_ACADEMY_DIMENSIONS = Object.freeze({
+  sourcedFootLengthMeters: 0.271,
+  lengthMeters: 0.297,
+  widthMeters: 0.109,
+  heightMeters: 0.105,
+  toleranceMeters: Object.freeze({
+    length: 0.003,
+    width: 0.0025,
+    height: 0.003,
+  }),
+  modelUnitsPerMeter: 1,
+});
+
+export const BASKETBALL_SHOE_COLORWAYS = Object.freeze([
   Object.freeze({
     id: "summit-silver",
     name: "Summit Silver",
@@ -85,18 +104,54 @@ export const PRECISION_7_COLORWAYS = Object.freeze([
     lace: 0xdde3d7,
     lining: 0x090a0c,
   }),
+  Object.freeze({
+    id: "glacier-silver",
+    name: "Glacier Silver",
+    upper: 0x84dfe2,
+    upperShade: 0x4fb8c3,
+    midsole: 0xf7f7f5,
+    outsole: 0xd7dcde,
+    mark: 0x8f989f,
+    lace: 0xf4ffff,
+    lining: 0x438d96,
+  }),
+  Object.freeze({
+    id: "ember-ice",
+    name: "Ember Ice",
+    upper: 0xf16a45,
+    upperShade: 0xc9412f,
+    midsole: 0xf4f7f7,
+    outsole: 0x202a32,
+    mark: 0x91e4f5,
+    lace: 0xffeee6,
+    lining: 0x52261f,
+  }),
 ]);
 
-export function normalizePrecision7Colorway(value) {
-  return PRECISION_7_COLORWAYS.some((colorway) => colorway.id === value)
+export const PRECISION_7_COLORWAYS = BASKETBALL_SHOE_COLORWAYS;
+export const CUT_ACADEMY_COLORWAYS = BASKETBALL_SHOE_COLORWAYS;
+
+export function normalizeBasketballShoeColorway(value) {
+  return BASKETBALL_SHOE_COLORWAYS.some((colorway) => colorway.id === value)
     ? value
-    : PRECISION_7_COLORWAYS[0].id;
+    : BASKETBALL_SHOE_COLORWAYS[0].id;
+}
+
+export function basketballShoeColorway(value) {
+  const id = normalizeBasketballShoeColorway(value);
+  return BASKETBALL_SHOE_COLORWAYS.find((colorway) => colorway.id === id);
+}
+
+export function normalizePrecision7Colorway(value) {
+  return normalizeBasketballShoeColorway(value);
 }
 
 export function precision7Colorway(value) {
-  const id = normalizePrecision7Colorway(value);
-  return PRECISION_7_COLORWAYS.find((colorway) => colorway.id === id);
+  return basketballShoeColorway(value);
 }
+
+export const normalizeCutAcademyColorway = normalizeBasketballShoeColorway;
+export const cutAcademyColorway = basketballShoeColorway;
 
 export function precision7EllipsePoint(halfWidth, halfHeight, angle) {
   return Object.freeze({
@@ -124,6 +179,31 @@ export function precision7HalfWidth(normalizedLength) {
   const waist = Math.exp(-(((z + 0.15) / 0.34) ** 2)) * 0.031;
   const forefoot = Math.exp(-(((z - 0.53) / 0.43) ** 2)) * 0.054;
   const toeTaper = 1 - Math.max(0, (z - 0.7) / 0.3) ** 1.6 * 0.42;
+  return Math.max(heel, waist, forefoot) * toeTaper;
+}
+
+export function cutAcademyEllipsePoint(halfWidth, halfHeight, angle) {
+  return Object.freeze({
+    x: Math.cos(angle) * halfWidth,
+    y: Math.sin(angle) * halfHeight,
+  });
+}
+
+export function cutAcademyRockerHeight(normalizedLength) {
+  const z = Math.max(-1, Math.min(1, Number(normalizedLength) || 0));
+  const toeProgress = Math.max(0, (z - 0.5) / 0.5);
+  const heelProgress = Math.max(0, (-z - 0.78) / 0.22);
+  return 0.002
+    + (1 - Math.cos(toeProgress * Math.PI * 0.5)) * 0.011
+    + (1 - Math.cos(heelProgress * Math.PI * 0.5)) * 0.0022;
+}
+
+export function cutAcademyHalfWidth(normalizedLength) {
+  const z = Math.max(-1, Math.min(1, Number(normalizedLength) || 0));
+  const heel = Math.exp(-(((z + 0.8) / 0.31) ** 2)) * 0.042;
+  const waist = Math.exp(-(((z + 0.08) / 0.35) ** 2)) * 0.0315;
+  const forefoot = Math.exp(-(((z - 0.5) / 0.42) ** 2)) * 0.0545;
+  const toeTaper = 1 - Math.max(0, (z - 0.7) / 0.3) ** 1.55 * 0.45;
   return Math.max(heel, waist, forefoot) * toeTaper;
 }
 
@@ -178,6 +258,21 @@ const BASKETBALL_SHOE_LOWER_LEG_FITS = Object.freeze({
       rotationX: -0.025,
     }),
     collarJoinY: -0.506,
+    collarInnerRadius: 0.052,
+  }),
+  "cut-academy": Object.freeze({
+    shin: Object.freeze({ length: 0.28, centerY: -0.218 }),
+    sock: Object.freeze({
+      radiusTop: 0.079,
+      radiusBottom: 0.05,
+      height: 0.17,
+      centerY: -0.397,
+    }),
+    shoe: Object.freeze({
+      position: Object.freeze([0, -0.603, 0.08]),
+      rotationX: -0.025,
+    }),
+    collarJoinY: -0.507,
     collarInnerRadius: 0.052,
   }),
 });
@@ -431,42 +526,49 @@ function triangleCount(root) {
 export function createNovaFlightShoe(T, {
   shellColor = 0xeefcff,
   accentColor = 0x67e9ff,
+  colorwayId = null,
   detail = DEFAULT_DETAIL,
   side = 1,
 } = {}) {
   const root = new T.Group();
   root.name = "nova-flight-shoe";
+  const colorway = colorwayId === null ? null : basketballShoeColorway(colorwayId);
+  const resolvedShell = colorway?.upper ?? shellColor;
+  const resolvedAccent = colorway?.mark ?? accentColor;
+  const resolvedMidsole = colorway?.midsole ?? colorShift(T, resolvedShell, 0.1);
+  const resolvedOutsole = colorway?.outsole ?? 0x11151a;
+  const resolvedLining = colorway?.lining ?? 0x171b20;
 
   const shell = new T.MeshPhysicalMaterial({
-    color: shellColor,
+    color: resolvedShell,
     roughness: 0.38,
     metalness: 0.02,
     clearcoat: 0.28,
     clearcoatRoughness: 0.32,
   });
   const shellShade = new T.MeshPhysicalMaterial({
-    color: colorShift(T, shellColor, -0.045),
+    color: colorway?.upperShade ?? colorShift(T, resolvedShell, -0.045),
     roughness: 0.44,
     metalness: 0.01,
     clearcoat: 0.14,
   });
   const foam = new T.MeshStandardMaterial({
-    color: colorShift(T, shellColor, 0.1),
+    color: resolvedMidsole,
     roughness: 0.76,
     metalness: 0,
   });
   const rubber = new T.MeshStandardMaterial({
-    color: 0x11151a,
+    color: resolvedOutsole,
     roughness: 0.88,
     metalness: 0.01,
   });
   const textile = new T.MeshStandardMaterial({
-    color: 0x171b20,
+    color: resolvedLining,
     roughness: 0.94,
     metalness: 0,
   });
   const accent = new T.MeshPhysicalMaterial({
-    color: accentColor,
+    color: resolvedAccent,
     roughness: 0.2,
     metalness: 0.08,
     clearcoat: 0.62,
@@ -668,6 +770,9 @@ export function createNovaFlightShoe(T, {
 
   root.userData.sculptRuntime = {
     id: "nova-flight-shoe",
+    styleId: "nova-flight",
+    colorwayId: colorway?.id ?? "legacy-flight",
+    colorwayName: colorway?.name ?? "Legacy Flight",
     socket: "foot",
     inferredSurfaces: ["medial-shell", "outsole-tread"],
     detailTier: detail,
@@ -761,29 +866,36 @@ export function createNovaCourtClassicShoe(T, {
   accentColor = 0x102d47,
   rubberColor = 0xe8e0c4,
   laceColor = 0xf0ead8,
+  colorwayId = null,
   detail = DEFAULT_DETAIL,
   side = 1,
 } = {}) {
   const root = new T.Group();
   root.name = "nova-court-classic-shoe";
+  const colorway = colorwayId === null ? null : basketballShoeColorway(colorwayId);
+  const resolvedShell = colorway?.upper ?? shellColor;
+  const resolvedAccent = colorway?.mark ?? accentColor;
+  const resolvedRubber = colorway?.midsole ?? rubberColor;
+  const resolvedLace = colorway?.lace ?? laceColor;
+  const resolvedOutsole = colorway?.outsole ?? 0x15191b;
 
   const canvas = new T.MeshStandardMaterial({
-    color: shellColor,
+    color: resolvedShell,
     roughness: 0.88,
     metalness: 0,
   });
   const canvasShade = new T.MeshStandardMaterial({
-    color: colorShift(T, shellColor, -0.045),
+    color: colorway?.upperShade ?? colorShift(T, resolvedShell, -0.045),
     roughness: 0.91,
     metalness: 0,
   });
   const rubber = new T.MeshStandardMaterial({
-    color: rubberColor,
+    color: resolvedRubber,
     roughness: 0.62,
     metalness: 0,
   });
   const outsoleMaterial = new T.MeshStandardMaterial({
-    color: 0x15191b,
+    color: resolvedOutsole,
     roughness: 0.9,
     metalness: 0,
   });
@@ -793,7 +905,7 @@ export function createNovaCourtClassicShoe(T, {
     metalness: 0,
   });
   const laceMaterial = new T.MeshStandardMaterial({
-    color: laceColor,
+    color: resolvedLace,
     roughness: 0.94,
     metalness: 0,
   });
@@ -804,7 +916,7 @@ export function createNovaCourtClassicShoe(T, {
     clearcoat: 0.18,
   });
   const stripeMaterial = new T.MeshStandardMaterial({
-    color: accentColor,
+    color: resolvedAccent,
     roughness: 0.72,
     metalness: 0,
   });
@@ -1127,6 +1239,8 @@ export function createNovaCourtClassicShoe(T, {
   root.userData.sculptRuntime = {
     id: "nova-court-classic-shoe",
     styleId: "court-classic",
+    colorwayId: colorway?.id ?? "legacy-classic",
+    colorwayName: colorway?.name ?? "Legacy Classic",
     socket: "foot",
     dimensionsMeters: COURT_CLASSIC_DIMENSIONS,
     inferredSurfaces: [
@@ -1561,8 +1675,470 @@ export function createPrecision7Shoe(T, {
   };
 }
 
+function cutAcademySoleSections({ inset = 0, verticalOffset = 0, height = 0.007 } = {}) {
+  const halfLength = CUT_ACADEMY_DIMENSIONS.lengthMeters * 0.5;
+  return [-1, -0.8, -0.55, -0.26, 0.05, 0.34, 0.58, 0.79, 1].map((normalized) => ({
+    z: normalized * halfLength,
+    halfWidth: Math.max(0.017, cutAcademyHalfWidth(normalized) - inset),
+    centerY: cutAcademyRockerHeight(normalized) + verticalOffset,
+    halfHeight: height * (0.9 + Math.cos(normalized * Math.PI * 0.5) * 0.1),
+    lowerSquash: normalized > 0.52 ? 0.76 : 0.92,
+  }));
+}
+
+function cutAcademyUpperSections() {
+  const halfLength = CUT_ACADEMY_DIMENSIONS.lengthMeters * 0.5;
+  return [
+    { z: -halfLength + 0.011, halfWidth: 0.033, centerY: 0.052, halfHeight: 0.027, crown: 1.04 },
+    { z: -0.108, halfWidth: 0.042, centerY: 0.06, halfHeight: 0.033, crown: 1.08 },
+    { z: -0.058, halfWidth: 0.045, centerY: 0.058, halfHeight: 0.032, crown: 1.08 },
+    { z: 0.002, halfWidth: 0.04, centerY: 0.052, halfHeight: 0.028, crown: 1.08 },
+    { z: 0.056, halfWidth: 0.049, centerY: 0.044, halfHeight: 0.022, crown: 1.08 },
+    { z: 0.108, halfWidth: 0.047, centerY: 0.039, halfHeight: 0.018, crown: 1.06 },
+    { z: halfLength - 0.005, halfWidth: 0.021, centerY: 0.037, halfHeight: 0.008, crown: 1.02 },
+  ];
+}
+
+export function createCutAcademyShoe(T, {
+  colorwayId = "glacier-silver",
+  detail = DEFAULT_DETAIL,
+  side = 1,
+} = {}) {
+  const root = new T.Group();
+  root.name = "cut-academy-shoe";
+  const colorway = cutAcademyColorway(colorwayId);
+
+  const upperMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.upper,
+    roughness: 0.76,
+    metalness: 0,
+    clearcoat: 0.025,
+    clearcoatRoughness: 0.86,
+  });
+  const overlayMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.upperShade,
+    roughness: 0.5,
+    metalness: 0,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.55,
+  });
+  const foamMaterial = new T.MeshStandardMaterial({
+    color: colorway.midsole,
+    roughness: 0.68,
+    metalness: 0,
+  });
+  const foamAccentMaterial = new T.MeshStandardMaterial({
+    color: colorShift(T, colorway.midsole, -0.065),
+    roughness: 0.7,
+    metalness: 0,
+  });
+  const rubberMaterial = new T.MeshStandardMaterial({
+    color: colorway.outsole,
+    roughness: 0.9,
+    metalness: 0,
+  });
+  const tractionMaterial = new T.MeshStandardMaterial({
+    color: colorShift(T, colorway.outsole, -0.1),
+    roughness: 0.94,
+    metalness: 0,
+  });
+  const markMaterial = new T.MeshPhysicalMaterial({
+    color: colorway.mark,
+    roughness: 0.28,
+    metalness: 0.34,
+    clearcoat: 0.38,
+    clearcoatRoughness: 0.24,
+  });
+  const laceMaterial = new T.MeshStandardMaterial({
+    color: colorway.lace,
+    roughness: 0.92,
+    metalness: 0,
+  });
+  const liningMaterial = new T.MeshStandardMaterial({
+    color: colorway.lining,
+    roughness: 0.96,
+    metalness: 0,
+  });
+
+  const outsole = mesh(
+    T,
+    createLoftGeometry(T, densifySections(cutAcademySoleSections(), 3), 16),
+    rubberMaterial,
+    "cut-academy-outsole",
+  );
+  root.add(outsole);
+
+  const midsole = mesh(
+    T,
+    createLoftGeometry(T, densifySections(cutAcademySoleSections({
+      inset: 0.0013,
+      verticalOffset: 0.017,
+      height: 0.0105,
+    }), 3), 16),
+    foamMaterial,
+    "cut-academy-dual-foam-midsole",
+  );
+  root.add(midsole);
+
+  const cushionInsert = mesh(
+    T,
+    createLoftGeometry(T, densifySections(cutAcademySoleSections({
+      inset: 0.005,
+      verticalOffset: 0.026,
+      height: 0.0045,
+    }), 2), 12),
+    foamAccentMaterial,
+    "cut-academy-forefoot-cushion-insert",
+  );
+  root.add(cushionInsert);
+
+  const upper = mesh(
+    T,
+    createLoftGeometry(T, densifySections(cutAcademyUpperSections(), 3), 18),
+    upperMaterial,
+    "cut-academy-engineered-mesh-upper",
+  );
+  root.add(upper);
+
+  const heelQuarter = mesh(
+    T,
+    createLoftGeometry(T, densifySections([
+      { z: -0.146, halfWidth: 0.024, centerY: 0.055, halfHeight: 0.024, crown: 1.02 },
+      { z: -0.126, halfWidth: 0.04, centerY: 0.064, halfHeight: 0.03, crown: 1.06 },
+      { z: -0.09, halfWidth: 0.043, centerY: 0.064, halfHeight: 0.031, crown: 1.06 },
+      { z: -0.052, halfWidth: 0.04, centerY: 0.06, halfHeight: 0.028, crown: 1.04 },
+      { z: -0.024, halfWidth: 0.031, centerY: 0.055, halfHeight: 0.021, crown: 1.02 },
+    ], 2), 14),
+    overlayMaterial,
+    "cut-academy-padded-heel-quarter",
+  );
+  root.add(heelQuarter);
+
+  const tongue = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.082, y: 0.097 },
+      { z: -0.05, y: 0.098 },
+      { z: 0.077, y: 0.07 },
+      { z: 0.098, y: 0.059 },
+      { z: 0.08, y: 0.052 },
+      { z: -0.078, y: 0.084 },
+    ], 0, 0.052, 1),
+    liningMaterial,
+    "cut-academy-plush-tongue",
+  );
+  root.add(tongue);
+
+  const collarPoints = [];
+  for (let index = 0; index < 30; index += 1) {
+    const angle = index / 30 * TAU;
+    const point = cutAcademyEllipsePoint(0.044, 0.031, angle);
+    const frontDip = Math.max(0, Math.sin(angle)) * 0.014;
+    const rearRise = Math.max(0, -Math.sin(angle)) * 0.006;
+    collarPoints.push([point.x, 0.088 + rearRise - frontDip, -0.087 + point.y]);
+  }
+  const collar = mesh(
+    T,
+    curveTube(T, collarPoints, 0.0043, 28, 6, true),
+    liningMaterial,
+    "cut-academy-low-collar",
+  );
+  root.add(collar);
+
+  const eyestayProfile = [
+    { z: -0.073, y: 0.092 },
+    { z: -0.045, y: 0.095 },
+    { z: 0.09, y: 0.067 },
+    { z: 0.105, y: 0.057 },
+    { z: 0.09, y: 0.051 },
+    { z: -0.057, y: 0.081 },
+  ];
+  const eyestays = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, eyestayProfile, 0.032, 0.005, 1),
+      createSidePrismGeometry(T, eyestayProfile, -0.032, 0.005, -1),
+    ]),
+    overlayMaterial,
+    "cut-academy-six-station-eyestays",
+  );
+  root.add(eyestays);
+
+  const laceGeometries = [];
+  const laceStations = [];
+  for (let index = 0; index < 6; index += 1) {
+    const progress = index / 5;
+    laceStations.push({
+      z: -0.052 + progress * 0.129,
+      y: 0.092 - progress * 0.026 + Math.sin(progress * Math.PI) * 0.0025,
+      width: 0.028 + progress * 0.005,
+    });
+  }
+  for (let index = 0; index < laceStations.length - 1; index += 1) {
+    const from = laceStations[index];
+    const to = laceStations[index + 1];
+    laceGeometries.push(
+      cylinderBetween(T, new T.Vector3(-from.width, from.y, from.z), new T.Vector3(to.width, to.y + 0.0015, to.z), 0.0016, 5),
+      cylinderBetween(T, new T.Vector3(from.width, from.y, from.z), new T.Vector3(-to.width, to.y + 0.0015, to.z), 0.0016, 5),
+    );
+  }
+  const laces = mesh(T, mergeGeometries(T, laceGeometries), laceMaterial, "cut-academy-crossed-laces");
+  root.add(laces);
+
+  const lateralX = side * 0.049;
+  const lateralOverlay = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.112, y: 0.036 },
+      { z: -0.105, y: 0.075 },
+      { z: -0.06, y: 0.084 },
+      { z: 0.014, y: 0.07 },
+      { z: 0.091, y: 0.045 },
+      { z: 0.073, y: 0.034 },
+      { z: -0.022, y: 0.041 },
+    ], lateralX, 0.004, side),
+    overlayMaterial,
+    "cut-academy-lateral-support-overlay",
+  );
+  root.add(lateralOverlay);
+
+  const medialOverlay = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.111, y: 0.038 },
+      { z: -0.1, y: 0.071 },
+      { z: -0.055, y: 0.08 },
+      { z: 0.018, y: 0.066 },
+      { z: 0.086, y: 0.045 },
+      { z: 0.065, y: 0.035 },
+      { z: -0.025, y: 0.042 },
+    ], -lateralX, 0.0036, -side),
+    upperMaterial,
+    "cut-academy-medial-support-overlay",
+  );
+  root.add(medialOverlay);
+
+  const wing = mesh(
+    T,
+    curveTube(T, [
+      [lateralX + side * 0.003, 0.07, -0.08],
+      [lateralX + side * 0.0034, 0.059, -0.035],
+      [lateralX + side * 0.0036, 0.052, 0.026],
+      [lateralX + side * 0.003, 0.045, 0.095],
+    ], 0.0024, 24, 6),
+    markMaterial,
+    "cut-academy-original-nova-wing",
+  );
+  root.add(wing);
+
+  const supportGeometries = [];
+  for (let rib = 0; rib < 4; rib += 1) {
+    const zOffset = rib * 0.012;
+    supportGeometries.push(curveTube(T, [
+      [lateralX + side * 0.001, 0.076, -0.04 + zOffset],
+      [lateralX + side * 0.002, 0.068, -0.005 + zOffset],
+      [lateralX + side * 0.001, 0.055, 0.037 + zOffset],
+    ], 0.0007, 12, 4));
+  }
+  const supportEmbroidery = mesh(
+    T,
+    mergeGeometries(T, supportGeometries),
+    markMaterial,
+    "cut-academy-quarter-support-embroidery",
+  );
+  supportEmbroidery.userData.explodeWithParent = true;
+  root.add(supportEmbroidery);
+
+  const heelCounterProfile = [
+    { z: -0.148, y: 0.026 },
+    { z: -0.144, y: 0.063 },
+    { z: -0.126, y: 0.082 },
+    { z: -0.104, y: 0.075 },
+    { z: -0.099, y: 0.038 },
+  ];
+  const heelCounter = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, heelCounterProfile, 0.043, 0.005, 1),
+      createSidePrismGeometry(T, heelCounterProfile, -0.043, 0.005, -1),
+    ]),
+    overlayMaterial,
+    "cut-academy-heel-counter",
+  );
+  root.add(heelCounter);
+
+  const forefootFin = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: 0.052, y: 0.018 },
+      { z: 0.12, y: 0.022 },
+      { z: 0.145, y: 0.034 },
+      { z: 0.112, y: 0.04 },
+      { z: 0.064, y: 0.031 },
+    ], lateralX, 0.007, side),
+    foamMaterial,
+    "cut-academy-lateral-forefoot-fin",
+  );
+  root.add(forefootFin);
+
+  const toeWrapGeometries = [];
+  for (const xSign of [-1, 1]) {
+    toeWrapGeometries.push(curveTube(T, [
+      [xSign * 0.048, 0.024, 0.055],
+      [xSign * 0.053, 0.026, 0.09],
+      [xSign * 0.047, 0.033, 0.127],
+      [xSign * 0.025, 0.041, 0.145],
+    ], 0.0031, 22, 6));
+  }
+  const toeWrap = mesh(
+    T,
+    mergeGeometries(T, toeWrapGeometries),
+    rubberMaterial,
+    "cut-academy-forefoot-rubber-wrap",
+  );
+  root.add(toeWrap);
+
+  const shankBridge = mesh(
+    T,
+    new T.BoxGeometry(0.052, 0.004, 0.058, 2, 1, 3),
+    markMaterial,
+    "cut-academy-midfoot-shank-bridge",
+  );
+  shankBridge.position.set(0, -0.004, -0.003);
+  root.add(shankBridge);
+
+  const perforationGeometries = [];
+  if (detail === "high") {
+    for (let row = 0; row < 4; row += 1) {
+      for (let column = 0; column < 3; column += 1) {
+        const hole = new T.CylinderGeometry(0.0011, 0.0011, 0.003, 6);
+        hole.rotateX(Math.PI * 0.5);
+        hole.translate((column - 1) * 0.007, 0.079 + row * 0.004, -0.139 + row * 0.006);
+        perforationGeometries.push(hole);
+      }
+    }
+  }
+  const perforations = perforationGeometries.length
+    ? mesh(T, mergeGeometries(T, perforationGeometries), liningMaterial, "cut-academy-heel-perforations")
+    : null;
+  if (perforations) {
+    perforations.userData.explodeWithParent = true;
+    root.add(perforations);
+  }
+
+  const treadGeometries = [];
+  if (detail === "high") {
+    const stations = [-0.118, -0.09, -0.058, 0.034, 0.065, 0.096, 0.123];
+    for (const z of stations) {
+      for (const x of [-0.033, -0.011, 0.011, 0.033]) {
+        for (const direction of [-1, 1]) {
+          const bar = new T.BoxGeometry(0.018, 0.0038, 0.0048);
+          bar.rotateY(direction * Math.PI / 4.8);
+          bar.translate(x + direction * 0.003, -0.0018, z);
+          treadGeometries.push(bar);
+        }
+      }
+    }
+  }
+  const tread = treadGeometries.length
+    ? mesh(T, mergeGeometries(T, treadGeometries), tractionMaterial, "cut-academy-directional-herringbone")
+    : null;
+  if (tread) {
+    tread.userData.explodeWithParent = true;
+    root.add(tread);
+  }
+
+  const detailMeshes = [
+    laces,
+    wing,
+    supportEmbroidery,
+    forefootFin,
+    toeWrap,
+    shankBridge,
+    perforations,
+    tread,
+  ].filter(Boolean);
+  const nodes = {
+    root,
+    outsole,
+    midsole,
+    cushionInsert,
+    upper,
+    heelQuarter,
+    tongue,
+    collar,
+    eyestays,
+    laces,
+    lateralOverlay,
+    medialOverlay,
+    wing,
+    supportEmbroidery,
+    heelCounter,
+    forefootFin,
+    toeWrap,
+    shankBridge,
+    perforations,
+    tread,
+  };
+  for (const object of Object.values(nodes)) {
+    if (!object) continue;
+    object.userData.sculptPart = object.name;
+  }
+  root.userData.sculptRuntime = {
+    id: "nova-cut-academy-procedural-study",
+    styleId: "cut-academy",
+    socket: "foot",
+    approximation: "Stylized original NOVA study informed by six official Nike G.T. Cut Academy views; no logos or copied geometry.",
+    dimensionsMeters: CUT_ACADEMY_DIMENSIONS,
+    colorwayId: colorway.id,
+    colorwayName: colorway.name,
+    inferredSurfaces: ["internal-air-unit", "foam-stack-depth", "production-last"],
+    sourceEvidence: {
+      product: "Nike G.T. Cut Academy",
+      style: "FB2599-400",
+      officialViews: 6,
+      footLengthMeters: CUT_ACADEMY_DIMENSIONS.sourcedFootLengthMeters,
+      outerDimensionsInferred: true,
+      referenceOnly: true,
+    },
+    profileMath: {
+      section: "x=cos(theta)*halfWidth(z); y=centerY(z)+sin(theta)*halfHeight(z)",
+      rocker: "0.002+(1-cos(progress*pi/2))*toeRise+(1-cos(heelProgress*pi/2))*heelRise",
+      width: "max(heelGaussian,waistGaussian,forefootGaussian)*toeTaper",
+      support: "CatmullRom sweeps sampled at deterministic quarter stations",
+    },
+    detailTier: detail,
+    nodes,
+    colliders: [
+      { type: "box", center: [0, 0.047, 0], size: [0.109, 0.105, 0.297] },
+    ],
+    destructionGroups: {
+      sole: ["cut-academy-outsole", "cut-academy-dual-foam-midsole", "cut-academy-forefoot-cushion-insert"],
+      upper: ["cut-academy-engineered-mesh-upper", "cut-academy-padded-heel-quarter"],
+      closure: ["cut-academy-six-station-eyestays", "cut-academy-crossed-laces"],
+      support: ["cut-academy-lateral-support-overlay", "cut-academy-medial-support-overlay", "cut-academy-quarter-support-embroidery"],
+    },
+  };
+  const metrics = triangleCount(root);
+  root.userData.metrics = Object.freeze({
+    ...metrics,
+    detailTier: detail,
+    materials: 9,
+    textures: 0,
+  });
+  return {
+    root,
+    outsole,
+    detailMeshes,
+    metrics: root.userData.metrics,
+  };
+}
+
 export function createBasketballShoe(T, options = {}) {
   const styleId = normalizeBasketballShoeStyle(options.styleId ?? options.shoeStyleId ?? options.style);
+  if (styleId === "cut-academy") {
+    return createCutAcademyShoe(T, options);
+  }
   if (styleId === "precision-7") {
     return createPrecision7Shoe(T, options);
   }
@@ -1574,4 +2150,13 @@ export function createBasketballShoe(T, options = {}) {
 
 export function basketballShoeMetrics(shoe) {
   return Object.freeze({ ...(shoe?.root?.userData?.metrics ?? shoe?.userData?.metrics ?? {}) });
+}
+
+export function basketballShoeRegistrySnapshot() {
+  return Object.freeze({
+    geometries: 0,
+    materials: 0,
+    textures: 0,
+    policy: "stateless-per-instance",
+  });
 }
