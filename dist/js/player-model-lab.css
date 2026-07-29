@@ -494,3 +494,12 @@ body.basketball-review .lab-views {
 body.basketball-review .lab-readout {
   max-width: 26rem;
 }
+
+body.shoe-review .lab-brand,
+body.shoe-review .lab-controls {
+  display: none;
+}
+
+body.shoe-review .lab-readout {
+  max-width: 30rem;
+}

@@ -6,6 +6,7 @@ import {
   createBasketballMesh,
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
+import { createNovaFlightShoe } from "./basketball-shoes.js?v=1.0";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Player Model Lab requires THREE.");
@@ -184,11 +185,13 @@ const views = Object.freeze({
   "three-quarter": { azimuth: -0.64, elevation: 0.1, distance: 5.15 },
   profile: { azimuth: -Math.PI / 2, elevation: 0.08, distance: 5.4 },
   back: { azimuth: Math.PI, elevation: 0.08, distance: 5.4 },
+  top: { azimuth: 0, elevation: Math.PI / 2, distance: 4.8 },
+  outsole: { azimuth: 0, elevation: -Math.PI / 2, distance: 4.8 },
 });
 const poseIds = ["neutral", "defense", "handle", "gather", "release", "layup", "celebrate"];
 const athleteIds = ATHLETES.map((athlete) => athlete.id);
 const state = {
-  subject: query.get("subject") === "basketball" ? "basketball" : "player",
+  subject: ["basketball", "shoe"].includes(query.get("subject")) ? query.get("subject") : "player",
   athlete: athleteIds.includes(query.get("athlete")) ? query.get("athlete") : "classic",
   pose: poseIds.includes(query.get("pose")) ? query.get("pose") : "neutral",
   view: views[query.get("view")] ? query.get("view") : "front",
@@ -257,6 +260,28 @@ if (basketballReviewBall) {
   fill.intensity = 0.72;
   rim.intensity = 8;
   document.body.classList.add("basketball-review");
+}
+
+const shoeReview = state.subject === "shoe"
+  ? createNovaFlightShoe(T, {
+    shellColor: 0xeaf7ff,
+    accentColor: 0x63e8ff,
+    detail: "high",
+    side: -1,
+  })
+  : null;
+if (shoeReview) {
+  shoeReview.root.position.y = 0.06;
+  shoeReview.root.scale.setScalar(2.35);
+  scene.add(shoeReview.root);
+  hemisphere.intensity = 0.82;
+  key.intensity = 2.7;
+  fill.intensity = 1.05;
+  rim.intensity = 12;
+  const underLight = new T.DirectionalLight(0x9edfff, 1.8);
+  underLight.position.set(-1.5, -4, 2.5);
+  scene.add(underLight);
+  document.body.classList.add("shoe-review");
 }
 
 const POSE_DRAFT_STORAGE_KEY = "nova-court.player-lab.pose-drafts.v2";
@@ -650,7 +675,7 @@ async function copyPoseReport() {
 function applySceneState() {
   const activeIndex = athleteIds.indexOf(state.athlete);
   playerEntries.forEach((entry, index) => {
-    const visible = state.subject !== "basketball" && (state.compare || index === activeIndex);
+    const visible = state.subject === "player" && (state.compare || index === activeIndex);
     entry.player.root.visible = visible;
     entry.ball.visible = visible && ballVisibleForPose(state.pose);
     entry.player.root.position.set(
@@ -666,9 +691,16 @@ function applySceneState() {
     positionBall(entry);
   });
   if (basketballReviewBall) basketballReviewBall.visible = true;
-  guideRoot.visible = state.subject !== "basketball" && state.guides && !state.compare;
-  grid.visible = state.subject !== "basketball" && state.guides;
-  floorRing.visible = state.subject !== "basketball";
+  if (shoeReview) {
+    shoeReview.root.visible = true;
+    shoeReview.root.traverse((node) => {
+      if (node.material && "wireframe" in node.material) node.material.wireframe = state.wireframe;
+    });
+  }
+  guideRoot.visible = state.subject === "player" && state.guides && !state.compare;
+  grid.visible = state.subject === "player" && state.guides;
+  floorRing.visible = state.subject === "player";
+  floor.visible = state.subject !== "shoe" || state.view !== "outsole";
   updateCaptureName();
   updateViewButtons();
   syncControls();
@@ -690,6 +722,26 @@ function updateCamera() {
     camera.lookAt(target);
     return;
   }
+  if (state.subject === "shoe") {
+    const target = new T.Vector3(0, 0.25, 0.06);
+    const distance = (state.view === "top" || state.view === "outsole" ? 1.5 : 1.18)
+      + state.zoomOffset;
+    if (state.view === "top" || state.view === "outsole") {
+      const direction = state.view === "top" ? 1 : -1;
+      camera.position.set(0.04, target.y + direction * distance, target.z + 0.035);
+      camera.up.set(0, 0, state.view === "top" ? -1 : 1);
+    } else {
+      camera.up.set(0, 1, 0);
+      camera.position.set(
+        Math.sin(azimuth) * Math.cos(elevation) * distance,
+        target.y + Math.sin(elevation) * distance,
+        Math.cos(azimuth) * Math.cos(elevation) * distance,
+      );
+    }
+    camera.lookAt(target);
+    return;
+  }
+  camera.up.set(0, 1, 0);
   const distance = preset.distance + state.zoomOffset + (state.compare ? 2.6 : 0);
   const compareTargetX = state.view === "back" ? -0.42 : 0.42;
   const target = new T.Vector3(
@@ -708,6 +760,10 @@ function updateCamera() {
 function updateCaptureName() {
   if (state.subject === "basketball") {
     $("#lab-capture-name").textContent = `basketball-${selectedBallStyle}-${state.view}.png`;
+    return;
+  }
+  if (state.subject === "shoe") {
+    $("#lab-capture-name").textContent = `nova-flight-shoe-${state.view}.png`;
     return;
   }
   const athlete = state.compare ? "roster" : state.athlete;
@@ -992,6 +1048,9 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
       style: normalizeBasketballStyle(style),
     });
   },
+  createShoeReviewMesh(options = {}) {
+    return createNovaFlightShoe(T, { detail: "high", ...options }).root;
+  },
   setAthlete(id) {
     if (!athleteIds.includes(id)) return false;
     state.athlete = id;
@@ -1048,6 +1107,13 @@ globalThis.__NOVA_PLAYER_LAB__ = Object.freeze({
         motionPreset: state.shortsMotionPreset,
         cost: shortsMetrics,
       }),
+      shoe: shoeReview
+        ? Object.freeze({
+          model: "nova-flight",
+          inferredSurfaces: shoeReview.root.userData.sculptRuntime?.inferredSurfaces || [],
+          cost: shoeReview.metrics,
+        })
+        : null,
       assetLoadStatus: "procedural-production-rig-ready",
     });
   },

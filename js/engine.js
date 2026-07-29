@@ -50,6 +50,7 @@ import {
   userShotPerfectHalfWidth,
 } from "./shooting-assist.js";
 import { createBasketballShortsRig } from "./basketball-shorts.js?v=1.0";
+import { createNovaFlightShoe } from "./basketball-shoes.js?v=1.0";
 import {
   resolveLiveBallSteal,
   resolvePickupOpportunity,
@@ -406,8 +407,6 @@ export class ProceduralPlayer {
     const skin = this._material(this.colors.skin, 0.72);
     const jersey = this._material(this.colors.jersey, 0.58);
     const trim = this._material(this.colors.trim, 0.54);
-    const shoes = this._material(this.colors.shoes, 0.42);
-    const sole = this._material(0x11161c, 0.65);
     const sock = this._material(0xf0f2ed, 0.72);
     const hair = this._material(0x17120f, 0.92);
 
@@ -586,25 +585,24 @@ export class ProceduralPlayer {
       sockMesh.position.y = -0.425;
       knee.add(sockMesh);
       this.detailMeshes.push(sockMesh);
-      const shoe = this._mesh(new T.BoxGeometry(0.19, 0.12, 0.31), shoes);
-      shoe.position.set(0, -0.535, 0.058);
-      shoe.rotation.x = -0.04;
-      knee.add(shoe);
-      const toe = this._mesh(new T.SphereGeometry(0.1, 10, 7), shoes);
-      toe.position.set(0, -0.535, 0.2);
-      toe.scale.set(0.95, 0.56, 1.2);
-      knee.add(toe);
-      const ankleCollar = this._mesh(new T.TorusGeometry(0.082, 0.014, 5, 12), trim);
-      ankleCollar.position.set(0, -0.472, -0.015);
-      ankleCollar.rotation.x = Math.PI / 2;
-      ankleCollar.scale.z = 0.85;
-      knee.add(ankleCollar);
-      this.detailMeshes.push(ankleCollar);
-      const outsole = this._mesh(new T.BoxGeometry(0.2, 0.035, 0.36), sole);
-      outsole.position.set(0, -0.603, 0.08);
-      knee.add(outsole);
-      this.detailMeshes.push(outsole);
-      this.legs.push({ hip, knee, shoe, outsole, side });
+      const shoe = createNovaFlightShoe(T, {
+        shellColor: this.colors.shoes,
+        accentColor: this.colors.trim,
+        detail: "high",
+        side,
+      });
+      shoe.root.position.set(0, -0.603, 0.08);
+      shoe.root.rotation.x = -0.025;
+      knee.add(shoe.root);
+      this.detailMeshes.push(...shoe.detailMeshes);
+      this.legs.push({
+        hip,
+        knee,
+        shoe: shoe.root,
+        shoeRig: shoe,
+        outsole: shoe.outsole,
+        side,
+      });
     }
 
     const markerMat = new T.MeshBasicMaterial({
@@ -656,6 +654,10 @@ export class ProceduralPlayer {
   setVisualQuality(tier = "balanced") {
     const showDetail = tier !== "performance";
     for (const mesh of this.detailMeshes) mesh.visible = showDetail;
+    const showShoeMicroDetail = showDetail && (this.engine.players?.length ?? 0) <= 4;
+    for (const leg of this.legs) {
+      for (const mesh of leg.shoeRig?.detailMeshes || []) mesh.visible = showShoeMicroDetail;
+    }
   }
 
   setShortsParameters(parameters = {}) {
