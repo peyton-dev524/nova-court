@@ -287,6 +287,37 @@
   font-size: .55rem;
 }
 
+.shoe-style-grid .identity-choice {
+  min-height: 46px;
+  align-items: center;
+}
+
+.shoe-style-grid .identity-choice .shoe-style-icon {
+  width: 31px;
+  height: 17px;
+  border: 0;
+  border-bottom: 5px solid currentColor;
+  border-radius: 65% 32% 18% 18%;
+  background:
+    linear-gradient(145deg, transparent 44%, currentColor 46% 53%, transparent 55%),
+    rgba(141, 230, 243, .16);
+  color: var(--cyan);
+}
+
+.shoe-style-grid .identity-choice span {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.shoe-style-grid .identity-choice small {
+  color: var(--muted);
+  font-size: .45rem;
+  font-weight: 650;
+  line-height: 1.15;
+  text-transform: none;
+}
+
 .cosmetic-grid {
   gap: 6px;
 }

@@ -1,7 +1,12 @@
+import {
+  BASKETBALL_SHOE_STYLES,
+  normalizeBasketballShoeStyle,
+} from "./basketball-shoes.js?v=1.1";
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 
-export const PROFILE_SCHEMA_VERSION = 3;
+export const PROFILE_SCHEMA_VERSION = 4;
 export const PROFILE_STORAGE_KEY = "nova-court-my-player-v2";
 export const WIN_CREDIT_BONUS = 10;
 export const ATTRIBUTE_GROUPS = Object.freeze({
@@ -165,6 +170,7 @@ export function createDefaultProfile() {
       displayName: "",
       jerseyNumber: 1,
       appearanceId: "classic",
+      shoeStyleId: "nova-flight",
       selectedTitle: "ovr-25",
     },
     entitlements: { dev: false, tester: false, owner: false },
@@ -237,6 +243,7 @@ export function normalizeProfile(candidate) {
     displayName: displayName || (legacyProfile ? "Ace Nova" : ""),
     jerseyNumber: Math.round(clamp(source.identity?.jerseyNumber ?? source.jerseyNumber ?? 1, 0, 99)),
     appearanceId: validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic",
+    shoeStyleId: normalizeBasketballShoeStyle(source.identity?.shoeStyleId ?? source.shoeStyleId),
     selectedTitle: String(source.identity?.selectedTitle || "ovr-25"),
   };
   if (!identity.displayName) identity.created = false;
@@ -282,12 +289,17 @@ export function updatePlayerIdentity(profile, changes = {}) {
       && !AVATAR_APPEARANCES.some((item) => item.id === changes.appearanceId)) {
     return { ok: false, reason: "invalid-appearance", profile: next };
   }
+  if (changes.shoeStyleId !== undefined
+      && normalizeBasketballShoeStyle(changes.shoeStyleId) !== changes.shoeStyleId) {
+    return { ok: false, reason: "invalid-shoe-style", profile: next };
+  }
   next.identity = {
     ...next.identity,
     created: true,
     displayName,
     jerseyNumber: Math.round(clamp(changes.jerseyNumber ?? next.identity.jerseyNumber, 0, 99)),
     appearanceId: changes.appearanceId ?? next.identity.appearanceId,
+    shoeStyleId: changes.shoeStyleId ?? next.identity.shoeStyleId,
   };
   return { ok: true, profile: next };
 }
@@ -422,6 +434,7 @@ export function getEnginePlayerConfig(profile) {
     name: normalized.identity.displayName || "Ace Nova",
     jerseyNumber: normalized.identity.jerseyNumber,
     appearanceId: appearance.id,
+    shoeStyleId: normalized.identity.shoeStyleId,
     hairStyle: appearance.hair,
     headShape: appearance.headShape,
   };
@@ -446,6 +459,8 @@ export function getProfileSummary(profile) {
     displayName: normalized.identity.displayName || "UNNAMED PLAYER",
     jerseyNumber: normalized.identity.jerseyNumber,
     appearance: AVATAR_APPEARANCES.find((item) => item.id === normalized.identity.appearanceId) || AVATAR_APPEARANCES[0],
+    shoeStyle: BASKETBALL_SHOE_STYLES.find((item) => item.id === normalized.identity.shoeStyleId)
+      || BASKETBALL_SHOE_STYLES[0],
     title,
     availableTitles: getAvailableTitles(normalized),
     needsOnboarding: !normalized.identity.created,

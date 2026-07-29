@@ -27,6 +27,7 @@ import {
   updatePlayerIdentity,
   upgradeAttribute,
 } from "../js/player-progression.js";
+import { BASKETBALL_SHOE_STYLE_IDS } from "../js/basketball-shoes.js";
 
 test("five independent position builds and six original palettes are available", () => {
   const profile = createDefaultProfile();
@@ -138,17 +139,49 @@ test("fresh profiles require a normalized player name and save customization", (
     displayName: "  Nova🏀   Kid  ",
     jerseyNumber: 123,
     appearanceId: "braided",
+    shoeStyleId: "court-classic",
   });
   assert.equal(updated.ok, true);
   assert.equal(updated.profile.identity.displayName, "Nova Kid");
   assert.equal(updated.profile.identity.jerseyNumber, 99);
   assert.equal(updated.profile.identity.appearanceId, "braided");
+  assert.equal(updated.profile.identity.shoeStyleId, "court-classic");
   assert.equal(getProfileSummary(updated.profile).needsOnboarding, false);
   const config = getEnginePlayerConfig(updated.profile);
   assert.equal(config.name, "Nova Kid");
   assert.equal(config.jerseyNumber, 99);
   assert.equal(config.hairStyle, "braids");
+  assert.equal(config.shoeStyleId, "court-classic");
   assert.equal(AVATAR_APPEARANCES.some((item) => item.id === config.appearanceId), true);
+});
+
+test("shoe style selection validates, normalizes legacy saves, and persists through storage", () => {
+  const profile = createDefaultProfile();
+  assert.deepEqual(BASKETBALL_SHOE_STYLE_IDS, ["nova-flight", "court-classic"]);
+  assert.equal(profile.identity.shoeStyleId, "nova-flight");
+  assert.equal(updatePlayerIdentity(profile, {
+    displayName: "Ace Nova",
+    shoeStyleId: "missing-shoe",
+  }).reason, "invalid-shoe-style");
+
+  const selected = updatePlayerIdentity(profile, {
+    displayName: "Ace Nova",
+    shoeStyleId: "court-classic",
+  });
+  assert.equal(selected.ok, true);
+  const writes = new Map();
+  const storage = {
+    getItem: (key) => writes.get(key) ?? null,
+    setItem: (key, value) => writes.set(key, value),
+  };
+  saveProfile(selected.profile, storage, 42);
+  const loaded = loadProfile(storage);
+  assert.equal(loaded.identity.shoeStyleId, "court-classic");
+  assert.equal(getProfileSummary(loaded).shoeStyle.id, "court-classic");
+  assert.equal(getEnginePlayerConfig(loaded).shoeStyleId, "court-classic");
+
+  const legacy = normalizeProfile({ version: 3, identity: { displayName: "Legacy", created: true } });
+  assert.equal(legacy.identity.shoeStyleId, "nova-flight");
 });
 
 test("legacy saves migrate to an established identity without prompting again", () => {

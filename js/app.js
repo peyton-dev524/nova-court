@@ -29,6 +29,7 @@ import {
   getBallSelectionOption,
 } from "./ball-selection.js?v=1.0";
 import { createThreePointRackVisuals } from "./three-point-contest.js?v=1.0";
+import { BASKETBALL_SHOE_STYLES } from "./basketball-shoes.js?v=1.1";
 import {
   ATTRIBUTE_GROUPS,
   ATTRIBUTE_LABELS,
@@ -409,6 +410,17 @@ function renderPlayerProfile() {
     return button;
   }));
 
+  const shoeStyleRoot = $("#shoe-style-grid");
+  shoeStyleRoot?.replaceChildren(...BASKETBALL_SHOE_STYLES.map((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `identity-choice${summary.shoeStyle.id === item.id ? " is-selected" : ""}`;
+    button.dataset.shoeStyle = item.id;
+    button.setAttribute("aria-pressed", String(summary.shoeStyle.id === item.id));
+    button.innerHTML = `<i class="shoe-style-icon" aria-hidden="true"></i><span><b>${item.name}</b><small>${item.description}</small></span>`;
+    return button;
+  }));
+
   const titleRoot = $("#title-grid");
   titleRoot?.replaceChildren(...getAvailableTitles(playerProfile).map((title) => {
     const button = document.createElement("button");
@@ -451,6 +463,7 @@ function controlledProfileConfig() {
       stamina: config.staminaRating,
       jerseyNumber: config.jerseyNumber,
       appearanceId: config.appearanceId,
+      shoeStyleId: config.shoeStyleId,
       hairStyle: config.hairStyle,
       headShape: config.headShape,
     },
@@ -1560,6 +1573,7 @@ function bindUI() {
       displayName: $("#identity-name")?.value,
       jerseyNumber: $("#jersey-number")?.value,
       appearanceId: playerProfile.identity.appearanceId,
+      shoeStyleId: playerProfile.identity.shoeStyleId,
     });
     if (result.ok) commitProfile(result.profile, "Player identity saved.");
     else profileMessage("Enter a name using letters or numbers.", "warning");
@@ -1573,6 +1587,20 @@ function bindUI() {
     });
     if (result.ok) commitProfile(result.profile, `${AVATAR_APPEARANCES.find((item) => item.id === button.dataset.appearance)?.name} appearance equipped.`);
   });
+  $("#shoe-style-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-shoe-style]");
+    if (!button) return;
+    const result = updatePlayerIdentity(playerProfile, {
+      displayName: playerProfile.identity.displayName || "Ace Nova",
+      shoeStyleId: button.dataset.shoeStyle,
+    });
+    if (result.ok) {
+      commitProfile(
+        result.profile,
+        `${BASKETBALL_SHOE_STYLES.find((item) => item.id === button.dataset.shoeStyle)?.name} equipped.`,
+      );
+    }
+  });
   $("#title-grid")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-title]");
     if (!button) return;
@@ -1585,6 +1613,7 @@ function bindUI() {
       displayName: $("#create-player-name")?.value,
       jerseyNumber: $("#create-player-number")?.value,
       appearanceId: $("#create-player-appearance")?.value,
+      shoeStyleId: $("#create-player-shoe-style")?.value,
     });
     if (!result.ok) {
       $("#create-player-error").textContent = "Enter a display name using letters or numbers.";

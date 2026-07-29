@@ -1,4 +1,66 @@
 const DEFAULT_DETAIL = "high";
+const TAU = Math.PI * 2;
+
+export const BASKETBALL_SHOE_STYLE_IDS = Object.freeze([
+  "nova-flight",
+  "court-classic",
+]);
+
+export const BASKETBALL_SHOE_STYLES = Object.freeze([
+  Object.freeze({
+    id: "nova-flight",
+    name: "NOVA Flight",
+    description: "Molded low-top performance shell",
+  }),
+  Object.freeze({
+    id: "court-classic",
+    name: "NOVA Court Classic",
+    description: "Canvas high-top with a curved rubber toe",
+  }),
+]);
+
+export const COURT_CLASSIC_DIMENSIONS = Object.freeze({
+  sourcedFootLengthMeters: 0.285,
+  lengthMeters: 0.295,
+  widthMeters: 0.108,
+  heightMeters: 0.14,
+  toleranceMeters: Object.freeze({
+    length: 0.003,
+    width: 0.0025,
+    height: 0.0035,
+  }),
+  modelUnitsPerMeter: 1,
+});
+
+export function normalizeBasketballShoeStyle(value) {
+  return BASKETBALL_SHOE_STYLE_IDS.includes(value) ? value : "nova-flight";
+}
+
+const clampUnit = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+export function courtClassicEllipsePoint(halfWidth, halfHeight, angle) {
+  return Object.freeze({
+    x: Math.cos(angle) * halfWidth,
+    y: Math.sin(angle) * halfHeight,
+  });
+}
+
+export function courtClassicToeCapRise(progress) {
+  return Math.sin(clampUnit(progress) * Math.PI * 0.5);
+}
+
+export function courtClassicRockerHeight(normalizedLength) {
+  const position = Math.max(-1, Math.min(1, Number(normalizedLength) || 0));
+  if (position >= 0.52) {
+    const progress = (position - 0.52) / 0.48;
+    return 0.002 + (1 - Math.cos(progress * Math.PI * 0.5)) * 0.009;
+  }
+  if (position <= -0.78) {
+    const progress = (-position - 0.78) / 0.22;
+    return 0.002 + (1 - Math.cos(progress * Math.PI * 0.5)) * 0.0025;
+  }
+  return 0.002;
+}
 
 function colorShift(T, color, lightnessDelta) {
   const shifted = new T.Color(color);
@@ -95,6 +157,57 @@ function createLoftGeometry(T, sections, ringSegments = 12) {
   };
   addCap(0, true);
   addCap(sections.length - 1, false);
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute("position", new T.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new T.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createToeCapShellGeometry(T, sections, arcSegments = 12) {
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  const rowSize = arcSegments + 3;
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex];
+    positions.push(section.halfWidth, section.baseY, section.z);
+    uvs.push(sectionIndex / (sections.length - 1), 0);
+    for (let arcIndex = 0; arcIndex <= arcSegments; arcIndex += 1) {
+      const angle = (arcIndex / arcSegments) * Math.PI;
+      positions.push(
+        Math.cos(angle) * section.halfWidth,
+        section.baseY + section.sideWallHeight + Math.sin(angle) * section.archHeight,
+        section.z + Math.sin(angle) * (section.centerZOffset ?? 0),
+      );
+      uvs.push(sectionIndex / (sections.length - 1), (arcIndex + 1) / (arcSegments + 2));
+    }
+    positions.push(-section.halfWidth, section.baseY, section.z);
+    uvs.push(sectionIndex / (sections.length - 1), 1);
+  }
+  for (let sectionIndex = 0; sectionIndex < sections.length - 1; sectionIndex += 1) {
+    for (let arcIndex = 0; arcIndex < rowSize - 1; arcIndex += 1) {
+      const a = sectionIndex * rowSize + arcIndex;
+      const b = a + 1;
+      const d = (sectionIndex + 1) * rowSize + arcIndex;
+      const c = d + 1;
+      indices.push(a, b, d, b, c, d);
+    }
+  }
+  const capEnd = (sectionIndex, flip) => {
+    const centerIndex = positions.length / 3;
+    const section = sections[sectionIndex];
+    positions.push(0, section.baseY, section.z);
+    uvs.push(0.5, 0);
+    for (let arcIndex = 0; arcIndex < rowSize - 1; arcIndex += 1) {
+      const a = sectionIndex * rowSize + arcIndex;
+      const b = a + 1;
+      indices.push(...(flip ? [centerIndex, a, b] : [centerIndex, b, a]));
+    }
+  };
+  capEnd(0, true);
+  capEnd(sections.length - 1, false);
   const geometry = new T.BufferGeometry();
   geometry.setAttribute("position", new T.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("uv", new T.Float32BufferAttribute(uvs, 2));
@@ -448,5 +561,474 @@ export function createNovaFlightShoe(T, {
 }
 
 export function novaFlightShoeMetrics(shoe) {
+  return Object.freeze({ ...(shoe?.root?.userData?.metrics ?? shoe?.userData?.metrics ?? {}) });
+}
+
+function courtClassicSoleSections({ inset = 0, verticalOffset = 0, heightScale = 1 } = {}) {
+  const halfLength = COURT_CLASSIC_DIMENSIONS.lengthMeters * 0.5;
+  return [
+    { z: -halfLength, halfWidth: 0.039 - inset, centerY: 0.006 + verticalOffset, halfHeight: 0.008 * heightScale },
+    { z: -0.105, halfWidth: 0.049 - inset, centerY: 0.005 + verticalOffset, halfHeight: 0.007 * heightScale },
+    { z: -0.035, halfWidth: 0.045 - inset, centerY: 0.005 + verticalOffset, halfHeight: 0.007 * heightScale },
+    { z: 0.045, halfWidth: 0.05 - inset, centerY: 0.005 + verticalOffset, halfHeight: 0.007 * heightScale },
+    { z: 0.095, halfWidth: 0.054 - inset, centerY: 0.006 + verticalOffset, halfHeight: 0.008 * heightScale },
+    { z: 0.133, halfWidth: 0.047 - inset, centerY: 0.009 + verticalOffset, halfHeight: 0.009 * heightScale },
+    { z: halfLength, halfWidth: 0.034 - inset, centerY: 0.013 + verticalOffset, halfHeight: 0.009 * heightScale },
+  ];
+}
+
+function courtClassicUpperSections() {
+  return [
+    { z: -0.128, halfWidth: 0.041, centerY: 0.047, halfHeight: 0.028, crown: 1.04 },
+    { z: -0.087, halfWidth: 0.044, centerY: 0.051, halfHeight: 0.032, crown: 1.06 },
+    { z: -0.025, halfWidth: 0.043, centerY: 0.052, halfHeight: 0.031, crown: 1.08 },
+    { z: 0.012, halfWidth: 0.045, centerY: 0.049, halfHeight: 0.024, crown: 1.04 },
+    { z: 0.045, halfWidth: 0.043, centerY: 0.038, halfHeight: 0.01, crown: 1 },
+    { z: 0.064, halfWidth: 0.04, centerY: 0.023, halfHeight: 0.003, crown: 1 },
+  ];
+}
+
+function curveFromPoints(T, points, closed = false) {
+  return new T.CatmullRomCurve3(
+    points.map(([x, y, z]) => new T.Vector3(x, y, z)),
+    closed,
+    "centripetal",
+  );
+}
+
+function curveTube(T, points, radius, tubularSegments = 14, radialSegments = 5, closed = false) {
+  return new T.TubeGeometry(
+    curveFromPoints(T, points, closed),
+    tubularSegments,
+    radius,
+    radialSegments,
+    closed,
+  );
+}
+
+export function createNovaCourtClassicShoe(T, {
+  shellColor = 0x224960,
+  accentColor = 0x102d47,
+  rubberColor = 0xe8e0c4,
+  laceColor = 0xf0ead8,
+  detail = DEFAULT_DETAIL,
+  side = 1,
+} = {}) {
+  const root = new T.Group();
+  root.name = "nova-court-classic-shoe";
+
+  const canvas = new T.MeshStandardMaterial({
+    color: shellColor,
+    roughness: 0.88,
+    metalness: 0,
+  });
+  const canvasShade = new T.MeshStandardMaterial({
+    color: colorShift(T, shellColor, -0.045),
+    roughness: 0.91,
+    metalness: 0,
+  });
+  const rubber = new T.MeshStandardMaterial({
+    color: rubberColor,
+    roughness: 0.62,
+    metalness: 0,
+  });
+  const outsoleMaterial = new T.MeshStandardMaterial({
+    color: 0x15191b,
+    roughness: 0.9,
+    metalness: 0,
+  });
+  const treadMaterial = new T.MeshStandardMaterial({
+    color: 0x343b3d,
+    roughness: 0.86,
+    metalness: 0,
+  });
+  const laceMaterial = new T.MeshStandardMaterial({
+    color: laceColor,
+    roughness: 0.94,
+    metalness: 0,
+  });
+  const eyeletMaterial = new T.MeshPhysicalMaterial({
+    color: 0x8f9ca1,
+    roughness: 0.24,
+    metalness: 0.88,
+    clearcoat: 0.18,
+  });
+  const stripeMaterial = new T.MeshStandardMaterial({
+    color: accentColor,
+    roughness: 0.72,
+    metalness: 0,
+  });
+
+  const outsole = mesh(
+    T,
+    createLoftGeometry(T, densifySections(courtClassicSoleSections(), 2), 10),
+    outsoleMaterial,
+    "court-classic-outsole",
+  );
+  root.add(outsole);
+
+  const midsoleBand = mesh(
+    T,
+    createLoftGeometry(
+      T,
+      densifySections(courtClassicSoleSections({
+        inset: 0.0015,
+        verticalOffset: 0.015,
+        heightScale: 1.08,
+      }), 2),
+      10,
+    ),
+    rubber,
+    "court-classic-midsole-band",
+  );
+  root.add(midsoleBand);
+
+  const upper = mesh(
+    T,
+    createLoftGeometry(T, densifySections(courtClassicUpperSections(), 2), 10),
+    canvas,
+    "court-classic-canvas-upper",
+  );
+  root.add(upper);
+
+  const ankleQuarter = mesh(
+    T,
+    createLoftGeometry(T, densifySections([
+      { z: -0.142, halfWidth: 0.026, centerY: 0.068, halfHeight: 0.036, crown: 0.9 },
+      { z: -0.133, halfWidth: 0.036, centerY: 0.077, halfHeight: 0.048, crown: 0.96 },
+      { z: -0.114, halfWidth: 0.043, centerY: 0.082, halfHeight: 0.054, crown: 1 },
+      { z: -0.086, halfWidth: 0.044, centerY: 0.081, halfHeight: 0.053, crown: 1 },
+      { z: -0.052, halfWidth: 0.041, centerY: 0.076, halfHeight: 0.046, crown: 1 },
+      { z: -0.018, halfWidth: 0.034, centerY: 0.066, halfHeight: 0.035, crown: 1 },
+    ], 2), 10),
+    canvasShade,
+    "court-classic-ankle-quarter",
+  );
+  root.add(ankleQuarter);
+
+  const toeStart = 0.068;
+  const toeEnd = COURT_CLASSIC_DIMENSIONS.lengthMeters * 0.5 + 0.002;
+  const toeSections = [0, 0.1, 0.2, 0.32, 0.45, 0.58, 0.7, 0.8, 0.88, 0.94, 1].map((progress) => {
+    const sineDome = Math.max(0, Math.sin(progress * Math.PI));
+    const cosineTaper = Math.max(0, Math.cos(progress * Math.PI * 0.5));
+    return {
+      z: toeStart + (toeEnd - toeStart) * progress,
+      halfWidth: 0.0505 * cosineTaper ** 0.65,
+      baseY: 0.025 + progress ** 2 * 0.008,
+      sideWallHeight: 0.023 * sineDome ** 0.8 * (1 - progress * 0.12),
+      archHeight: 0.008 * sineDome ** 0.7,
+      centerZOffset: -0.006 * (1 - progress) ** 4,
+    };
+  });
+  const toeCap = mesh(
+    T,
+    createToeCapShellGeometry(T, toeSections, 9),
+    rubber,
+    "court-classic-toe-cap",
+  );
+  root.add(toeCap);
+
+  const tongue = mesh(
+    T,
+    createSidePrismGeometry(T, [
+      { z: -0.09, y: 0.136 },
+      { z: -0.065, y: 0.135 },
+      { z: 0.039, y: 0.082 },
+      { z: 0.049, y: 0.074 },
+      { z: 0.033, y: 0.069 },
+      { z: -0.086, y: 0.121 },
+    ], 0, 0.058, 1),
+    canvasShade,
+    "court-classic-tongue",
+  );
+  root.add(tongue);
+
+  const quarterPanelProfile = [
+    { z: -0.139, y: 0.032 },
+    { z: -0.144, y: 0.068 },
+    { z: -0.138, y: 0.105 },
+    { z: -0.121, y: 0.129 },
+    { z: -0.093, y: 0.135 },
+    { z: -0.064, y: 0.127 },
+    { z: -0.029, y: 0.108 },
+    { z: 0.021, y: 0.083 },
+    { z: 0.03, y: 0.064 },
+    { z: 0.038, y: 0.055 },
+    { z: 0.015, y: 0.042 },
+    { z: -0.058, y: 0.035 },
+    { z: -0.116, y: 0.031 },
+  ];
+  const quarterPanels = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, quarterPanelProfile, 0.043, 0.003, 1),
+      createSidePrismGeometry(T, quarterPanelProfile, -0.043, 0.003, -1),
+    ]),
+    canvas,
+    "court-classic-quarter-panels",
+  );
+  root.add(quarterPanels);
+
+  const heelProfile = [
+    { z: -0.143, y: 0.025 },
+    { z: -0.145, y: 0.067 },
+    { z: -0.139, y: 0.108 },
+    { z: -0.126, y: 0.132 },
+    { z: -0.111, y: 0.136 },
+    { z: -0.104, y: 0.112 },
+    { z: -0.105, y: 0.067 },
+    { z: -0.111, y: 0.029 },
+  ];
+  const heelReinforcement = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, heelProfile, 0.0415, 0.0035, 1),
+      createSidePrismGeometry(T, heelProfile, -0.0415, 0.0035, -1),
+    ]),
+    canvasShade,
+    "court-classic-heel-reinforcement",
+  );
+  root.add(heelReinforcement);
+
+  const collarPoints = [];
+  for (let index = 0; index < 24; index += 1) {
+    const angle = (index / 24) * TAU;
+    const point = courtClassicEllipsePoint(0.04, 0.033, angle);
+    const frontDip = Math.max(0, Math.sin(angle)) * 0.0105;
+    const sideRise = Math.cos(angle) ** 2 * 0.0065;
+    collarPoints.push([point.x, 0.1275 + sideRise - frontDip, -0.088 + point.y]);
+  }
+  const collarOpening = mesh(
+    T,
+    new T.CylinderGeometry(1, 1, 0.0035, 18),
+    outsoleMaterial,
+    "court-classic-collar-opening",
+  );
+  collarOpening.position.set(0, 0.1255, -0.09);
+  collarOpening.scale.set(0.034, 1, 0.025);
+  root.add(collarOpening);
+  const collarInsetProfile = [
+    { z: -0.123, y: 0.119 },
+    { z: -0.112, y: 0.13 },
+    { z: -0.091, y: 0.134 },
+    { z: -0.071, y: 0.128 },
+    { z: -0.057, y: 0.115 },
+    { z: -0.071, y: 0.119 },
+    { z: -0.091, y: 0.124 },
+    { z: -0.111, y: 0.117 },
+  ];
+  const collarInset = mesh(
+    T,
+    mergeGeometries(T, [
+      createSidePrismGeometry(T, collarInsetProfile, 0.044, 0.0028, 1),
+      createSidePrismGeometry(T, collarInsetProfile, -0.044, 0.0028, -1),
+    ]),
+    outsoleMaterial,
+    "court-classic-curved-collar-inset",
+  );
+  root.add(collarInset);
+  const collarBinding = mesh(
+    T,
+    curveTube(T, collarPoints, 0.003, 20, 4, true),
+    laceMaterial,
+    "court-classic-collar-binding",
+  );
+  root.add(collarBinding);
+
+  const eyeletGeometries = [];
+  const laceGeometries = [];
+  const eyeletStations = [];
+  for (let index = 0; index < 7; index += 1) {
+    const progress = index / 6;
+    const z = -0.07 + progress * 0.105;
+    const y = 0.124 - progress * 0.052 + Math.sin(progress * Math.PI) * 0.003;
+    const width = 0.037 + progress * 0.004;
+    eyeletStations.push({ z, y, width });
+    for (const xSign of [-1, 1]) {
+      const eyelet = new T.TorusGeometry(0.0042, 0.0014, 3, 5);
+      eyelet.rotateY(Math.PI * 0.5);
+      eyelet.translate(xSign * width, y, z);
+      eyeletGeometries.push(eyelet);
+    }
+  }
+  for (let index = 0; index < eyeletStations.length - 1; index += 1) {
+    const from = eyeletStations[index];
+    const to = eyeletStations[index + 1];
+    laceGeometries.push(cylinderBetween(
+      T,
+      new T.Vector3(-from.width, from.y + 0.001, from.z),
+      new T.Vector3(to.width, to.y + 0.003, to.z),
+      0.00175,
+      5,
+    ));
+    laceGeometries.push(cylinderBetween(
+      T,
+      new T.Vector3(from.width, from.y + 0.001, from.z),
+      new T.Vector3(-to.width, to.y + 0.003, to.z),
+      0.00175,
+      5,
+    ));
+  }
+  const topStation = eyeletStations[0];
+  laceGeometries.push(cylinderBetween(
+    T,
+    new T.Vector3(-topStation.width, topStation.y + 0.002, topStation.z),
+    new T.Vector3(topStation.width, topStation.y + 0.002, topStation.z),
+    0.00175,
+    5,
+  ));
+  const eyelets = mesh(
+    T,
+    mergeGeometries(T, eyeletGeometries),
+    eyeletMaterial,
+    "court-classic-eyelets-seven-pairs",
+  );
+  const laces = mesh(
+    T,
+    mergeGeometries(T, laceGeometries),
+    laceMaterial,
+    "court-classic-crossed-laces",
+  );
+  root.add(eyelets, laces);
+
+  const sideStripeGeometries = [];
+  const stitchGeometries = [];
+  for (const xSign of [-1, 1]) {
+    sideStripeGeometries.push(curveTube(T, [
+      [xSign * 0.0505, 0.021, -0.132],
+      [xSign * 0.0515, 0.021, -0.02],
+      [xSign * 0.0525, 0.023, 0.092],
+      [xSign * 0.043, 0.029, 0.137],
+    ], 0.00125, 16, 4));
+    const seamX = xSign * 0.045;
+    stitchGeometries.push(curveTube(T, [
+      [seamX, 0.13, -0.112],
+      [seamX, 0.112, -0.052],
+      [seamX, 0.082, 0.016],
+      [seamX, 0.062, 0.038],
+    ], 0.00065, 12, 3));
+    stitchGeometries.push(curveTube(T, [
+      [seamX, 0.126, -0.11],
+      [seamX, 0.108, -0.05],
+      [seamX, 0.078, 0.018],
+      [seamX, 0.058, 0.04],
+    ], 0.00055, 12, 3));
+  }
+  const sidewallStripe = mesh(
+    T,
+    mergeGeometries(T, sideStripeGeometries),
+    stripeMaterial,
+    "court-classic-sidewall-stripe",
+  );
+  const stitching = mesh(
+    T,
+    mergeGeometries(T, stitchGeometries),
+    laceMaterial,
+    "court-classic-double-stitching",
+  );
+  root.add(sidewallStripe, stitching);
+
+  const detailMeshes = [eyelets, laces, stitching, sidewallStripe];
+  let tread = null;
+  if (detail === "high") {
+    const treadGeometries = [];
+    for (const z of [-0.118, -0.068, 0.068, 0.118]) {
+      for (const x of [-0.032, 0, 0.032]) {
+        const treadBar = new T.BoxGeometry(0.027, 0.004, 0.007);
+        treadBar.rotateY((Math.round((z + 0.2) * 100) + Math.round(x * 1000)) % 2 ? 0.55 : -0.55);
+        treadBar.translate(x, -0.003, z);
+        treadGeometries.push(treadBar);
+      }
+    }
+    tread = mesh(
+      T,
+      mergeGeometries(T, treadGeometries),
+      treadMaterial,
+      "court-classic-chevron-tread",
+    );
+    root.add(tread);
+    detailMeshes.push(tread);
+  }
+
+  const nodes = {
+    root,
+    outsole,
+    midsoleBand,
+    upper,
+    ankleQuarter,
+    toeCap,
+    tongue,
+    quarterPanels,
+    heelReinforcement,
+    collarBinding,
+    collarOpening,
+    collarInset,
+    eyelets,
+    laces,
+    sidewallStripe,
+    stitching,
+    tread,
+  };
+  for (const object of Object.values(nodes)) {
+    if (!object) continue;
+    object.userData.sculptPart = object.name;
+  }
+
+  root.userData.sculptRuntime = {
+    id: "nova-court-classic-shoe",
+    styleId: "court-classic",
+    socket: "foot",
+    dimensionsMeters: COURT_CLASSIC_DIMENSIONS,
+    inferredSurfaces: [
+      "medial-panel-construction",
+      "inner-padding",
+      "outer-width",
+      "outsole-tread-spacing",
+    ],
+    sourceEvidence: {
+      footLengthMeters: COURT_CLASSIC_DIMENSIONS.sourcedFootLengthMeters,
+      source: "official-size-guide",
+      inferredOuterDimensions: true,
+    },
+    profileMath: {
+      ellipticalRings: "x=cos(theta)*halfWidth; y=sin(theta)*halfHeight",
+      toeCap: "sin(progress*pi/2)",
+      rocker: "1-cos(progress*pi/2)",
+    },
+    detailTier: detail,
+    nodes,
+    colliders: [
+      { type: "box", center: [0, 0.069, 0], size: [0.108, 0.14, 0.295] },
+    ],
+    destructionGroups: {
+      sole: ["court-classic-outsole", "court-classic-midsole-band"],
+      upper: ["court-classic-canvas-upper", "court-classic-ankle-quarter"],
+      closure: ["court-classic-eyelets-seven-pairs", "court-classic-crossed-laces"],
+    },
+  };
+  const metrics = triangleCount(root);
+  root.userData.metrics = Object.freeze({
+    ...metrics,
+    detailTier: detail,
+    materials: 8,
+    textures: 0,
+  });
+  return {
+    root,
+    outsole,
+    detailMeshes,
+    metrics: root.userData.metrics,
+  };
+}
+
+export function createBasketballShoe(T, options = {}) {
+  const styleId = normalizeBasketballShoeStyle(options.styleId ?? options.shoeStyleId ?? options.style);
+  if (styleId === "court-classic") {
+    return createNovaCourtClassicShoe(T, options);
+  }
+  return createNovaFlightShoe(T, options);
+}
+
+export function basketballShoeMetrics(shoe) {
   return Object.freeze({ ...(shoe?.root?.userData?.metrics ?? shoe?.userData?.metrics ?? {}) });
 }
