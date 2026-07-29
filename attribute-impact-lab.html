@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NOVA COURT · Attribute Impact Lab</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#05080d;color:#f3f7fb}
+    *{box-sizing:border-box} body{margin:0;min-width:1050px;background:radial-gradient(circle at 72% 12%,#162b37 0,#081017 34%,#05080d 70%);height:100vh;overflow:hidden}
+    button{font:inherit}.shell{height:100vh;padding:24px 30px;display:grid;grid-template-rows:auto 1fr auto;gap:18px}
+    header{display:flex;align-items:end;justify-content:space-between;border-bottom:1px solid #29424f;padding-bottom:15px}
+    .eyebrow{color:#69efff;font-size:11px;font-weight:850;letter-spacing:.24em}.title{font-size:30px;line-height:1;font-weight:900;letter-spacing:-.04em;margin-top:7px}
+    .subtitle{color:#99aab5;font-size:12px;margin-top:7px}.tabs{display:flex;gap:8px}.tabs button{border:1px solid #294450;background:#0d1820;color:#9eb0ba;padding:10px 15px;border-radius:999px;font-weight:800;font-size:11px;letter-spacing:.08em}
+    .tabs button[aria-selected=true]{color:#031015;background:#62edff;border-color:#62edff;box-shadow:0 0 26px #36def54d}
+    main{min-height:0}.panel{height:100%;display:none;grid-template-columns:1.08fr .92fr;gap:18px}.panel.active{display:grid}
+    .card{background:linear-gradient(145deg,#0d171fef,#091017f2);border:1px solid #263c47;border-radius:17px;box-shadow:0 20px 70px #0008;min-height:0;overflow:hidden}
+    .card-head{height:57px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #21353f}
+    .card-head h2{font-size:13px;letter-spacing:.14em;margin:0}.pill{padding:6px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.12em;background:#16323d;color:#77efff}
+    .court{height:calc(100% - 57px);position:relative;background:linear-gradient(90deg,#9b6133,#b8753d 10%,#a66737 10%,#a66737 20%,#b8753d 20%,#a66737 30%,#b8753d 30%,#a66737 40%,#b8753d 40%,#a66737 50%,#b8753d 50%,#a66737 60%,#b8753d 60%,#a66737 70%,#b8753d 70%,#a66737 80%,#b8753d 80%,#a66737 90%,#b8753d);overflow:hidden}
+    .court:before{content:"";position:absolute;inset:8% 8%;border:2px solid #ffe3b3aa;border-radius:0 0 48% 48%}.court:after{content:"";position:absolute;width:44%;height:61%;left:28%;top:-39%;border:2px solid #ffe3b3aa;border-radius:50%}
+    .rim{position:absolute;top:7.5%;left:50%;transform:translateX(-50%);width:54px;height:15px;border:4px solid #ff663d;border-radius:50%;z-index:2}
+    .zones{position:absolute;inset:14% 10% 8%;display:grid;grid-template-columns:repeat(5,1fr);align-items:end;gap:9px;z-index:3}
+    .zone{display:flex;flex-direction:column;align-items:center;gap:8px}.zone b{font-size:12px}.zone small{font-size:9px;color:#d5e4e9;letter-spacing:.08em;text-align:center}.delta{font-size:10px;color:#6ffff0;font-weight:900}
+    .compare{height:175px;width:72%;display:flex;align-items:end;justify-content:center;gap:4px}.bar{width:38%;border-radius:7px 7px 2px 2px;min-height:10px}.bar.low{background:#ef5871}.bar.high{background:#5ff2df;box-shadow:0 0 20px #3ce8cf66}
+    .stack{padding:17px;display:grid;gap:10px;height:calc(100% - 57px);align-content:start}.formula{padding:13px 14px;border-radius:11px;background:#081015;border:1px solid #20343e;font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;color:#a8c2cd;line-height:1.55}
+    .legend{display:grid;grid-template-columns:1fr 1fr;gap:9px}.build{border:1px solid #263b46;background:#0b141b;border-radius:12px;padding:13px}.build strong{font-size:12px}.build.low strong{color:#ff7186}.build.high strong{color:#65f3df}.build p{color:#91a3ad;font-size:10px;line-height:1.45;margin:7px 0 0}
+    .meter{height:9px;border-radius:99px;background:#182730;overflow:hidden;margin-top:8px}.meter i{display:block;height:100%;border-radius:inherit;background:#5ff2df}
+    .bands{height:calc(100% - 57px);display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:18px}.band-card{display:flex;flex-direction:column;background:#091219;border:1px solid #253b46;border-radius:14px;padding:18px}
+    .band-title{display:flex;justify-content:space-between;align-items:center}.band-title strong{font-size:14px}.band-title span{font-size:9px;color:#93a8b2;letter-spacing:.1em}.donut{width:156px;height:156px;margin:19px auto;border-radius:50%;display:grid;place-items:center;position:relative}.donut:after{content:"";width:92px;height:92px;background:#091219;border-radius:50%;position:absolute}.donut b{z-index:1;font-size:23px}.band-row{display:grid;grid-template-columns:78px 1fr 38px;align-items:center;gap:7px;margin-top:8px;font-size:10px}.track{height:7px;background:#1b2930;border-radius:9px;overflow:hidden}.track i{display:block;height:100%}.clean{background:#5ff2df}.foul{background:#ffb353}.whiff{background:#637786}
+    .rebound-viz{height:calc(100% - 57px);position:relative;background:linear-gradient(#16242c,#0b141a)}.paint{position:absolute;left:20%;right:20%;top:5%;bottom:8%;border:2px solid #586d76}.landing{position:absolute;left:51%;top:42%;width:72px;height:72px;border:2px dashed #6ff3ff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 28px #3ee7ff2b}.landing:after{content:"PREDICTED LANDING";white-space:pre;position:absolute;left:78px;top:20px;color:#7beefe;font-size:8px;letter-spacing:.12em}
+    .player{position:absolute;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:900;border:3px solid #fff}.player.inside{left:43%;top:31%;background:#f35d78}.player.boxed{left:43%;top:49%;background:#536877}.player.crash{left:68%;top:58%;background:#59e9d5;color:#071014}.box-line{position:absolute;left:46%;top:40%;width:3px;height:64px;background:#ffb04c;transform:rotate(-2deg);box-shadow:0 0 18px #ffb04c}
+    table{width:100%;border-collapse:collapse;font-size:10px}th,td{text-align:right;padding:9px 7px;border-bottom:1px solid #1d313a}th:first-child,td:first-child{text-align:left}th{color:#8599a4;font-size:8px;letter-spacing:.11em}.winner{color:#61f1de;font-weight:900}
+    footer{display:flex;justify-content:space-between;color:#778b95;font-size:9px;letter-spacing:.08em}.status{color:#62f3df}.kbd{border:1px solid #314750;border-radius:4px;padding:2px 5px;color:#c6d7dd}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div><div class="eyebrow">DEVELOPMENT HARNESS</div><div class="title">ATTRIBUTE IMPACT LAB</div><div class="subtitle">Deterministic low/high builds · profile-scale ratings · user/CPU parity</div></div>
+      <nav class="tabs" aria-label="Lab panels">
+        <button data-panel="shooting">SHOOTING ZONES</button><button data-panel="steals">STEAL MATCHUP</button><button data-panel="rebound">REBOUND / BOX-OUT</button>
+      </nav>
+    </header>
+    <main>
+      <section id="shooting" class="panel">
+        <article class="card"><div class="card-head"><h2>SHOT CONTEXT MAP</h2><span class="pill">LOW 40 · HIGH 92</span></div><div class="court"><div class="rim"></div><div id="zones" class="zones"></div></div></article>
+        <article class="card"><div class="card-head"><h2>WHY THE NUMBER MOVED</h2><span class="pill">PRO · 72% RELEASE</span></div><div class="stack" id="shooting-notes"></div></article>
+      </section>
+      <section id="steals" class="panel">
+        <article class="card"><div class="card-head"><h2>OUTCOME BANDS</h2><span class="pill">SAME REACH · SAME SEED</span></div><div id="steal-bands" class="bands"></div></article>
+        <article class="card"><div class="card-head"><h2>MATCHUP FORMULA</h2><span class="pill">NO AUTO POSSESSION</span></div><div class="stack" id="steal-notes"></div></article>
+      </section>
+      <section id="rebound" class="panel">
+        <article class="card"><div class="card-head"><h2>PREDICTED LANDING + INSIDE POSITION</h2><span class="pill">0.55s FLIGHT</span></div><div class="rebound-viz"><div class="paint"></div><div class="landing"></div><div class="box-line"></div><div class="player inside">D88</div><div class="player boxed">O90</div><div class="player crash">O99</div></div></article>
+        <article class="card"><div class="card-head"><h2>CANDIDATE SCORE BREAKDOWN</h2><span class="pill">DETERMINISTIC TIE-BREAK</span></div><div class="stack" id="rebound-notes"></div></article>
+      </section>
+    </main>
+    <footer><span><span class="status">● READY</span> · Shared production formulas</span><span><span class="kbd">1</span> shooting &nbsp; <span class="kbd">2</span> steals &nbsp; <span class="kbd">3</span> rebound</span></footer>
+  </div>
+  <script type="module" src="./js/attribute-impact-lab.js"></script>
+</body>
+</html>

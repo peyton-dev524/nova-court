@@ -17,14 +17,14 @@ import { normalizeBasketballJerseyParameters } from "./basketball-jersey.js?v=1.
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
 const copy = (value) => JSON.parse(JSON.stringify(value));
 
-export const PROFILE_SCHEMA_VERSION = 6;
+export const PROFILE_SCHEMA_VERSION = 7;
 export const PROFILE_STORAGE_KEY = "nova-court-my-player-v2";
 export const WIN_CREDIT_BONUS = 10;
 export const ATTRIBUTE_GROUPS = Object.freeze({
   Finishing: Object.freeze(["closeShot", "drivingLayup", "drivingDunk"]),
   Shooting: Object.freeze(["midRange", "threePoint", "freeThrow"]),
   Playmaking: Object.freeze(["passAccuracy", "ballHandle", "speedWithBall"]),
-  Defense: Object.freeze(["perimeterDefense", "steal", "block", "interiorDefense", "defensiveRebound"]),
+  Defense: Object.freeze(["perimeterDefense", "steal", "block", "interiorDefense", "offensiveRebound", "defensiveRebound"]),
   Athleticism: Object.freeze(["speed", "acceleration", "strength", "vertical", "stamina"]),
 });
 
@@ -42,6 +42,7 @@ export const ATTRIBUTE_LABELS = Object.freeze({
   steal: "Steal",
   block: "Block",
   interiorDefense: "Interior defense",
+  offensiveRebound: "Offensive rebound",
   defensiveRebound: "Defensive rebound",
   speed: "Speed",
   acceleration: "Acceleration",
@@ -60,45 +61,45 @@ export const POSITION_PRESETS = Object.freeze({
     archetype: "Tempo Creator",
     height: 1.86,
     role: "handler",
-    base: ratings({ closeShot: 62, drivingLayup: 68, midRange: 65, threePoint: 67, freeThrow: 70, passAccuracy: 72, ballHandle: 74, speedWithBall: 73, perimeterDefense: 63, steal: 64, speed: 73, acceleration: 74, stamina: 72 }),
-    caps: caps({ drivingLayup: 94, midRange: 94, threePoint: 96, freeThrow: 94, passAccuracy: 99, ballHandle: 99, speedWithBall: 99, perimeterDefense: 92, steal: 93, speed: 96, acceleration: 97, strength: 78, block: 74, interiorDefense: 72, defensiveRebound: 77 }),
-    weights: { passAccuracy: 1.45, ballHandle: 1.55, speedWithBall: 1.35, threePoint: 1.15, perimeterDefense: 1.05, speed: 1.15, acceleration: 1.15 },
+    base: ratings({ closeShot: 62, drivingLayup: 68, midRange: 65, threePoint: 67, freeThrow: 70, passAccuracy: 72, ballHandle: 74, speedWithBall: 73, perimeterDefense: 63, steal: 64, offensiveRebound: 46, defensiveRebound: 53, speed: 73, acceleration: 74, stamina: 72 }),
+    caps: caps({ drivingLayup: 94, midRange: 94, threePoint: 96, freeThrow: 94, passAccuracy: 99, ballHandle: 99, speedWithBall: 99, perimeterDefense: 92, steal: 93, speed: 96, acceleration: 97, strength: 78, block: 74, interiorDefense: 72, offensiveRebound: 70, defensiveRebound: 77 }),
+    weights: { passAccuracy: 1.45, ballHandle: 1.55, speedWithBall: 1.35, threePoint: 1.15, perimeterDefense: 1.05, offensiveRebound: 0.58, defensiveRebound: 0.72, speed: 1.15, acceleration: 1.15 },
   }),
   SG: Object.freeze({
     name: "Shooting Guard",
     archetype: "Three-Level Spark",
     height: 1.94,
     role: "wing",
-    base: ratings({ closeShot: 65, drivingLayup: 68, drivingDunk: 64, midRange: 69, threePoint: 71, freeThrow: 72, passAccuracy: 63, ballHandle: 68, speedWithBall: 67, perimeterDefense: 66, steal: 63, speed: 69, acceleration: 69, vertical: 66, stamina: 72 }),
-    caps: caps({ closeShot: 94, drivingLayup: 96, drivingDunk: 92, midRange: 98, threePoint: 99, freeThrow: 97, passAccuracy: 90, ballHandle: 94, speedWithBall: 93, perimeterDefense: 95, steal: 91, block: 80, interiorDefense: 78, defensiveRebound: 83, speed: 94, acceleration: 94, vertical: 92, strength: 84 }),
-    weights: { drivingLayup: 1.15, midRange: 1.35, threePoint: 1.5, freeThrow: 1.1, ballHandle: 1.15, perimeterDefense: 1.15, speed: 1.05 },
+    base: ratings({ closeShot: 65, drivingLayup: 68, drivingDunk: 64, midRange: 69, threePoint: 71, freeThrow: 72, passAccuracy: 63, ballHandle: 68, speedWithBall: 67, perimeterDefense: 66, steal: 63, offensiveRebound: 51, defensiveRebound: 57, speed: 69, acceleration: 69, vertical: 66, stamina: 72 }),
+    caps: caps({ closeShot: 94, drivingLayup: 96, drivingDunk: 92, midRange: 98, threePoint: 99, freeThrow: 97, passAccuracy: 90, ballHandle: 94, speedWithBall: 93, perimeterDefense: 95, steal: 91, block: 80, interiorDefense: 78, offensiveRebound: 78, defensiveRebound: 83, speed: 94, acceleration: 94, vertical: 92, strength: 84 }),
+    weights: { drivingLayup: 1.15, midRange: 1.35, threePoint: 1.5, freeThrow: 1.1, ballHandle: 1.15, perimeterDefense: 1.15, offensiveRebound: 0.68, defensiveRebound: 0.78, speed: 1.05 },
   }),
   SF: Object.freeze({
     name: "Small Forward",
     archetype: "Two-Way Catalyst",
     height: 2.01,
     role: "wing",
-    base: ratings({ closeShot: 67, drivingLayup: 68, drivingDunk: 68, midRange: 66, threePoint: 65, passAccuracy: 62, ballHandle: 65, speedWithBall: 64, perimeterDefense: 68, steal: 64, block: 61, interiorDefense: 62, defensiveRebound: 65, speed: 67, acceleration: 65, strength: 67, vertical: 68, stamina: 70 }),
-    caps: caps({ closeShot: 96, drivingLayup: 96, drivingDunk: 96, midRange: 95, threePoint: 94, passAccuracy: 92, ballHandle: 93, speedWithBall: 91, perimeterDefense: 97, steal: 94, block: 91, interiorDefense: 91, defensiveRebound: 92, speed: 93, acceleration: 91, strength: 93, vertical: 94 }),
-    weights: { drivingLayup: 1.1, drivingDunk: 1.15, midRange: 1.05, threePoint: 1.05, perimeterDefense: 1.25, interiorDefense: 1.05, speed: 1.05, strength: 1.05 },
+    base: ratings({ closeShot: 67, drivingLayup: 68, drivingDunk: 68, midRange: 66, threePoint: 65, passAccuracy: 62, ballHandle: 65, speedWithBall: 64, perimeterDefense: 68, steal: 64, block: 61, interiorDefense: 62, offensiveRebound: 60, defensiveRebound: 65, speed: 67, acceleration: 65, strength: 67, vertical: 68, stamina: 70 }),
+    caps: caps({ closeShot: 96, drivingLayup: 96, drivingDunk: 96, midRange: 95, threePoint: 94, passAccuracy: 92, ballHandle: 93, speedWithBall: 91, perimeterDefense: 97, steal: 94, block: 91, interiorDefense: 91, offensiveRebound: 89, defensiveRebound: 92, speed: 93, acceleration: 91, strength: 93, vertical: 94 }),
+    weights: { drivingLayup: 1.1, drivingDunk: 1.15, midRange: 1.05, threePoint: 1.05, perimeterDefense: 1.25, interiorDefense: 1.05, offensiveRebound: 0.95, defensiveRebound: 1.05, speed: 1.05, strength: 1.05 },
   }),
   PF: Object.freeze({
     name: "Power Forward",
     archetype: "Interior Connector",
     height: 2.06,
     role: "big",
-    base: ratings({ closeShot: 71, drivingLayup: 66, drivingDunk: 72, midRange: 64, threePoint: 59, passAccuracy: 60, ballHandle: 57, perimeterDefense: 61, block: 69, interiorDefense: 71, defensiveRebound: 72, speed: 61, strength: 74, vertical: 69, stamina: 68 }),
-    caps: caps({ closeShot: 98, drivingLayup: 93, drivingDunk: 98, midRange: 93, threePoint: 88, freeThrow: 91, passAccuracy: 89, ballHandle: 84, speedWithBall: 82, perimeterDefense: 90, steal: 86, block: 97, interiorDefense: 98, defensiveRebound: 98, speed: 88, acceleration: 86, strength: 98, vertical: 96 }),
-    weights: { closeShot: 1.2, drivingDunk: 1.25, block: 1.2, interiorDefense: 1.35, defensiveRebound: 1.35, strength: 1.25, vertical: 1.05 },
+    base: ratings({ closeShot: 71, drivingLayup: 66, drivingDunk: 72, midRange: 64, threePoint: 59, passAccuracy: 60, ballHandle: 57, perimeterDefense: 61, block: 69, interiorDefense: 71, offensiveRebound: 70, defensiveRebound: 72, speed: 61, strength: 74, vertical: 69, stamina: 68 }),
+    caps: caps({ closeShot: 98, drivingLayup: 93, drivingDunk: 98, midRange: 93, threePoint: 88, freeThrow: 91, passAccuracy: 89, ballHandle: 84, speedWithBall: 82, perimeterDefense: 90, steal: 86, block: 97, interiorDefense: 98, offensiveRebound: 97, defensiveRebound: 98, speed: 88, acceleration: 86, strength: 98, vertical: 96 }),
+    weights: { closeShot: 1.2, drivingDunk: 1.25, block: 1.2, interiorDefense: 1.35, offensiveRebound: 1.25, defensiveRebound: 1.35, strength: 1.25, vertical: 1.05 },
   }),
   C: Object.freeze({
     name: "Center",
     archetype: "Paint Anchor",
     height: 2.12,
     role: "big",
-    base: ratings({ closeShot: 74, drivingLayup: 63, drivingDunk: 73, midRange: 58, threePoint: 52, passAccuracy: 57, ballHandle: 50, speedWithBall: 49, perimeterDefense: 57, steal: 55, block: 74, interiorDefense: 76, defensiveRebound: 75, speed: 56, acceleration: 54, strength: 78, vertical: 68, stamina: 68 }),
-    caps: caps({ closeShot: 99, drivingLayup: 90, drivingDunk: 99, midRange: 88, threePoint: 82, freeThrow: 88, passAccuracy: 87, ballHandle: 77, speedWithBall: 74, perimeterDefense: 84, steal: 82, block: 99, interiorDefense: 99, defensiveRebound: 99, speed: 83, acceleration: 80, strength: 99, vertical: 95 }),
-    weights: { closeShot: 1.35, drivingDunk: 1.2, block: 1.45, interiorDefense: 1.55, defensiveRebound: 1.5, strength: 1.35, vertical: 1.05 },
+    base: ratings({ closeShot: 74, drivingLayup: 63, drivingDunk: 73, midRange: 58, threePoint: 52, passAccuracy: 57, ballHandle: 50, speedWithBall: 49, perimeterDefense: 57, steal: 55, block: 74, interiorDefense: 76, offensiveRebound: 74, defensiveRebound: 75, speed: 56, acceleration: 54, strength: 78, vertical: 68, stamina: 68 }),
+    caps: caps({ closeShot: 99, drivingLayup: 90, drivingDunk: 99, midRange: 88, threePoint: 82, freeThrow: 88, passAccuracy: 87, ballHandle: 77, speedWithBall: 74, perimeterDefense: 84, steal: 82, block: 99, interiorDefense: 99, offensiveRebound: 99, defensiveRebound: 99, speed: 83, acceleration: 80, strength: 99, vertical: 95 }),
+    weights: { closeShot: 1.35, drivingDunk: 1.2, block: 1.45, interiorDefense: 1.55, offensiveRebound: 1.45, defensiveRebound: 1.5, strength: 1.35, vertical: 1.05 },
   }),
 });
 
@@ -263,6 +264,7 @@ export function normalizeProfile(candidate) {
   const appearanceId = validAppearances.has(source.identity?.appearanceId) ? source.identity.appearanceId : "classic";
   const legacyAppearance = AVATAR_APPEARANCES.find((item) => item.id === appearanceId) || AVATAR_APPEARANCES[0];
   const identity = {
+    ...source.identity,
     created: Boolean(source.identity?.created ?? legacyProfile),
     displayName: displayName || (legacyProfile ? "Ace Nova" : ""),
     jerseyNumber: Math.round(clamp(source.identity?.jerseyNumber ?? source.jerseyNumber ?? 1, 0, 99)),
@@ -475,7 +477,9 @@ export function getEnginePlayerConfig(profile) {
     shooting: average("midRange", "threePoint", "freeThrow"),
     finishing: average("closeShot", "drivingLayup", "drivingDunk"),
     vertical: attributes.vertical / 100,
-    rebounding: average("defensiveRebound", "interiorDefense"),
+    rebounding: average("offensiveRebound", "defensiveRebound"),
+    offensiveRebound: attributes.offensiveRebound / 100,
+    defensiveRebound: attributes.defensiveRebound / 100,
     strength: attributes.strength / 100,
     ballSecurity: average("ballHandle", "speedWithBall"),
     passAccuracy: attributes.passAccuracy / 100,

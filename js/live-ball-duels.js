@@ -55,6 +55,10 @@ const smoothstep = (edge0, edge1, value) => {
   const t = clamp((value - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
 };
+const rating = (value, fallback = 0.68) => {
+  const resolved = finite(value, fallback);
+  return clamp(resolved > 1 ? resolved / 100 : resolved);
+};
 
 function freezeCommands(commands) {
   return Object.freeze(commands.map((command) => Object.freeze({ ...command })));
@@ -159,6 +163,81 @@ export function calculatePokeProbability({
 }
 
 /**
+ * Explainable steal matchup bands shared by user and CPU attempts. Ratings may
+ * be supplied on either a 0..1 gameplay scale or a 25..99 profile scale.
+ */
+export function calculateStealMatchupBands({
+  steal = 0.7,
+  perimeterDefense = 0.7,
+  reaction = 0.7,
+  ballHandle = 0.7,
+  ballSecurity = 0.7,
+  handlerStrength = 0.65,
+  distance = 1,
+  alignment = 0.5,
+  reachTiming = 0.6,
+  ballExposure = 0.5,
+  fromBehind = false,
+  handContact = 0,
+  bodyContact = 0,
+  ballFirst = false,
+} = {}) {
+  const defenderComposite = rating(steal) * 0.52
+    + rating(perimeterDefense) * 0.28
+    + rating(reaction) * 0.2;
+  const handlerComposite = rating(ballHandle) * 0.42
+    + rating(ballSecurity) * 0.4
+    + rating(handlerStrength) * 0.18;
+  const matchupEdge = defenderComposite - handlerComposite;
+  const distanceFactor = 1 - smoothstep(0.5, 1.75, Math.max(0, finite(distance, 1)));
+  const angleFactor = clamp((finite(alignment, 0.5) + 1) / 2);
+  const timing = clamp(finite(reachTiming, 0.6));
+  const exposure = clamp(finite(ballExposure, 0.5));
+  const cleanProbability = clamp(
+    0.1
+      + matchupEdge * 0.48
+      + distanceFactor * 0.16
+      + angleFactor * 0.08
+      + timing * 0.12
+      + exposure * 0.12
+      + (ballFirst ? 0.08 : 0),
+    0.035,
+    0.78,
+  );
+  let foulProbability = clamp(
+    0.14
+      - matchupEdge * 0.12
+      + (fromBehind ? 0.18 : 0)
+      + clamp(finite(handContact)) * 0.12
+      + clamp(finite(bodyContact)) * 0.18
+      + (1 - timing) * 0.08
+      - (ballFirst ? 0.1 : 0),
+    0.025,
+    0.58,
+  );
+  let clean = cleanProbability;
+  if (clean + foulProbability > 0.92) {
+    const scale = 0.92 / (clean + foulProbability);
+    clean *= scale;
+    foulProbability *= scale;
+  }
+  return Object.freeze({
+    cleanProbability: clean,
+    foulProbability,
+    whiffProbability: 1 - clean - foulProbability,
+    defenderComposite,
+    handlerComposite,
+    matchupEdge,
+    breakdown: Object.freeze({
+      distanceFactor,
+      angleFactor,
+      timing,
+      exposure,
+    }),
+  });
+}
+
+/**
  * Produces a roll/bounce vector away from both bodies. Last touch deliberately
  * remains the former owner so out-of-bounds adjudication can use that contract.
  */
@@ -242,6 +321,22 @@ export function resolveLiveBallSteal({
   const resolvedDistance = distance == null
     ? distance2(owner.position, defender.position)
     : Math.max(0, finite(distance));
+  const stealBands = calculateStealMatchupBands({
+    steal: defender.stealRating ?? defender.ratings?.steal ?? 0.7,
+    perimeterDefense: defender.perimeterDefense ?? defender.ratings?.perimeterDefense ?? 0.68,
+    reaction: defender.reaction ?? defender.ratings?.reaction ?? 0.68,
+    ballHandle: owner.handleRating ?? owner.ratings?.ballHandle ?? owner.ratings?.handle ?? 0.72,
+    ballSecurity: owner.ballSecurity ?? owner.ratings?.ballSecurity ?? 0.72,
+    handlerStrength: owner.strength ?? owner.ratings?.strength ?? 0.65,
+    distance: resolvedDistance,
+    alignment,
+    reachTiming,
+    ballExposure,
+    fromBehind,
+    handContact,
+    bodyContact,
+    ballFirst,
+  });
   const foulRisk = estimateStealFoulRisk({
     distance: resolvedDistance,
     alignment,
@@ -251,7 +346,7 @@ export function resolveLiveBallSteal({
     timing: reachTiming,
     ballExposed: ballExposure,
     ballFirst,
-    defenderRating: defender.stealRating ?? defender.ratings?.steal ?? 0.7,
+    defenderRating: stealBands.defenderComposite,
     fatigue: 1 - clamp(finite(defender.stamina, 1)),
     victimProtectingBall,
   });
@@ -272,19 +367,20 @@ export function resolveLiveBallSteal({
     alignment,
     reachTiming,
     ballExposure,
-    defenderStealRating: defender.stealRating ?? defender.ratings?.steal ?? 0.7,
+    defenderStealRating: stealBands.defenderComposite,
     defenderReach: defender.reach ?? 0.65,
-    handlerBallSecurity: owner.ballSecurity ?? owner.ratings?.ballSecurity ?? 0.72,
+    handlerBallSecurity: stealBands.handlerComposite,
     dribbleMove,
     dribbleProgress,
   });
-  const foul = clamp(finite(foulCheckValue, 0.5)) < foulRisk * 0.72;
+  const foul = clamp(finite(foulCheckValue, 0.5)) < stealBands.foulProbability;
   const ankleBroken = !foul
     && ankle.move.active
     && clamp(finite(ankleCheckValue, 0.5)) < ankle.risk;
   const poked = !foul
     && !ankleBroken
-    && clamp(finite(pokeCheckValue, 0.5)) < poke.probability;
+    && clamp(finite(pokeCheckValue, 0.5))
+      < stealBands.cleanProbability / Math.max(0.001, 1 - stealBands.foulProbability);
 
   if (foul) {
     const event = Object.freeze({
@@ -300,6 +396,7 @@ export function resolveLiveBallSteal({
       outcome: STEAL_OUTCOMES.FOUL,
       event,
       foulRisk,
+      stealBands,
       ankleRisk: ankle.risk,
       pokeProbability: poke.probability,
       commands: freezeCommands([{ type: "WHISTLE", reason: "reach_in" }]),
@@ -320,6 +417,7 @@ export function resolveLiveBallSteal({
       outcome: STEAL_OUTCOMES.ANKLE_BREAK,
       event,
       foulRisk,
+      stealBands,
       ankleRisk: ankle.risk,
       pokeProbability: poke.probability,
       stunSeconds: ankle.stunSeconds,
@@ -363,6 +461,7 @@ export function resolveLiveBallSteal({
       event,
       looseBall,
       foulRisk,
+      stealBands,
       ankleRisk: ankle.risk,
       pokeProbability: poke.probability,
       commands: freezeCommands([{
@@ -390,6 +489,7 @@ export function resolveLiveBallSteal({
       pokeProbability: poke.probability,
     }),
     foulRisk,
+    stealBands,
     ankleRisk: ankle.risk,
     pokeProbability: poke.probability,
     commands: Object.freeze([]),

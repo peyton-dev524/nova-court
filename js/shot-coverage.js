@@ -291,15 +291,40 @@ export function hasMeaningfulJumpContest(coverageResult) {
     entry.coverage >= 0.08 && entry.breakdown?.blockWindow > 0));
 }
 
-function ratingForRange(ratings = {}, rangeLabel) {
-  const general = clamp(finite(ratings.shooting, 0.68));
-  if (rangeLabel === RANGE_LABELS.AT_RIM) {
-    return clamp(finite(ratings.finishing, ratings.close ?? general));
-  }
-  if (rangeLabel === RANGE_LABELS.MID_RANGE) {
-    return clamp(finite(ratings.midRange, ratings.mid ?? general));
-  }
-  return clamp(finite(ratings.threePoint, ratings.three ?? general));
+export function normalizeGameplayRating(value, fallback = 0.68) {
+  const resolved = finite(value, fallback);
+  return clamp(resolved > 1 ? resolved / 100 : resolved);
+}
+
+export function shotAttributeForContext({
+  shotContext = "jumper",
+  distance = 0,
+  movementSpeed = 0,
+  threePointDistance = 6.15,
+} = {}) {
+  if (shotContext === "free_throw") return "freeThrow";
+  if (shotContext === "dunk") return "drivingDunk";
+  if (shotContext === "layup") return movementSpeed > 0.8 ? "drivingLayup" : "closeShot";
+  const range = classifyShotRange(distance, threePointDistance);
+  if (range === RANGE_LABELS.AT_RIM) return "closeShot";
+  return range === RANGE_LABELS.MID_RANGE ? "midRange" : "threePoint";
+}
+
+export function ratingForShotContext(ratings = {}, context = {}) {
+  const general = normalizeGameplayRating(ratings.shooting, 0.68);
+  const ratingKey = shotAttributeForContext(context);
+  const aliases = {
+    closeShot: ratings.close ?? ratings.finishing,
+    drivingLayup: ratings.layup ?? ratings.finishing,
+    drivingDunk: ratings.dunk ?? ratings.finishing,
+    midRange: ratings.mid,
+    threePoint: ratings.three,
+    freeThrow: ratings.freeThrow,
+  };
+  return Object.freeze({
+    ratingKey,
+    rating: normalizeGameplayRating(ratings[ratingKey], aliases[ratingKey] ?? general),
+  });
 }
 
 function difficultyAdjustment(difficulty, isAI) {
@@ -332,6 +357,8 @@ export function calculateShotMakePercentage({
   difficulty = "pro",
   isAI = false,
   userControlled = false,
+  shotContext = "jumper",
+  movementSpeed = 0,
   threePointDistance = 6.15,
   maxValidDistance = 12,
 } = {}) {
@@ -343,7 +370,13 @@ export function calculateShotMakePercentage({
     )
     : Math.max(0, finite(distance));
   const rangeLabel = classifyShotRange(shotDistance, threePointDistance);
-  const shootingRating = ratingForRange(ratings, rangeLabel);
+  const ratingSelection = ratingForShotContext(ratings, {
+    shotContext,
+    distance: shotDistance,
+    movementSpeed,
+    threePointDistance,
+  });
+  const shootingRating = ratingSelection.rating;
   const release = scoreReleaseTiming({ releaseQuality, releaseErrorSeconds, perfectRelease });
   const wideOpen = resolvedCoverage < 0.08;
   const validShot = shotDistance <= Math.max(1, finite(maxValidDistance, 12));
@@ -391,6 +424,7 @@ export function calculateShotMakePercentage({
     releaseLabel: release.label,
     rangeLabel,
     distance: shotDistance,
+    ratingKey: ratingSelection.ratingKey,
     shootingRating,
     hud: Object.freeze({
       makePercent: `${makePercent}%`,
