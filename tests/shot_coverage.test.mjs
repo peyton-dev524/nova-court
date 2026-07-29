@@ -7,6 +7,7 @@ import {
   calculateShotCoverage,
   calculateShotMakePercentage,
   isShotMeterPerfect,
+  resolveShotMeterWindow,
   resolveShotAttempt,
   scoreReleaseTiming,
   shotFacingDirection,
@@ -116,6 +117,132 @@ test("the green meter window is the only perfect timing window", () => {
   assert.equal(isShotMeterPerfect(0.756), true);
   assert.equal(isShotMeterPerfect(0.67), false);
   assert.equal(isShotMeterPerfect(0.78), false);
+});
+
+test("the visible normalized meter window and release verdict share one snapshot", () => {
+  const insideRightEdge = resolveShotMeterWindow(0.784, 0.72, 0.064);
+  assert.equal(insideRightEdge.charge, 0.784);
+  assert.ok(Math.abs(insideRightEdge.start - 0.656) < 1e-12);
+  assert.equal(insideRightEdge.end, 0.784);
+  assert.ok(Math.abs(insideRightEdge.width - 0.128) < 1e-12);
+  assert.equal(insideRightEdge.perfect, true);
+  assert.equal(
+    isShotMeterPerfect(
+      insideRightEdge.charge,
+      insideRightEdge.ideal,
+      insideRightEdge.halfWidth,
+    ),
+    insideRightEdge.perfect,
+  );
+  assert.equal(resolveShotMeterWindow(0.78401, 0.72, 0.064).perfect, false);
+});
+
+test("a user green through a grounded closeout is guaranteed while CPU odds are preserved", () => {
+  const coverageResult = calculateShotCoverage({
+    shooterPosition: { x: 0, y: 0, z: 2 },
+    rimPosition: { x: 0, y: 3.05, z: -5.7 },
+    releaseHeight: 2.25,
+    defenders: [{
+      id: "grounded-closeout",
+      position: { x: 0, y: 0, z: 1.2 },
+      height: 1.98,
+      contestTiming: 0.08,
+      blockWindow: 0,
+      isContesting: true,
+      contestIntent: 0.82,
+    }],
+  });
+  assert.ok(coverageResult.coverage >= 0.08);
+
+  const shared = {
+    coverageResult,
+    perfectRelease: true,
+    distance: 6.4,
+    ratings: { threePoint: 0.72 },
+    stamina: 0.8,
+  };
+  const user = resolveShotAttempt({
+    ...shared,
+    userControlled: true,
+    outcomeValue: 0.999,
+  });
+  const cpu = resolveShotAttempt({
+    ...shared,
+    userControlled: false,
+    isAI: true,
+    outcomeValue: 0.999,
+  });
+
+  assert.equal(user.guaranteed, true);
+  assert.equal(user.made, true);
+  assert.equal(user.makeProbability, 1);
+  assert.equal(cpu.guaranteed, false);
+  assert.equal(cpu.made, false);
+  assert.ok(cpu.makeProbability < 1);
+});
+
+test("grounded contest strength is exactly 60 percent of its former value", () => {
+  const input = {
+    shooterPosition: { x: 0, y: 0, z: 2 },
+    rimPosition: { x: 0, y: 3.05, z: -5.7 },
+    releaseHeight: 2.25,
+    defender: {
+      id: "grounded",
+      position: { x: 0, y: 0, z: 1.15 },
+      height: 2.02,
+      contestTiming: 0.06,
+      blockWindow: 0,
+      isContesting: true,
+      contestIntent: 0.9,
+    },
+  };
+  const previousStrength = calculateDefenderCoverage({
+    ...input,
+    groundedContestStrength: 1,
+  });
+  const reduced = calculateDefenderCoverage(input);
+  assert.ok(Math.abs(reduced.coverage - previousStrength.coverage * 0.6) < 1e-12);
+  assert.equal(reduced.breakdown.contestStrengthMultiplier, 0.6);
+});
+
+test("an active jumping block window keeps full contest strength and can break a user guarantee", () => {
+  const input = {
+    shooterPosition: { x: 0, y: 0, z: 2 },
+    rimPosition: { x: 0, y: 3.05, z: -5.7 },
+    releaseHeight: 2.25,
+    defender: {
+      id: "jumping",
+      position: { x: 0, y: 0, z: 1.15 },
+      height: 2.02,
+      contestTiming: 0.02,
+      blockWindow: 0.38,
+      isContesting: true,
+      contestIntent: 1,
+      handPosition: { x: 0, y: 2.28, z: 1.8 },
+    },
+  };
+  const normal = calculateDefenderCoverage(input);
+  const attemptedReduction = calculateDefenderCoverage({
+    ...input,
+    groundedContestStrength: 0.01,
+  });
+  assert.equal(normal.coverage, attemptedReduction.coverage);
+  assert.equal(normal.breakdown.contestStrengthMultiplier, 1);
+
+  const coverageResult = calculateShotCoverage({
+    ...input,
+    defenders: [input.defender],
+  });
+  const percentage = calculateShotMakePercentage({
+    coverageResult,
+    perfectRelease: true,
+    userControlled: true,
+    distance: 6.4,
+    ratings: { threePoint: 0.8 },
+  });
+  assert.equal(percentage.jumpContested, true);
+  assert.equal(percentage.guaranteed, false);
+  assert.ok(percentage.makeProbability < 1);
 });
 
 test("shot facing always points from the shooter to the active rim", () => {
