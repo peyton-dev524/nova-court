@@ -1501,7 +1501,6 @@ function prepareArcRunCaptureState(name) {
   engine.snapArcRunCameraForQA?.();
   engine.render();
   document.body.classList.add("arc-run-capture-mode");
-  audio.setCaptions(false);
   for (const id of ["feedback", "subtitles", "toast"]) setHidden($(`#${id}`), true);
   setHidden($(".caption-bubble"), true);
   setHidden($(".toast-region"), true);
@@ -2598,7 +2597,6 @@ function bindUI() {
   $("#high-contrast")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, highContrast: event.target.checked }));
   $("#captions-enabled")?.addEventListener("change", (event) => {
     ui.applySettings({ ...ui.settings, captions: event.target.checked });
-    audio.setCaptions(event.target.checked);
   });
   $("#mute-all")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, muted: event.target.checked }));
 

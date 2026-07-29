@@ -20,27 +20,6 @@ export function dbToGain(db) {
   return 10 ** (Number(db) / 20);
 }
 
-const CAPTIONS = Object.freeze({
-  ui: "menu tick",
-  confirm: "selection confirmed",
-  back: "menu back",
-  dribble: "ball dribble",
-  bounce: "ball bounce",
-  pass: "quick pass",
-  shoot: "shot released",
-  swish: "clean swish",
-  rim: "shot hits rim",
-  backboard: "ball hits backboard",
-  dunk: "rim-rattling dunk",
-  block: "shot blocked",
-  steal: "ball stolen",
-  whistle: "referee whistle",
-  score: "basket scored",
-  buzzer: "game buzzer",
-  countdown: "countdown tone",
-  crowd: "crowd reaction",
-});
-
 export const MUSIC_TRACKS = Object.freeze({
   street: "./assets/audio/music/street.mp3",
   threePoint: "./assets/audio/music/threePoint.mp3",
@@ -74,7 +53,6 @@ export class NovaAudioController {
     this.musicVolume = clamp01(options.musicVolume ?? stored.musicVolume ?? 0.55);
     this.sfxVolume = clamp01(options.sfxVolume ?? stored.sfxVolume ?? 0.8);
     this.muted = Boolean(options.muted ?? stored.muted ?? false);
-    this.captions = options.captions !== false;
     this.musicPlaying = false;
     this.musicTimer = 0;
     this.musicStep = 0;
@@ -176,10 +154,6 @@ export class NovaAudioController {
     return this.setMuted(!this.muted);
   }
 
-  setCaptions(value) {
-    this.captions = Boolean(value);
-  }
-
   setMusicMode(mode) {
     const nextMode = MUSIC_TRACKS[mode] ? mode : "street";
     if (this.musicMode === nextMode) return this.musicMode;
@@ -266,13 +240,6 @@ export class NovaAudioController {
     return source;
   }
 
-  caption(name) {
-    if (!this.captions || typeof window === "undefined") return;
-    window.dispatchEvent(
-      new CustomEvent("nova:caption", { detail: { name, text: CAPTIONS[name] || name } }),
-    );
-  }
-
   async playSfx(name, intensity = 1) {
     if (!(await this.init())) return false;
     const t = this.context.currentTime + 0.005;
@@ -347,7 +314,6 @@ export class NovaAudioController {
       default:
         return false;
     }
-    this.caption(name);
     return true;
   }
 

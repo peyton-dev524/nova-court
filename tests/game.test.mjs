@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 const ui = await import("../js/ui.js");
 const audio = await import("../js/audio.js");
@@ -80,4 +81,16 @@ test("audio controller stores values without requiring Web Audio", () => {
   assert.equal(controller.setMusicMode("not-a-mode"), "street");
   assert.equal(writes.at(-1)[0], "nova-court-audio");
   controller.destroy();
+});
+
+test("routine sound effects never emit bracketed debug captions", async () => {
+  const [audioSource, appSource, html] = await Promise.all([
+    fs.readFile(new URL("../js/audio.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../js/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../index.html", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(audioSource, /nova:caption|CAPTIONS|this\.caption\(/);
+  assert.doesNotMatch(appSource, /audio\.setCaptions/);
+  assert.match(html, /Announcer captions/);
+  assert.doesNotMatch(html, />Sound captions</);
 });
