@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 import {
   BOUNDARY_TYPES,
   FOUL_TYPES,
@@ -15,6 +16,8 @@ import {
   resolveFoulConsequences,
   resolveOutOfBounds,
 } from "../js/contact-rules.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 test("sideline crossing is detected at an interpolated radius-safe point", () => {
   const result = detectOutOfBounds({
@@ -358,3 +361,5 @@ test("rules events are deterministic and immutable", () => {
     first.type = "MUTATED";
   }, TypeError);
 });
+
+register(nodeTest, "boundaries, fouls, contact, and rebound rule contracts");

@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 import {
   COVERAGE_LABELS,
   RIM_RESULTS,
@@ -13,6 +14,8 @@ import {
   shotFacingDirection,
   selectRimResult,
 } from "../js/shot-coverage.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 test("defender coverage reacts to distance, angle, timing, height, and block window", () => {
   const base = {
@@ -370,3 +373,5 @@ test("explicit outcome values make shot resolution replay deterministic", () => 
   };
   assert.deepEqual(resolveShotAttempt(input), resolveShotAttempt(input));
 });
+
+register(nodeTest, "shot coverage, meter, contest, and rim-result contracts");

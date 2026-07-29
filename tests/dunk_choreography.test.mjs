@@ -1,5 +1,6 @@
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
+import { collectContractScenarios } from "./helpers/contract-scenarios.mjs";
 import {
   DUNK_OUTCOMES,
   DUNK_PHASES,
@@ -13,6 +14,8 @@ import {
   scoreDunkStyles,
   selectDunkChoreography,
 } from "../js/dunk-choreography.js";
+
+const { scenario: test, register } = collectContractScenarios();
 
 function allFinite(value) {
   if (typeof value === "number") return Number.isFinite(value);
@@ -374,3 +377,5 @@ test("selection refuses backwards momentum and non-dunking players", () => {
   assert.equal(backwards.reason, "moving_away_from_rim");
   assert.equal(disabled.eligible, false);
 });
+
+register(nodeTest, "dunk selection, choreography, outcome, and safety contracts");
