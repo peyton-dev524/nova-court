@@ -61,6 +61,15 @@ import {
   SKIN_TONES,
 } from "./player-appearance.js?v=1.0";
 import { normalizeBasketballJerseyParameters } from "./basketball-jersey.js?v=1.0";
+import {
+  createVenueSelectionPreview,
+  cycleVenueSelection,
+  getVenueOption,
+  loadVenueSelection,
+  saveVenueSelection,
+  VENUE_OPTIONS,
+} from "./venue-selection.js?v=1.0";
+import { createProductionVenueLoader } from "./production-venue-loader.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -117,6 +126,9 @@ let ballSelectionPreview = null;
 let pendingModeKey = "street";
 let pendingBallStyle = ui.settings.ballStyle;
 let ballSelectionOrigin = "modes";
+let venueSelectionPreview = null;
+let pendingVenueId = loadVenueSelection();
+let activeVenueLoader = null;
 let contestRackVisuals = null;
 let sceneLoadState = {
   sceneId: "boot",
@@ -124,6 +136,8 @@ let sceneLoadState = {
   progress: 0,
   loadedIds: [],
   loadErrors: [],
+  activeGroupId: null,
+  venueId: pendingVenueId,
 };
 const ONBOARDING_STEPS = Object.freeze(["identity", "appearance", "attributes", "review"]);
 let onboardingStep = "identity";
@@ -139,6 +153,7 @@ for (const href of [
   "./js/ui-profile-polish.css?v=1.1",
   "./js/ui-shooting-settings.css?v=1.0",
   "./js/ui-ball-selection.css?v=1.4",
+  "./js/ui-venue-selection.css?v=1.0",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -153,7 +168,7 @@ function setHidden(node, hidden) {
   node.setAttribute("aria-hidden", String(hidden));
 }
 
-function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState.loadedIds) {
+function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState.loadedIds, detail = {}) {
   const nextProgress = Math.max(
     sceneLoadState.sceneId === sceneId ? sceneLoadState.progress : 0,
     Math.min(1, progress),
@@ -163,7 +178,10 @@ function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState
     phase,
     progress: nextProgress,
     loadedIds: [...new Set(loadedIds)],
-    loadErrors: sceneLoadState.sceneId === sceneId ? sceneLoadState.loadErrors : [],
+    loadErrors: detail.loadErrors || (sceneLoadState.sceneId === sceneId ? sceneLoadState.loadErrors : []),
+    activeGroupId: detail.groupId ?? null,
+    venueId: detail.venueId || sceneLoadState.venueId || pendingVenueId,
+    token: detail.token ?? sceneLoadState.token ?? 0,
   };
   const label = {
     shell: "Preparing court fallback…",
@@ -178,6 +196,7 @@ function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState
 function showMainMenu() {
   gameActive = false;
   ballSelectionPreview?.setVisible(false);
+  venueSelectionPreview?.setVisible(false);
   resetShotMeter();
   audio.setMusicMode("street");
   announcer.stop();
@@ -187,6 +206,7 @@ function showMainMenu() {
   setHidden($("#loading-screen"), true);
   setHidden($("#mode-select"), true);
   setHidden($("#ball-select"), true);
+  setHidden($("#venue-select"), true);
   setHidden($("#pause-screen"), true);
   setHidden($("#game-over"), true);
   setHidden($("#controls-screen"), true);
@@ -204,9 +224,10 @@ function showMainMenu() {
 function showModeSelect() {
   engine?.setPaused(true);
   ballSelectionPreview?.setVisible(false);
+  venueSelectionPreview?.setVisible(false);
   resetShotMeter();
   showArcRunCountdown();
-  for (const id of ["main-menu", "my-player-screen", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
+  for (const id of ["main-menu", "my-player-screen", "ball-select", "venue-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#mode-select"), false);
@@ -218,7 +239,8 @@ function showModeSelect() {
 
 function showGame() {
   ballSelectionPreview?.setVisible(false);
-  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
+  venueSelectionPreview?.setVisible(false);
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "venue-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#hud"), false);
@@ -263,9 +285,7 @@ function renderBallSelection() {
   $("#ball-name").textContent = option.name;
   $("#ball-finish").textContent = option.finish;
   $("#ball-description").textContent = option.description;
-  $("#confirm-ball-selection strong").textContent = pendingModeKey === "practice"
-    ? "ENTER OPEN GYM"
-    : `ENTER ${modeMeta.label}`;
+  $("#confirm-ball-selection strong").textContent = "CHOOSE GYM / VENUE";
   $("#ball-selection-dots").replaceChildren(...BALL_SELECTION_OPTIONS.map((candidate) => {
     const dot = document.createElement("span");
     dot.classList.toggle("is-selected", candidate.id === option.id);
@@ -286,7 +306,8 @@ function showBallSelection(modeKey = selectedModeKey, origin = "modes") {
   engine?.setPaused(true);
   engine?.controls?.setEnabled(false);
   resetShotMeter();
-  for (const id of ["main-menu", "my-player-screen", "mode-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen", "hud"]) {
+  venueSelectionPreview?.setVisible(false);
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "venue-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen", "hud"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#ball-select"), false);
@@ -315,6 +336,76 @@ function confirmBallSelection() {
   const selected = getBallSelectionOption(pendingBallStyle);
   ui.applySettings({ ...ui.settings, ballStyle: selected.id });
   ballSelectionPreview?.setVisible(false);
+  showVenueSelection();
+}
+
+function ensureVenueSelectionPreview() {
+  if (!venueSelectionPreview) {
+    venueSelectionPreview = createVenueSelectionPreview({
+      T: globalThis.THREE,
+      container: $("#venue-preview"),
+      initialVenue: pendingVenueId,
+      quality: $("#quality-select")?.value === "performance" ? "low" : "medium",
+      reducedMotion: ui.settings.reducedMotion,
+    });
+  }
+  return venueSelectionPreview;
+}
+
+function renderVenueSelection() {
+  const option = getVenueOption(pendingVenueId);
+  const modeMeta = MODE_META[pendingModeKey] || MODE_META.street;
+  $("#venue-mode-label").textContent = modeMeta.label;
+  $("#venue-ball-label").textContent =
+    `${getBallSelectionOption(ui.settings.ballStyle).name} / ${currentDifficulty.toUpperCase()} DIFFICULTY`;
+  $("#venue-edition").textContent = option.edition;
+  $("#venue-name").textContent = option.name;
+  $("#venue-capacity").textContent = option.capacity;
+  $("#venue-description").textContent = option.description;
+  $("#confirm-venue-selection strong").textContent = pendingModeKey === "practice"
+    ? "ENTER OPEN GYM"
+    : `ENTER ${modeMeta.label}`;
+  $("#venue-selection-dots").replaceChildren(...VENUE_OPTIONS.map((candidate) => {
+    const dot = document.createElement("span");
+    dot.classList.toggle("is-selected", candidate.id === option.id);
+    return dot;
+  }));
+  ensureVenueSelectionPreview().setVenue(option.id);
+  document.documentElement.style.setProperty("--venue-accent", option.accent);
+}
+
+function showVenueSelection(venueId = loadVenueSelection()) {
+  pendingVenueId = getVenueOption(venueId).id;
+  gameActive = false;
+  engine?.setPaused(true);
+  engine?.controls?.setEnabled(false);
+  ballSelectionPreview?.setVisible(false);
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen", "tutorial-screen", "hud"]) {
+    setHidden($(`#${id}`), true);
+  }
+  setHidden($("#venue-select"), false);
+  app.dataset.state = "venue-select";
+  renderVenueSelection();
+  requestAnimationFrame(() => {
+    venueSelectionPreview?.setVisible(true);
+    $("#confirm-venue-selection")?.focus({ preventScroll: true });
+  });
+}
+
+function moveVenueSelection(direction) {
+  pendingVenueId = cycleVenueSelection(pendingVenueId, direction);
+  renderVenueSelection();
+  audio.playSfx("ui");
+}
+
+function leaveVenueSelection() {
+  venueSelectionPreview?.setVisible(false);
+  showBallSelection(pendingModeKey, ballSelectionOrigin);
+}
+
+function confirmVenueSelection() {
+  pendingVenueId = saveVenueSelection(pendingVenueId);
+  venueSelectionPreview?.setVisible(false);
   startMode(pendingModeKey);
 }
 
@@ -774,6 +865,7 @@ function showMyPlayer() {
   setHidden($("#main-menu"), true);
   setHidden($("#mode-select"), true);
   setHidden($("#ball-select"), true);
+  setHidden($("#venue-select"), true);
   setHidden($("#my-player-screen"), false);
   renderPlayerProfile();
   app.dataset.state = "profile";
@@ -829,7 +921,9 @@ function createRoster(modeKey) {
   ];
 }
 
-function createEngine(modeKey, preview = false, roster = null) {
+function createEngine(modeKey, preview = false, roster = null, venueOverride = "park") {
+  activeVenueLoader?.release({ dispose: true });
+  activeVenueLoader = null;
   engine?.destroy();
   contestRackVisuals = null;
   gameRoot.replaceChildren();
@@ -844,7 +938,7 @@ function createEngine(modeKey, preview = false, roster = null) {
     shadows: !performanceMode && modeKey !== "fives",
     pixelRatio: performanceMode || modeKey === "fives" ? 1 : Math.min(devicePixelRatio || 1, 1.35),
     visualQuality: performanceMode || modeKey === "fives" ? "performance" : "balanced",
-    venue: modeKey === "street" ? "park" : teamMode ? "arena" : "arena",
+    venue: venueOverride,
     reducedMotion: ui.settings.reducedMotion,
     userShootingAssist: ui.settings.shootingAssist,
     ballStyle: ui.settings.ballStyle,
@@ -888,6 +982,11 @@ function createEngine(modeKey, preview = false, roster = null) {
         ...sceneLoadState,
         loadedIds: [...sceneLoadState.loadedIds],
         loadErrors: [...sceneLoadState.loadErrors],
+      }),
+      venueSelection: () => ({
+        venueId: pendingVenueId,
+        option: getVenueOption(pendingVenueId),
+        preview: venueSelectionPreview?.getSnapshot?.() || null,
       }),
       ai: () => ai?.getDecisionSnapshot?.() || {
         enabled: false,
@@ -958,7 +1057,7 @@ function startTutorial() {
   engine.presentationUpdate = (dt) => presentationDirector?.update(dt);
   engine.setPaused(false);
   engine.controls.setEnabled(false);
-  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
+  for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "venue-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
     setHidden($(`#${id}`), true);
   }
   setHidden($("#hud"), true);
@@ -1007,7 +1106,7 @@ function createModeController(modeKey) {
   return createGameMode(MODE_MAP[modeKey], config);
 }
 
-function startMode(modeKey = selectedModeKey) {
+async function startMode(modeKey = selectedModeKey) {
   stopPresentation();
   resetShotMeter();
   runToken += 1;
@@ -1022,14 +1121,31 @@ function startMode(modeKey = selectedModeKey) {
   currentDifficulty = $("#difficulty-select")?.value || "pro";
   const token = runToken;
   setHidden($("#loading-screen"), false);
-  updateSceneLoading(currentModeKey, "shell", 0.12, ["court-fallback"]);
-  createEngine(currentModeKey);
-  updateSceneLoading(currentModeKey, "required", 0.68, [
-    "court-fallback",
-    "court",
-    "hoops",
-    "players",
-  ]);
+  createEngine(currentModeKey, false, null, pendingVenueId);
+  const loadQuality = $("#quality-select")?.value === "performance" ? "low" : "medium";
+  activeVenueLoader = createProductionVenueLoader({
+    T: globalThis.THREE,
+    engine,
+    venueId: pendingVenueId,
+    quality: loadQuality,
+    onProgress: ({ sceneId, phase, progress, groupId, token: loaderToken }) => {
+      if (token !== runToken) return;
+      const snapshot = activeVenueLoader?.snapshot?.();
+      updateSceneLoading(
+        sceneId || `${currentModeKey}:${pendingVenueId}`,
+        phase,
+        progress,
+        snapshot?.loadedIds || [],
+        {
+          groupId,
+          token: loaderToken,
+          venueId: pendingVenueId,
+          loadErrors: snapshot?.errors || [],
+        },
+      );
+    },
+  });
+  const venueLoadPromise = activeVenueLoader.load();
   engine.setCameraMode(currentModeKey === "threePoint"
     ? "arc-run"
     : cameraPresetForTeamMode(currentModeKey).mode);
@@ -1048,14 +1164,16 @@ function startMode(modeKey = selectedModeKey) {
     teamIds: currentModeKey === "threePoint" || currentModeKey === "practice" ? [] : null,
     debug: new URLSearchParams(location.search).has("aiDebug"),
   });
-  updateSceneLoading(currentModeKey, "optional", 0.9, [
-    "court-fallback",
-    "court",
-    "hoops",
-    "players",
-    ...(contestRackVisuals ? ["three-point-racks"] : []),
-    "venue-details",
-  ]);
+  const venueLoadResult = await venueLoadPromise;
+  if (token !== runToken || venueLoadResult.cancelled) return;
+  const venueLoadSnapshot = activeVenueLoader.snapshot();
+  sceneLoadState = {
+    ...sceneLoadState,
+    ...venueLoadSnapshot,
+    loadErrors: [...venueLoadSnapshot.errors],
+    venueId: pendingVenueId,
+    activeGroupId: null,
+  };
   const meta = MODE_META[currentModeKey];
   $("#mode-label").textContent = meta.label;
   $("#home-label").textContent = meta.home;
@@ -1081,7 +1199,13 @@ function startMode(modeKey = selectedModeKey) {
           : "CHECK BALL";
   feedback(openingCall, "accent", 1200);
   updateHUD();
-  updateSceneLoading(currentModeKey, "ready", 1);
+  updateSceneLoading(
+    activeVenueLoader.sceneId,
+    "ready",
+    1,
+    venueLoadSnapshot.loadedIds,
+    { venueId: pendingVenueId, loadErrors: venueLoadSnapshot.errors },
+  );
   requestAnimationFrame(() => {
     if (token === runToken) setHidden($("#loading-screen"), true);
   });
@@ -2241,6 +2365,10 @@ function bindUI() {
   $("#previous-ball")?.addEventListener("click", () => moveBallSelection(-1));
   $("#next-ball")?.addEventListener("click", () => moveBallSelection(1));
   $("#confirm-ball-selection")?.addEventListener("click", confirmBallSelection);
+  $("#back-from-venue-select")?.addEventListener("click", leaveVenueSelection);
+  $("#previous-venue")?.addEventListener("click", () => moveVenueSelection(-1));
+  $("#next-venue")?.addEventListener("click", () => moveVenueSelection(1));
+  $("#confirm-venue-selection")?.addEventListener("click", confirmVenueSelection);
   $("#pause-button")?.addEventListener("click", pauseGame);
   $("#resume-game")?.addEventListener("click", resumeGame);
   $("#restart-game")?.addEventListener("click", () => startMode(currentModeKey));
@@ -2314,6 +2442,9 @@ function bindUI() {
     if (app.dataset.state === "ball-select" && event.code === "ArrowLeft") moveBallSelection(-1);
     else if (app.dataset.state === "ball-select" && event.code === "ArrowRight") moveBallSelection(1);
     else if (app.dataset.state === "ball-select" && event.code === "Escape") leaveBallSelection();
+    else if (app.dataset.state === "venue-select" && event.code === "ArrowLeft") moveVenueSelection(-1);
+    else if (app.dataset.state === "venue-select" && event.code === "ArrowRight") moveVenueSelection(1);
+    else if (app.dataset.state === "venue-select" && event.code === "Escape") leaveVenueSelection();
     else if (event.code === "Escape" && !$("#settings-screen").hidden) hideOverlay("settings-screen");
     else if (event.code === "Escape" && !$("#controls-screen").hidden) hideOverlay("controls-screen");
     else if (event.code === "Escape" && !$("#my-player-screen").hidden) showMainMenu();
@@ -2334,6 +2465,11 @@ async function boot() {
   bindUI();
   try {
     if (!globalThis.THREE || !globalThis.WebGLRenderingContext) throw new Error("WebGL is unavailable in this browser.");
+    const bootQuery = new URLSearchParams(location.search);
+    if (bootQuery.get("captureHeight") === "720") {
+      app.style.width = "1278px";
+      app.style.height = "720px";
+    }
     updateSceneLoading("boot", "shell", 0.14, ["court-fallback"]);
     $("#loader-copy").textContent = "Lighting the night court…";
     createEngine("street", true);
@@ -2341,13 +2477,22 @@ async function boot() {
     $("#loader-copy").textContent = "Calibrating ball physics…";
     updateSceneLoading("boot", "optional", 0.92, ["court-fallback", "court", "hoops", "players", "venue-details"]);
     updateSceneLoading("boot", "ready", 1);
-    const onboardingQuery = new URLSearchParams(location.search);
-    const captureName = onboardingQuery.get("arcRunCapture");
+    const captureName = bootQuery.get("arcRunCapture");
+    const venueSelectCapture = bootQuery.get("venueSelectCapture");
+    const gameplayVenueCapture = bootQuery.get("gameplayVenueCapture");
     if (captureName) {
       prepareArcRunCaptureState(captureName);
       setHidden($("#loading-screen"), true);
+    } else if (venueSelectCapture) {
+      pendingModeKey = MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "street";
+      showVenueSelection(venueSelectCapture);
+      setHidden($("#loading-screen"), true);
+    } else if (gameplayVenueCapture) {
+      pendingVenueId = getVenueOption(gameplayVenueCapture).id;
+      await startMode(MODE_META[bootQuery.get("mode")] ? bootQuery.get("mode") : "practice");
+      setHidden($("#loading-screen"), true);
     } else {
-      const forceOnboarding = onboardingQuery.get("onboarding") === "1";
+      const forceOnboarding = bootQuery.get("onboarding") === "1";
       if (forceOnboarding || getProfileSummary(playerProfile).needsOnboarding) {
         setHidden($("#loading-screen"), true);
         hideOverlay("pause-screen");
@@ -2355,10 +2500,11 @@ async function boot() {
         setHidden($("#main-menu"), true);
         setHidden($("#mode-select"), true);
         setHidden($("#ball-select"), true);
+        setHidden($("#venue-select"), true);
         setHidden($("#create-player-screen"), false);
         app.dataset.state = "onboarding";
-        const requestedStep = ONBOARDING_STEPS.includes(onboardingQuery.get("step"))
-          ? onboardingQuery.get("step")
+        const requestedStep = ONBOARDING_STEPS.includes(bootQuery.get("step"))
+          ? bootQuery.get("step")
           : "identity";
         setOnboardingStep(requestedStep);
       } else {

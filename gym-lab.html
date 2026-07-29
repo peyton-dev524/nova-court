@@ -13,12 +13,18 @@
     <header class="gym-brand">
       <span>NOVA COURT · ENVIRONMENT TOOLS</span>
       <h1>STADIUM / GYM LAB</h1>
-      <p>Montgomery-inspired compact shell · regulation 84 × 50 ft court</p>
+      <p id="gym-subtitle">Montgomery-inspired compact shell · regulation 84 × 50 ft court</p>
     </header>
     <aside class="gym-controls">
+      <label>Venue study
+        <select id="gym-venue">
+          <option value="montgomery">Montgomery Fieldhouse</option>
+          <option value="arena840">Crimson 840</option>
+        </select>
+      </label>
       <label>Camera
         <select id="gym-view">
-          <option value="reference-baseline">Reference baseline</option>
+          <option value="baseline">Baseline</option>
           <option value="sideline">Sideline</option>
           <option value="bleachers">Bleachers</option>
           <option value="rafters">Rafters + lighting</option>
@@ -35,10 +41,10 @@
       </label>
       <fieldset>
         <legend>OPTIONAL GROUPS</legend>
-        <label><input data-group="gym-architecture" type="checkbox" checked> Architecture</label>
-        <label><input data-group="gym-bleachers" type="checkbox" checked> Bleachers</label>
-        <label><input data-group="gym-signage" type="checkbox" checked> Signage</label>
-        <label><input data-group="gym-lighting" type="checkbox" checked> Lights</label>
+        <label><input data-group-suffix="architecture" type="checkbox" checked> Architecture</label>
+        <label><input data-group-suffix="bleachers" type="checkbox" checked> Bleachers</label>
+        <label><input data-group-suffix="signage" type="checkbox" checked> Signage</label>
+        <label><input data-group-suffix="lighting" type="checkbox" checked> Lights</label>
       </fieldset>
       <div class="gym-toggles">
         <label><input id="gym-wireframe" type="checkbox"> Wireframe</label>
@@ -50,10 +56,10 @@
         <button id="gym-unload" type="button">UNLOAD OPTIONAL</button>
       </div>
       <button id="gym-capture" type="button">SAVE NAMED PNG</button>
-      <p id="gym-capture-name">gym-reference-baseline-high.png</p>
+      <p id="gym-capture-name">gym-montgomery-baseline-high.png</p>
     </aside>
     <nav class="gym-views" aria-label="Named gym camera views">
-      <button data-view="reference-baseline">01 BASELINE</button>
+      <button data-view="baseline">01 BASELINE</button>
       <button data-view="sideline">02 SIDELINE</button>
       <button data-view="bleachers">03 BLEACHERS</button>
       <button data-view="rafters">04 RAFTERS</button>

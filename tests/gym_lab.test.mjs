@@ -7,6 +7,12 @@ import {
   GYM_QUALITY_BUDGETS,
   gymBudgetSnapshot,
 } from "../js/gym-scene.js";
+import {
+  venueBudgetSnapshot,
+  venueGroupIds,
+  VENUE_QUALITY_BUDGETS,
+  VENUE_VIEW_PRESETS,
+} from "../js/venue-scenes.js";
 
 test("gym uses regulation high-school court and rim dimensions in meters", () => {
   assert.ok(Math.abs(GYM_COURT.length - 84 * 0.3048) < 1e-9);
@@ -43,17 +49,29 @@ test("gym group contract includes required gameplay and optional detail IDs", ()
   ]);
 });
 
+test("Gym Lab supports both venue studies and six stable named views", () => {
+  for (const venueId of ["montgomery", "arena840"]) {
+    assert.equal(venueGroupIds(venueId).length, 7);
+    assert.deepEqual(Object.keys(VENUE_VIEW_PRESETS[venueId]), [
+      "baseline", "sideline", "bleachers", "rafters", "scoreboard", "court-wide",
+    ]);
+    assert.ok(venueBudgetSnapshot(venueId, "high").calls <= 140);
+    assert.ok(VENUE_QUALITY_BUDGETS[venueId].low.triangles <= VENUE_QUALITY_BUDGETS[venueId].high.triangles);
+  }
+});
+
 test("gym lab and app expose deterministic loading and renderer QA state", () => {
   const html = readFileSync(new URL("../gym-lab.html", import.meta.url), "utf8");
   const lab = readFileSync(new URL("../js/gym-lab.js", import.meta.url), "utf8");
   const app = readFileSync(new URL("../js/app.js", import.meta.url), "utf8");
   const build = readFileSync(new URL("../scripts/build.mjs", import.meta.url), "utf8");
   assert.match(html, /id="gym-loading"/);
-  assert.match(html, /data-view="reference-baseline"/);
+  assert.match(html, /id="gym-venue"/);
+  assert.match(html, /data-view="baseline"/);
   assert.match(lab, /__NOVA_GYM_LAB__/);
   assert.match(lab, /renderInfo: metrics\(\)/);
-  assert.match(lab, /releaseScene\("gym-lab", \{ dispose: true \}\)/);
+  assert.match(lab, /__sceneId/);
   assert.match(app, /sceneLoading:/);
-  assert.match(app, /updateSceneLoading\(currentModeKey, "required"/);
+  assert.match(app, /createProductionVenueLoader/);
   assert.match(build, /gym-lab\.html/);
 });

@@ -1174,7 +1174,9 @@ export class NovaCourtEngine {
     this._lastPerformanceEventAt = -Infinity;
     this.mode = options.mode || "street-1v1";
     this.courtRuntime = options.courtRuntime || createCourtRuntime(null);
-    this.venue = options.venue === "park" ? "park" : "arena";
+    this.venue = ["park", "arena", "montgomery", "arena840"].includes(options.venue)
+      ? options.venue
+      : "arena";
     this.difficulty = options.difficulty || "pro";
     this.cameraMode = options.cameraMode || "follow";
     this.arcRunRack = null;
@@ -1582,7 +1584,7 @@ export class NovaCourtEngine {
       }
     }
 
-    if (this.venue !== "park") {
+    if (this.venue === "arena") {
     const wallMat = new T.MeshStandardMaterial({ color: 0x080d16, roughness: 0.94 });
     for (const [x, z, width, depth] of [[0, -8.6, 22, 0.7], [-9.35, 0, 0.7, 19], [9.35, 0, 0.7, 19]]) {
       const wall = new T.Mesh(new T.BoxGeometry(width, 7.2, depth), wallMat);

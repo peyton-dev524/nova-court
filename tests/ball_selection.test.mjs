@@ -23,7 +23,7 @@ test("ball locker exposes both production finishes and wraps with either arrow",
   assert.equal(getBallSelectionOption("unknown").id, "classic");
 });
 
-test("every new mode launch routes through the Ball Locker before gameplay", async () => {
+test("every new mode launch routes through the Ball Locker before venue selection", async () => {
   const [html, app] = await Promise.all([
     readFile(new URL("index.html", root), "utf8"),
     readFile(new URL("js/app.js", root), "utf8"),
@@ -45,5 +45,5 @@ test("every new mode launch routes through the Ball Locker before gameplay", asy
   assert.match(app, /showBallSelection\("street", "menu"\)/);
   assert.match(app, /showBallSelection\(selectedModeKey, "modes"\)/);
   assert.match(app, /ui\.applySettings\(\{ \.\.\.ui\.settings, ballStyle: selected\.id \}\)/);
-  assert.match(app, /startMode\(pendingModeKey\)/);
+  assert.match(app, /showVenueSelection\(\)/);
 });

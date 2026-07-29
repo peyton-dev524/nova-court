@@ -1,10 +1,12 @@
 import { createSceneGroupLoader } from "./scene-group-loader.js?v=1.0";
 import {
-  createGymGroups,
-  gymBudgetSnapshot,
-  GYM_GROUP_IDS,
-  GYM_QUALITY_BUDGETS,
-} from "./gym-scene.js?v=1.0";
+  createVenueGroups,
+  normalizeVenueId,
+  venueBudgetSnapshot,
+  venueGroupIds,
+  VENUE_QUALITY_BUDGETS,
+  VENUE_VIEW_PRESETS,
+} from "./venue-scenes.js?v=1.0";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Stadium / Gym Lab requires THREE.");
@@ -41,38 +43,41 @@ heightGuide.material.opacity = 0.18;
 guides.add(heightGuide);
 scene.add(guides);
 
-const VIEWS = Object.freeze({
-  "reference-baseline": { position: [8.3, 4.25, 13.4], target: [0, 2.4, -8.6] },
-  sideline: { position: [8.65, 4.15, 2.1], target: [0, 1.45, 0] },
-  bleachers: { position: [-6.4, 2.35, -5.5], target: [0, 1.8, 14.1] },
-  rafters: { position: [6.4, 2.25, 8.8], target: [0, 7.65, -1] },
-  scoreboard: { position: [-6.8, 3.8, -5.4], target: [0, 4.9, 15.2] },
-  "court-wide": { position: [8.4, 7.15, 13.6], target: [0, 0.2, 0] },
-});
 let state = {
-  view: VIEWS[query.get("view")] ? query.get("view") : "reference-baseline",
-  quality: GYM_QUALITY_BUDGETS[query.get("quality")] ? query.get("quality") : "high",
+  venueId: normalizeVenueId(query.get("venue")),
+  view: "baseline",
+  quality: ["low", "medium", "high"].includes(query.get("quality")) ? query.get("quality") : "high",
   wireframe: query.get("wireframe") === "1",
   lights: query.get("lights") !== "0",
   guides: query.get("guides") !== "0",
 };
+state.view = VENUE_VIEW_PRESETS[state.venueId][query.get("view")] ? query.get("view") : "baseline";
 let loader;
 let frameSamples = [];
 let lastFrame = performance.now();
 let overlayTimer = 0;
 guides.visible = state.guides;
 
+function updateVenueCopy() {
+  $("#gym-subtitle").textContent = state.venueId === "arena840"
+    ? "CC0 840-seat small-arena study · three Wikideas1 reference angles"
+    : "Montgomery-inspired compact shell · regulation 84 × 50 ft court";
+}
+
 function setCamera(view) {
-  state.view = VIEWS[view] ? view : "reference-baseline";
-  camera.position.set(...VIEWS[state.view].position);
-  camera.lookAt(...VIEWS[state.view].target);
+  const views = VENUE_VIEW_PRESETS[state.venueId];
+  state.view = views[view] ? view : "baseline";
+  camera.position.set(...views[state.view].position);
+  camera.lookAt(...views[state.view].target);
+  camera.fov = state.view === "court-wide" ? 62 : 48;
+  camera.updateProjectionMatrix();
   $("#gym-view").value = state.view;
   document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("is-active", button.dataset.view === state.view));
   updateCaptureName();
 }
 
 function updateCaptureName() {
-  $("#gym-capture-name").textContent = `gym-${state.view}-${state.quality}.png`;
+  $("#gym-capture-name").textContent = `gym-${state.venueId}-${state.view}-${state.quality}.png`;
 }
 
 function setLoading({ phase, progress, groupId }) {
@@ -108,10 +113,11 @@ async function loadGym({ forceDispose = false } = {}) {
   const previous = loader;
   if (previous) {
     previous.cancel();
-    previous.releaseScene("gym-lab", { dispose: forceDispose });
+    const previousSceneId = previous.__sceneId || `gym-lab:${state.venueId}`;
+    previous.releaseScene(previousSceneId, { dispose: forceDispose });
     world.clear();
   }
-  const groups = createGymGroups(T, state.quality);
+  const groups = createVenueGroups(T, state.venueId, state.quality);
   const values = new Map();
   const wrapped = groups.map((group) => ({
     ...group,
@@ -130,7 +136,8 @@ async function loadGym({ forceDispose = false } = {}) {
   }));
   loader = createSceneGroupLoader({ groups: wrapped, onProgress: setLoading });
   loader.__groups = values;
-  const result = await loader.loadScene("gym-lab", GYM_GROUP_IDS);
+  loader.__sceneId = `gym-lab:${state.venueId}`;
+  const result = await loader.loadScene(loader.__sceneId, venueGroupIds(state.venueId));
   attachLoadedGroups();
   return result;
 }
@@ -152,7 +159,8 @@ function metrics() {
 
 function snapshot() {
   return {
-    sceneId: "gym-lab",
+    sceneId: `gym-lab:${state.venueId}`,
+    venueId: state.venueId,
     view: state.view,
     quality: state.quality,
     phase: loader?.snapshot().phase || "idle",
@@ -161,7 +169,7 @@ function snapshot() {
     visibleIds: loader?.snapshot().visibleIds || [],
     loadErrors: loader?.snapshot().errors || [],
     renderInfo: metrics(),
-    budget: gymBudgetSnapshot(state.quality),
+    budget: venueBudgetSnapshot(state.venueId, state.quality),
   };
 }
 
@@ -205,7 +213,17 @@ $("#gym-quality").addEventListener("change", async (event) => {
   updateCaptureName();
   await loadGym({ forceDispose: true });
 });
-document.querySelectorAll("[data-group]").forEach((input) => input.addEventListener("change", () => setGroup(input.dataset.group, input.checked)));
+const groupIdForInput = (input) => `${state.venueId}-${input.dataset.groupSuffix}`;
+document.querySelectorAll("[data-group-suffix]").forEach((input) =>
+  input.addEventListener("change", () => setGroup(groupIdForInput(input), input.checked)));
+$("#gym-venue").value = state.venueId;
+$("#gym-venue").addEventListener("change", async (event) => {
+  state.venueId = normalizeVenueId(event.target.value);
+  updateVenueCopy();
+  setCamera(state.view);
+  updateCaptureName();
+  await loadGym({ forceDispose: true });
+});
 $("#gym-wireframe").checked = state.wireframe;
 $("#gym-wireframe").addEventListener("change", (event) => { state.wireframe = event.target.checked; wireframeScene(state.wireframe); });
 $("#gym-lights").checked = state.lights;
@@ -213,28 +231,37 @@ $("#gym-lights").addEventListener("change", (event) => {
   state.lights = event.target.checked;
   ambient.visible = state.lights;
   key.visible = state.lights;
-  setGroup("gym-lighting", state.lights);
+  setGroup(`${state.venueId}-lighting`, state.lights);
 });
 $("#gym-guides").checked = state.guides;
 $("#gym-guides").addEventListener("change", (event) => { state.guides = event.target.checked; guides.visible = state.guides; });
 $("#gym-reload").addEventListener("click", () => loadGym({ forceDispose: true }));
 $("#gym-unload").addEventListener("click", () => {
-  ["gym-architecture", "gym-bleachers", "gym-signage", "gym-lighting"].forEach((id) => setGroup(id, false));
-  document.querySelectorAll("[data-group]").forEach((input) => { input.checked = false; });
+  ["architecture", "bleachers", "signage", "lighting"].forEach((suffix) =>
+    setGroup(`${state.venueId}-${suffix}`, false));
+  document.querySelectorAll("[data-group-suffix]").forEach((input) => { input.checked = false; });
 });
 $("#gym-capture").addEventListener("click", capture);
 window.addEventListener("resize", resize);
 window.addEventListener("pagehide", () => {
   loader?.cancel();
-  loader?.releaseScene("gym-lab", { dispose: true });
+  loader?.releaseScene(loader.__sceneId, { dispose: true });
   renderer.dispose();
 }, { once: true });
 
 window.__NOVA_GYM_LAB__ = {
   snapshot,
   setView: (view) => setCamera(view),
+  setVenue: async (venueId) => {
+    state.venueId = normalizeVenueId(venueId);
+    $("#gym-venue").value = state.venueId;
+    updateVenueCopy();
+    setCamera(state.view);
+    await loadGym({ forceDispose: true });
+    return snapshot();
+  },
   setQuality: async (quality) => {
-    if (!GYM_QUALITY_BUDGETS[quality]) return false;
+    if (!VENUE_QUALITY_BUDGETS[state.venueId]?.[quality]) return false;
     state.quality = quality;
     $("#gym-quality").value = quality;
     updateCaptureName();
@@ -244,22 +271,23 @@ window.__NOVA_GYM_LAB__ = {
   setGroup,
   reload: () => loadGym({ forceDispose: true }),
   unload: () => {
-    loader?.releaseScene("gym-lab", { dispose: true });
+    loader?.releaseScene(loader.__sceneId, { dispose: true });
     world.clear();
     return snapshot();
   },
   capture,
   loadingOverlay: (active = true, progress = 0.45, phase = "optional") => {
-    if (active) setLoading({ phase, progress, groupId: "gym-architecture" });
+    if (active) setLoading({ phase, progress, groupId: `${state.venueId}-architecture` });
     else $("#gym-loading").classList.add("is-hidden");
     return snapshot();
   },
 };
 
 resize();
+updateVenueCopy();
 setCamera(state.view);
 await loadGym();
 if (query.get("loading") === "1") {
-  setLoading({ phase: "optional", progress: 0.72, groupId: "gym-architecture" });
+  setLoading({ phase: "optional", progress: 0.72, groupId: `${state.venueId}-architecture` });
 }
 requestAnimationFrame(tick);
