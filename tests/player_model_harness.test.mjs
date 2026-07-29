@@ -91,4 +91,6 @@ test("production athlete rig includes articulated silhouette and face improvemen
   assert.match(shoes, /nova-flight-collar/);
   assert.match(shoes, /nova-flight-tread-pods/);
   assert.doesNotMatch(engine, /const headband =/);
+  assert.doesNotMatch(engine, /const shoulderBand =/);
+  assert.doesNotMatch(engine, /const wristBand =/);
 });

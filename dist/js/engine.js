@@ -89,7 +89,11 @@ import {
   createBasketballMesh,
   normalizeBasketballStyle,
 } from "./basketball-visuals.js?v=1.1";
-import { sampleFeaturedDribbleMove } from "./dribble-animation.js?v=1.0";
+import {
+  dribbleHandContactWeight,
+  sampleFeaturedDribbleMove,
+  solveDribbleHandContact,
+} from "./dribble-animation.js?v=1.1";
 import {
   createProceduralHand,
   PLAYER_LEG_PROPORTIONS,
@@ -452,7 +456,6 @@ export class ProceduralPlayer {
     group.name = this.id;
     const skin = this._material(this.colors.skin, 0.72);
     const jersey = this._material(this.colors.jersey, 0.58);
-    const trim = this._material(this.colors.trim, 0.54);
     const sock = this._material(0xf0f2ed, 0.72);
     const hair = this._material(0x17120f, 0.92);
 
@@ -562,10 +565,6 @@ export class ProceduralPlayer {
       deltoid.position.y = -0.03;
       deltoid.scale.set(0.9, 1.08, 0.86);
       shoulder.add(deltoid);
-      const shoulderBand = this._mesh(new T.CylinderGeometry(0.094, 0.087, 0.095, 10), trim);
-      shoulderBand.position.y = -0.115;
-      shoulder.add(shoulderBand);
-      this.detailMeshes.push(shoulderBand);
       const upper = this._mesh(new T.CapsuleGeometry(0.082, 0.32, 4, 9), skin);
       upper.position.y = -0.285;
       shoulder.add(upper);
@@ -578,10 +577,6 @@ export class ProceduralPlayer {
       const forearm = this._mesh(new T.CapsuleGeometry(0.07, 0.3, 4, 9), skin);
       forearm.position.y = -0.205;
       elbow.add(forearm);
-      const wristBand = this._mesh(new T.CylinderGeometry(0.073, 0.069, 0.06, 10), trim);
-      wristBand.position.y = -0.39;
-      elbow.add(wristBand);
-      this.detailMeshes.push(wristBand);
       const handRig = createProceduralHand(T, { side, material: skin });
       const hand = handRig.root;
       hand.position.y = -0.47;
@@ -1061,27 +1056,26 @@ export class ProceduralPlayer {
         const localBall = this._ballLocal.copy(this.engine.ball.position)
           .sub(this.root.position)
           .applyAxisAngle(this._upAxis, -this.root.rotation.y);
-        const shoulderX = arm.side * 0.36 * this.root.scale.x;
-        const shoulderY = (this.hips.position.y + 0.87) * this.root.scale.y;
-        const dx = localBall.x - shoulderX;
-        const dy = localBall.y - shoulderY;
-        const dz = localBall.z;
-        const ownership = clamp(1 - Math.abs(localBall.x - arm.side * 0.42) / 0.84, 0, 1);
-        const contact = smoothstep(0.4, 0.96, localBall.y);
-        const reachWeight = ownership * contact * 0.58;
+        const scaleY = Math.max(0.01, this.root.scale.y);
+        const contactTarget = solveDribbleHandContact({
+          ball: localBall,
+          shoulder: {
+            x: arm.side * 0.36 * this.root.scale.x,
+            y: (this.hips.position.y + 0.87) * scaleY,
+            z: 0,
+          },
+          scaleY,
+          ballRadius: COURT.ballRadius,
+        });
+        const reachWeight = dribbleHandContactWeight({
+          ballHeight: localBall.y,
+          ballSide: localBall.x,
+          armSide: arm.side,
+        }) * 0.995;
         if (reachWeight > 0.001) {
-          const downward = Math.max(0.12, -dy);
-          const pitchTarget = clamp(-Math.atan2(dz, downward), -1.58, 0.35);
-          const outTarget = clamp(Math.atan2(dx, downward), -1.2, 1.2);
-          const scaleY = Math.max(0.01, this.root.scale.y);
-          const reach = clamp(Math.hypot(dx, dy, dz) / scaleY, 0.22, 0.955);
-          const upper = 0.5;
-          const lower = 0.465;
-          const elbowCos = clamp((upper * upper + lower * lower - reach * reach) / (2 * upper * lower), -1, 1);
-          const elbowTarget = -(Math.PI - Math.acos(elbowCos));
-          swing = lerp(swing, pitchTarget, reachWeight);
-          out = lerp(out, outTarget, reachWeight);
-          elbow = lerp(elbow, elbowTarget, reachWeight * 0.82);
+          swing = lerp(swing, contactTarget.pitch, reachWeight);
+          out = lerp(out, contactTarget.roll, reachWeight);
+          elbow = lerp(elbow, contactTarget.elbow, reachWeight * 0.92);
         }
       }
       const guardShoulder = i === 0
@@ -2014,7 +2008,7 @@ export class NovaCourtEngine {
   }
 
   setCameraMode(mode) {
-    const allowed = ["follow", "broadcast", "cinematic", "arc-run"];
+    const allowed = ["follow", "broadcast", "cinematic", "arc-run", "showcase"];
     if (!allowed.includes(mode)) return false;
     this.cameraMode = mode;
     this.events.emit("camera", { mode });
@@ -4048,7 +4042,12 @@ export class NovaCourtEngine {
     const isShot = !this.ball.owner && this.ball.state === "shot";
     let desiredFov = 42;
     const activeBasket = this._basketForTeam(this.ball.owner?.team || this.possessionTeam || this.controlledPlayer?.team || "home");
-    if (this.cameraMode === "arc-run") {
+    if (this.cameraMode === "showcase") {
+      const sway = Math.sin(this.elapsed * 0.24) * 0.18;
+      desired.set(0.42 + sway, 2.16, 6.9);
+      target.set(0.42, 1.08, 0.08);
+      desiredFov = 37;
+    } else if (this.cameraMode === "arc-run") {
       const snapshot = createArcRunCameraSnapshot({
         shooter: player,
         basket: activeBasket,

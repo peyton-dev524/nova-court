@@ -178,7 +178,13 @@ export class FreeThrowFlow {
   }
 }
 
-export const shouldQueueMadeShotReplay = (modeId) => modeId !== "open_gym";
+const MADE_SHOT_REPLAY_DISABLED_MODES = new Set([
+  "open_gym",
+  "three_point_contest",
+]);
+
+export const shouldQueueMadeShotReplay = (modeId) =>
+  !MADE_SHOT_REPLAY_DISABLED_MODES.has(modeId);
 
 export const shouldEnforceOutOfBounds = (modeId) => modeId !== "open_gym";
 

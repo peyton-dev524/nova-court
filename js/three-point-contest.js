@@ -5,7 +5,9 @@ export const THREE_POINT_NORMAL_BALL_POINTS = 1;
 export const THREE_POINT_MONEY_BALL_POINTS = 2;
 export const THREE_POINT_NORMAL_BALL_STYLE = "classic";
 export const THREE_POINT_MONEY_BALL_STYLE = "redWhiteBlue";
-export const ARC_RUN_GRAB_DURATION = 0.64;
+// Quick enough to preserve contest rhythm while retaining readable
+// reach/contact/gather poses for the production rig.
+export const ARC_RUN_GRAB_DURATION = 0.36;
 
 const HALF_COURT_BASKET = createRegulationCourtSpec("half").baskets.home;
 const BASKET = Object.freeze({ x: HALF_COURT_BASKET.x, z: HALF_COURT_BASKET.z });

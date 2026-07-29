@@ -189,7 +189,8 @@ test("money ball is fifth on all five racks before and after deterministic resta
 });
 
 test("Arc Run grab has continuous reach, contact, and pull-to-gather phases", () => {
-  assert.equal(ARC_RUN_GRAB_DURATION, 0.64);
+  assert.equal(ARC_RUN_GRAB_DURATION, 0.36);
+  assert.ok(ARC_RUN_GRAB_DURATION <= 0.4, "automatic pickup stays under 400 ms");
   const samples = [0, 0.2, 0.4, 0.52, 0.76, 1].map((progress) =>
     sampleArcRunGrab(progress, -1));
   assert.deepEqual(
@@ -359,6 +360,11 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   }
 });
 
+test("Arc Run rules disable made-shot replays so rack flow never freezes", () => {
+  const mode = createGameMode(MODE_IDS.THREE_POINT_CONTEST);
+  assert.equal(mode.getRules().madeShotReplays, false);
+});
+
 test("Arc Run integration wires rack placement, locked camera, and arbitrary QA jumps", async () => {
   const [appSource, engineSource] = await Promise.all([
     readFile(new URL("../js/app.js", import.meta.url), "utf8"),
@@ -370,6 +376,9 @@ test("Arc Run integration wires rack placement, locked camera, and arbitrary QA 
   assert.match(appSource, /setArcRunCountdown/);
   assert.match(appSource, /setArcRunGrab/);
   assert.match(appSource, /beginArcRunGrab/);
+  assert.match(appSource, /arc-run-grab-state/);
+  assert.match(appSource, /getArcRunGrabSnapshot/);
+  assert.match(appSource, /READY · SHOOT/);
   assert.match(appSource, /arc-run-countdown/);
   assert.match(appSource, /snapThreePointCamera/);
   assert.match(appSource, /facingHoopDot/);

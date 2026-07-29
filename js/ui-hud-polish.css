@@ -779,10 +779,72 @@
   letter-spacing: 0.09em;
 }
 
+#hud .rack-progress__action {
+  display: grid;
+  grid-template-columns: 6px auto 1fr;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+  padding: 4px 5px;
+  border: 1px solid rgba(91, 230, 245, 0.16);
+  border-radius: 3px;
+  color: rgba(223, 241, 245, 0.74);
+  background: rgba(89, 224, 240, 0.05);
+  font-size: 6px;
+  letter-spacing: 0.08em;
+}
+
+#hud .rack-progress__action i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(216, 231, 235, 0.38);
+}
+
+#hud .rack-progress__action b {
+  font-size: 6px;
+  white-space: nowrap;
+}
+
+#hud .rack-progress__action small {
+  color: inherit;
+  font-size: 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#hud .rack-progress__action.is-grabbing {
+  border-color: rgba(56, 232, 255, 0.48);
+  color: var(--cyan-bright);
+  background: rgba(56, 232, 255, 0.12);
+}
+
+#hud .rack-progress__action.is-grabbing i {
+  background: var(--cyan-bright);
+  box-shadow: 0 0 8px rgba(56, 232, 255, 0.8);
+  animation: arc-run-grab-pulse 0.36s ease-in-out infinite alternate;
+}
+
+#hud .rack-progress__action.is-ready {
+  border-color: rgba(120, 255, 154, 0.42);
+  color: #78ff9a;
+  background: rgba(120, 255, 154, 0.1);
+}
+
+#hud .rack-progress__action.is-ready i {
+  background: #78ff9a;
+  box-shadow: 0 0 7px rgba(120, 255, 154, 0.64);
+}
+
 #hud .rack-progress__balls {
   display: grid;
   grid-template-columns: repeat(5, 9px);
   gap: 7px 11px;
+}
+
+@keyframes arc-run-grab-pulse {
+  from { opacity: 0.45; transform: scale(0.78); }
+  to { opacity: 1; transform: scale(1.12); }
 }
 
 #app[data-game-mode="threePoint"] #hud .player-card-hud[hidden] {

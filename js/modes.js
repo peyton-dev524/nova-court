@@ -784,6 +784,7 @@ export class ThreePointContestMode extends BaseMode {
       moneyBallPoints: THREE_POINT_MONEY_BALL_POINTS,
       ballSequence: this.ballSequence.map((ball) => ({ ...ball })),
       maximumScore: this.ballSequence.reduce((total, ball) => total + ball.value, 0),
+      madeShotReplays: false,
     };
   }
 

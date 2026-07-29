@@ -6,9 +6,11 @@ import { createBasketballMesh } from "./basketball-visuals.js?v=1.1";
 import {
   DRIBBLE_NAMED_FRAMES,
   FEATURED_DRIBBLE_MOVES,
+  dribbleHandContactWeight,
   featuredDribbleFrameName,
   sampleFeaturedDribbleMove,
-} from "./dribble-animation.js?v=1.0";
+  solveDribbleHandContact,
+} from "./dribble-animation.js?v=1.1";
 
 const T = globalThis.THREE;
 if (!T) throw new Error("Dribble Lab requires THREE.");
@@ -211,14 +213,15 @@ function resetRigPose(sample) {
   rightLeg.knee.rotation.set(sample.pose.rightKnee, 0, 0);
   leftLeg.knee.rotation.set(sample.pose.leftKnee, 0, 0);
 
-  const [rightArm, leftArm] = player.arms;
-  const startArm = state.startHand > 0 ? rightArm : leftArm;
-  const endArm = state.startHand > 0 ? leftArm : rightArm;
+  const negativeArm = player.arms.find((arm) => arm.side < 0);
+  const positiveArm = player.arms.find((arm) => arm.side > 0);
+  const startArm = state.startHand > 0 ? positiveArm : negativeArm;
+  const endArm = state.startHand > 0 ? negativeArm : positiveArm;
   const handPulse = Math.sin(Math.PI * sample.progress);
-  rightArm.shoulder.rotation.set(-0.28, 0, -0.18);
-  leftArm.shoulder.rotation.set(-0.28, 0, 0.18);
-  rightArm.elbow.rotation.set(-0.34, 0, 0);
-  leftArm.elbow.rotation.set(-0.34, 0, 0);
+  negativeArm.shoulder.rotation.set(-0.28, 0, -0.18);
+  positiveArm.shoulder.rotation.set(-0.28, 0, 0.18);
+  negativeArm.elbow.rotation.set(-0.34, 0, 0);
+  positiveArm.elbow.rotation.set(-0.34, 0, 0);
 
   startArm.shoulder.rotation.x = -0.48 - sample.hands.startWeight * 0.5 - handPulse * 0.18;
   endArm.shoulder.rotation.x = -0.48 - sample.hands.endWeight * 0.5 - handPulse * 0.18;
@@ -231,6 +234,30 @@ function resetRigPose(sample) {
     player.hips.rotation.x = -0.08;
     startArm.shoulder.rotation.z -= startArm.side * 0.3;
     endArm.shoulder.rotation.z -= endArm.side * 0.22;
+  }
+
+  for (const arm of player.arms) {
+    const contactTarget = solveDribbleHandContact({
+      ball: sample.ball,
+      shoulder: {
+        x: arm.side * 0.36 * player.root.scale.x,
+        y: (player.hips.position.y + 0.87) * player.root.scale.y,
+        z: 0,
+      },
+      scaleY: player.root.scale.y,
+      ballRadius: 0.12,
+    });
+    const reachWeight = dribbleHandContactWeight({
+      ballHeight: sample.ball.height,
+      ballSide: sample.ball.side,
+      armSide: arm.side,
+    }) * 0.995;
+    arm.shoulder.rotation.x +=
+      (contactTarget.pitch - arm.shoulder.rotation.x) * reachWeight;
+    arm.shoulder.rotation.z +=
+      (contactTarget.roll - arm.shoulder.rotation.z) * reachWeight;
+    arm.elbow.rotation.x +=
+      (contactTarget.elbow - arm.elbow.rotation.x) * reachWeight * 0.92;
   }
 
   player.shortsRig?.update(1 / 60, {

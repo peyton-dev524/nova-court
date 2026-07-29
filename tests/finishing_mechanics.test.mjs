@@ -103,12 +103,13 @@ test("loose-ball recovery remains a live race available to offense or defense", 
   assert.equal(defenseWins.automaticPossession, false);
 });
 
-test("Open Gym explicitly suppresses boundary stoppages and made-shot replays", () => {
+test("Open Gym and Arc Run explicitly suppress made-shot replays", () => {
   const rules = createPracticeMode().getRules();
   assert.equal(rules.outOfBounds, false);
   assert.equal(rules.madeShotReplays, false);
   assert.equal(shouldEnforceOutOfBounds("open_gym"), false);
   assert.equal(shouldQueueMadeShotReplay("open_gym"), false);
+  assert.equal(shouldQueueMadeShotReplay("three_point_contest"), false);
   assert.equal(shouldEnforceOutOfBounds("half_court_3v3"), true);
   assert.equal(shouldQueueMadeShotReplay("half_court_3v3"), true);
 });

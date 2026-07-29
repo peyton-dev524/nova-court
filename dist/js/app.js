@@ -19,6 +19,10 @@ import { createAudioController } from "./audio.js?v=2.0";
 import { createUIController } from "./ui.js";
 import { createPresentationDirector } from "./presentation-director.js";
 import {
+  createTitlePlayerShowcase,
+  createTitleShowcaseProfiles,
+} from "./title-player-showcase.js?v=1.0";
+import {
   normalizeShootingAssist,
   shootingAssistDisplay,
 } from "./shooting-assist.js";
@@ -210,7 +214,7 @@ function showMainMenu() {
   resetShotMeter();
   audio.setMusicMode("street");
   announcer.stop();
-  if (presentationKind !== "attract") startAttractMode();
+  if (presentationKind !== "showcase") startTitlePlayerShowcase();
   engine?.setPaused(false);
   engine?.controls?.setEnabled(false);
   setHidden($("#loading-screen"), true);
@@ -1057,6 +1061,19 @@ function createPresentationRoster() {
   ];
 }
 
+function createTitleShowcaseRoster() {
+  const V = globalThis.THREE.Vector3;
+  const positions = [
+    new V(0.1, 0, 0.16),
+    new V(1.58, 0, 0),
+    new V(3.06, 0, 0.16),
+  ];
+  return createTitleShowcaseProfiles().map((profile, index) => ({
+    ...profile,
+    position: positions[index],
+  }));
+}
+
 function stopPresentation() {
   if (engine) engine.presentationUpdate = null;
   presentationDirector?.destroy?.();
@@ -1064,13 +1081,12 @@ function stopPresentation() {
   presentationKind = null;
 }
 
-function startAttractMode() {
+function startTitlePlayerShowcase() {
   stopPresentation();
-  createEngine("street", false, createPresentationRoster());
+  createEngine("street", false, createTitleShowcaseRoster());
   engine.controls.setEnabled(false);
-  engine.setCameraMode("broadcast");
-  presentationKind = "attract";
-  presentationDirector = createPresentationDirector(engine, { loop: true });
+  presentationKind = "showcase";
+  presentationDirector = createTitlePlayerShowcase(engine);
   engine.presentationUpdate = (dt) => presentationDirector?.update(dt);
   engine.setPaused(false);
   engine.controls.setEnabled(false);
@@ -1261,6 +1277,28 @@ async function startMode(modeKey = selectedModeKey) {
   });
 }
 
+function updateArcRunGrabCue(phase = "waiting") {
+  const cue = $("#arc-run-grab-state");
+  if (!cue) return;
+  const normalized = ["reach", "contact", "gather", "complete", "ready"].includes(phase)
+    ? phase
+    : "waiting";
+  if (cue.dataset.phase === normalized) return;
+  cue.dataset.phase = normalized;
+  const grabbing = ["reach", "contact", "gather"].includes(normalized);
+  cue.className = `rack-progress__action ${
+    grabbing ? "is-grabbing" : normalized === "complete" || normalized === "ready"
+      ? "is-ready"
+      : "is-waiting"
+  }`;
+  $("small", cue).textContent = normalized === "reach" ? "REACHING"
+    : normalized === "contact" ? "CONTACT"
+      : normalized === "gather" ? "SECURING"
+        : normalized === "complete" || normalized === "ready" ? "READY · SHOOT"
+          : "WAITING";
+  app.dataset.arcRunGrabPhase = normalized;
+}
+
 function buildRackProgress() {
   const node = $("#three-point-progress");
   if (!node) return;
@@ -1273,6 +1311,11 @@ function buildRackProgress() {
   const heading = document.createElement("span");
   heading.className = "rack-progress__heading";
   heading.innerHTML = "<b>ARC RUN</b><small>ALL RACKS</small>";
+  const action = document.createElement("span");
+  action.id = "arc-run-grab-state";
+  action.className = "rack-progress__action is-waiting";
+  action.setAttribute("aria-live", "polite");
+  action.innerHTML = "<i aria-hidden=\"true\"></i><b>AUTO GRAB</b><small>WAITING</small>";
   const balls = document.createElement("div");
   balls.className = "rack-progress__balls";
   for (let i = 0; i < rackCount * ballsPerRack; i += 1) {
@@ -1289,7 +1332,8 @@ function buildRackProgress() {
     if (ballIndex === moneyBallSlot) dot.classList.add("is-money");
     balls.append(dot);
   }
-  node.append(heading, balls);
+  node.append(heading, action, balls);
+  updateArcRunGrabCue(engine?.getArcRunGrabSnapshot?.()?.phase || "waiting");
 }
 
 function handleModeEvent(type, payload = {}) {
@@ -1937,7 +1981,12 @@ function bindEngineEvents() {
   engine.on("arcrungrabcomplete", () => {
     if (currentModeKey !== "threePoint" || mode?.phase !== MODE_PHASES.LIVE) return;
     engine.controls.setEnabled(true);
+    updateArcRunGrabCue("ready");
     feedback("BALL SECURED", "accent", 360);
+  });
+  engine.on("arcrungrab", (event) => {
+    if (currentModeKey !== "threePoint") return;
+    updateArcRunGrabCue(event.phase || "reach");
   });
   engine.on("pause", (event) => {
     if (event.paused) {
@@ -2434,7 +2483,7 @@ function bindUI() {
     playerProfile = saveProfile(result.profile);
     setHidden($("#create-player-screen"), true);
     renderPlayerProfile();
-    startAttractMode();
+    startTitlePlayerShowcase();
     showMainMenu();
   });
   $("#create-player-form")?.addEventListener("click", (event) => {
@@ -2630,7 +2679,7 @@ async function boot() {
       if (destination === STARTUP_DESTINATIONS.PLAYER_CREATION) {
         showCreatePlayer(bootQuery.get("step"));
       } else {
-        startAttractMode();
+        startTitlePlayerShowcase();
         showMainMenu();
       }
     }

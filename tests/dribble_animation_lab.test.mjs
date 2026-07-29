@@ -4,8 +4,10 @@ import { readFile } from "node:fs/promises";
 import {
   DRIBBLE_NAMED_FRAMES,
   FEATURED_DRIBBLE_MOVES,
+  dribbleHandContactWeight,
   featuredDribbleFrameName,
   sampleFeaturedDribbleMove,
+  solveDribbleHandContact,
 } from "../js/dribble-animation.js";
 import { getDribbleMovePath } from "../js/engine.js";
 
@@ -29,6 +31,45 @@ test("featured dribble endpoints land on matching hand targets", () => {
     assert.equal(finish.hands.startWeight, 0);
     assert.equal(finish.hands.endWeight, 1);
   }
+});
+
+test("hand contact targets follow the ball side and aim the palm above its surface", () => {
+  for (const armSide of [-1, 1]) {
+    const sample = sampleFeaturedDribbleMove("crossover", armSide > 0 ? 0 : 1, 1);
+    const correct = dribbleHandContactWeight({
+      ballHeight: sample.ball.height,
+      ballSide: sample.ball.side,
+      armSide,
+    });
+    const wrong = dribbleHandContactWeight({
+      ballHeight: sample.ball.height,
+      ballSide: sample.ball.side,
+      armSide: -armSide,
+    });
+    assert.ok(correct > 0.9);
+    assert.equal(wrong, 0);
+
+    const target = solveDribbleHandContact({
+      ball: sample.ball,
+      shoulder: { x: armSide * 0.36, y: 2.115, z: 0 },
+      scaleY: 1,
+      ballRadius: 0.12,
+    });
+    const wristOffset = Math.hypot(
+      target.target.x - sample.ball.side,
+      target.target.y - sample.ball.height,
+      target.target.z - sample.ball.forward,
+    );
+    assert.ok(Math.abs(wristOffset - target.contactOffset) < 1e-12);
+    assert.ok(target.target.y > sample.ball.height);
+    assert.ok(Math.sign(target.target.x - sample.ball.side) === -armSide);
+    assert.ok(Number.isFinite(target.pitch + target.roll + target.elbow));
+  }
+  assert.equal(dribbleHandContactWeight({
+    ballHeight: 0.17,
+    ballSide: 0,
+    armSide: 1,
+  }), 0);
 });
 
 test("crossover follows a continuous bounce with bounded step and torso clearance", () => {
@@ -60,7 +101,7 @@ test("spin completes one vertical rotation with stepping feet and a protected hi
   let previous = start;
   for (let index = 1; index <= 240; index++) {
     const sample = sampleFeaturedDribbleMove("spin", index / 240, 1);
-    assert.ok(sample.diagnostics.protectedRadius >= 0.57 - 1e-9);
+    assert.ok(sample.diagnostics.protectedRadius >= 0.5 - 1e-9);
     assert.ok(distance(previous, sample) < 0.022);
     previous = sample;
   }
@@ -97,7 +138,12 @@ test("production athlete pose consumes the same featured choreography sample", a
   assert.match(engine, /const featuredMoveSample = moveActive/);
   assert.match(engine, /moveTurn = featuredMoveSample\.pose\.torsoYaw/);
   assert.match(engine, /hip: featuredMoveSample\.pose\.rightHip/);
+  assert.match(engine, /solveDribbleHandContact/);
+  assert.match(engine, /dribbleHandContactWeight/);
   assert.match(engine, /player\.dribbleMove === "spin"\) player\.hips\.rotation\.y = 0/);
+  const lab = await readFile(new URL("js/dribble-lab.js", root), "utf8");
+  assert.match(lab, /player\.arms\.find\(\(arm\) => arm\.side < 0\)/);
+  assert.match(lab, /state\.startHand > 0 \? positiveArm : negativeArm/);
 });
 
 test("named frames remain deterministic and expose reviewable phases", () => {

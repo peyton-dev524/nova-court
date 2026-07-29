@@ -107,7 +107,7 @@
   line-height: 1.4;
 }
 
-/* Keep the supporting card clear of the attract-mode player cluster. */
+/* Keep the supporting card clear of the randomized player showcase. */
 #main-menu .menu-feature {
   position: absolute;
   z-index: 2;
