@@ -31,7 +31,7 @@ import {
 import {
   createThreePointRackVisuals,
   getThreePointRackPresentation,
-} from "./three-point-contest.js?v=1.2";
+} from "./three-point-contest.js?v=1.3";
 import {
   BASKETBALL_SHOE_COLORWAYS,
   BASKETBALL_SHOE_STYLES,
@@ -1376,6 +1376,8 @@ function prepareArcRunCaptureState(name) {
     setArcRunGrabForQA(0.76, 2, 4);
   } else if (name === "rack-money-ball") {
     setArcRunGrabForQA(0.12, 2, 3);
+  } else if (name === "top-key-rack") {
+    setArcRunGrabForQA(0.12, 2, 0);
   }
   gameActive = false;
   engine.controls.setEnabled(false);

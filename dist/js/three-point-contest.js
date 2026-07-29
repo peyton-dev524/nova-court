@@ -59,19 +59,22 @@ function authorRack({
   x,
   z,
   tangentSign,
+  layout = "tangent",
+  reachOffset = THREE_POINT_RACK_REACH_OFFSET,
 }) {
   const shooterToHoop = normalized2(BASKET.x - x, BASKET.z - z);
   const tangent = {
     x: -shooterToHoop.z * tangentSign,
     z: shooterToHoop.x * tangentSign,
   };
-  const propX = x + tangent.x * THREE_POINT_RACK_REACH_OFFSET;
-  const propZ = z + tangent.z * THREE_POINT_RACK_REACH_OFFSET;
+  const propX = x + tangent.x * reachOffset;
+  const propZ = z + tangent.z * reachOffset;
   const rackForward = normalized2(BASKET.x - propX, BASKET.z - propZ);
   const rackTangent = { x: -rackForward.z, z: rackForward.x };
   return Object.freeze({
     id,
     label,
+    layout,
     x,
     z,
     propX,
@@ -115,6 +118,8 @@ export const THREE_POINT_RACKS = Object.freeze([
     x: 0,
     z: topZ,
     tangentSign: -1,
+    layout: "radial",
+    reachOffset: 0.82,
   }),
   authorRack({
     id: "right_wing",
@@ -151,12 +156,28 @@ export function getThreePointRackPresentation(rack, basket = BASKET) {
     (Number(basket?.z) || 0) - shooter.z,
   );
   const rackToShooter = normalized2(shooter.x - prop.x, shooter.z - prop.z);
+  const radialLayout = rack?.layout === "radial";
+  // The center rack follows the contest reference: its long axis runs
+  // directly toward/away from the hoop, while the player stands beside it.
+  // The positive axis points away from the hoop so increasing ball indices
+  // run visually top-to-bottom in the behind-player camera.
+  const rackAxis = radialLayout
+    ? { x: -shooterToHoop.x, z: -shooterToHoop.z }
+    : tangent;
+  const widthAxis = radialLayout ? rackToShooter : forward;
+  const visualYaw = radialLayout
+    ? Math.atan2(-rackAxis.z, rackAxis.x)
+    : Math.atan2(forward.x, forward.z);
   return Object.freeze({
     shooter,
     prop,
     forward,
     tangent,
+    layout: radialLayout ? "radial" : "tangent",
+    rackAxis,
+    widthAxis,
     yaw: Math.atan2(forward.x, forward.z),
+    visualYaw,
     distanceToHoop: Math.hypot(shooter.x - (basket.x || 0), shooter.z - (basket.z || 0)),
     playerRackDistance: Math.hypot(prop.x - shooter.x, prop.z - shooter.z),
     forwardToHoopDot: forward.x * normalized2(
@@ -167,6 +188,8 @@ export function getThreePointRackPresentation(rack, basket = BASKET) {
       (basket.z || 0) - prop.z,
     ).z,
     tangentForwardDot: tangent.x * forward.x + tangent.z * forward.z,
+    rackAxisShooterToHoopDot:
+      rackAxis.x * shooterToHoop.x + rackAxis.z * shooterToHoop.z,
     shooterFacingHoopDot: shooterToHoop.x * shooterToHoop.x
       + shooterToHoop.z * shooterToHoop.z,
     rackSideDot: rackToShooter.x * tangent.x + rackToShooter.z * tangent.z,
@@ -408,44 +431,44 @@ export function createThreePointRackVisuals(T, scene, {
     const x = Number(rack.propX ?? rack.x) || 0;
     const z = Number(rack.propZ ?? rack.z) || 0;
     const presentation = getThreePointRackPresentation(rack);
-    const { yaw } = presentation;
-    const { x: tangentX, z: tangentZ } = presentation.tangent;
-    const { x: forwardX, z: forwardZ } = presentation.forward;
+    const yaw = presentation.visualYaw;
+    const { x: lengthX, z: lengthZ } = presentation.rackAxis;
+    const { x: widthX, z: widthZ } = presentation.widthAxis;
     placeInstance(T, shelf, rackIndex, { x, y: 0.82, z, yaw, pitch: 0.075 });
     for (const [mesh, localX] of [[leftLeg, -0.62], [rightLeg, 0.62]]) {
       placeInstance(T, mesh, rackIndex, {
-        x: x + tangentX * localX,
+        x: x + lengthX * localX,
         y: 0.41,
-        z: z + tangentZ * localX,
+        z: z + lengthZ * localX,
         yaw,
       });
     }
     placeInstance(T, brace, rackIndex, { x, y: 0.27, z, yaw });
     placeInstance(T, backRail, rackIndex, {
-      x: x - forwardX * 0.19,
+      x: x - widthX * 0.19,
       y: 1.2,
-      z: z - forwardZ * 0.19,
+      z: z - widthZ * 0.19,
       yaw,
     });
     placeInstance(T, frontCue, rackIndex, {
-      x: x + forwardX * 0.19,
+      x: x + widthX * 0.19,
       y: 0.75,
-      z: z + forwardZ * 0.19,
+      z: z + widthZ * 0.19,
       yaw,
     });
     for (const [wheelOffset, localX] of [[rackIndex * 2, -0.62], [rackIndex * 2 + 1, 0.62]]) {
       placeInstance(T, wheels, wheelOffset, {
-        x: x + tangentX * localX - forwardX * 0.16,
+        x: x + lengthX * localX - widthX * 0.16,
         y: 0.12,
-        z: z + tangentZ * localX - forwardZ * 0.16,
+        z: z + lengthZ * localX - widthZ * 0.16,
         yaw,
       });
     }
 
     for (let ballIndex = 0; ballIndex < ballsPerRack; ballIndex += 1) {
       const localX = (ballIndex - (ballsPerRack - 1) / 2) * 0.285;
-      const ballX = x + tangentX * localX - forwardX * 0.01;
-      const ballZ = z + tangentZ * localX - forwardZ * 0.01;
+      const ballX = x + lengthX * localX - widthX * 0.01;
+      const ballZ = z + lengthZ * localX - widthZ * 0.01;
       const placement = { x: ballX, y: 1.01, z: ballZ, yaw };
       if (ballIndex === ballsPerRack - 1) {
         placeInstance(T, moneyBalls, rackIndex, placement);

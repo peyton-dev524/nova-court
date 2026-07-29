@@ -61,16 +61,32 @@ test("five stations follow the NBA 22 ft corner and 23 ft 9 in above-break line"
   assert.equal(THREE_POINT_RACKS[2].x, 0);
 });
 
-test("every asymmetric rack faces the hoop, runs tangent to the arc, and clears the shooter", () => {
+test("side racks stay tangent while the top rack runs vertically toward the hoop", () => {
   for (const rack of THREE_POINT_RACKS) {
     const presentation = getThreePointRackPresentation(rack);
     assert.ok(presentation.forwardToHoopDot > 0.999999, `${rack.id} forward cue faces hoop`);
-    assert.ok(Math.abs(presentation.tangentForwardDot) < 1e-10, `${rack.id} shelf is tangent`);
-    assert.ok(Number.isFinite(presentation.yaw), `${rack.id} yaw is finite`);
-    assert.ok(presentation.playerRackDistance >= 1.04, `${rack.id} frame clears player`);
-    const nearestBallDistance = presentation.playerRackDistance - 0.57;
-    assert.ok(nearestBallDistance >= 0.45, `${rack.id} does not intersect player`);
-    assert.ok(nearestBallDistance <= 0.55, `${rack.id} remains within handoff reach`);
+    assert.ok(Number.isFinite(presentation.visualYaw), `${rack.id} visual yaw is finite`);
+    if (rack.id === "top") {
+      assert.equal(presentation.layout, "radial");
+      assert.ok(Math.abs(presentation.rackAxis.x) < 1e-12, "top rack has no horizontal run");
+      assert.ok(presentation.rackAxis.z > 0.999999, "top rack axis points down-court");
+      assert.ok(
+        presentation.rackAxisShooterToHoopDot < -0.999999,
+        "top rack is parallel to the hoop line and ordered away from the hoop",
+      );
+      assert.ok(
+        presentation.playerRackDistance >= 0.81
+          && presentation.playerRackDistance <= 0.83,
+        "top rack stays beside the shooter within pickup reach",
+      );
+    } else {
+      assert.equal(presentation.layout, "tangent");
+      assert.ok(Math.abs(presentation.tangentForwardDot) < 1e-10, `${rack.id} shelf is tangent`);
+      assert.ok(presentation.playerRackDistance >= 1.04, `${rack.id} frame clears player`);
+      const nearestBallDistance = presentation.playerRackDistance - 0.57;
+      assert.ok(nearestBallDistance >= 0.45, `${rack.id} does not intersect player`);
+      assert.ok(nearestBallDistance <= 0.55, `${rack.id} remains within handoff reach`);
+    }
   }
 });
 
@@ -307,6 +323,21 @@ test("rack renderer exposes all five racks and consumes the visible ball instanc
   assert.deepEqual(moneyBalls.matrices[0].scale, { x: 0, y: 0, z: 0 });
   visuals.reset();
   assert.deepEqual(normalBalls.matrices[0].scale, { x: 1, y: 1, z: 1 });
+
+  const topNormal = visuals.getBallPlacement(2, 0);
+  const topMoney = visuals.getBallPlacement(2, 4);
+  const topPresentation = getThreePointRackPresentation(THREE_POINT_RACKS[2]);
+  assert.ok(Math.abs(topNormal.x - topMoney.x) < 1e-12, "top rack is vertical in court coordinates");
+  assert.ok(topNormal.z < topMoney.z, "normal ball is at the hoop/top end");
+  assert.ok(
+    Math.hypot(topNormal.x, topNormal.z + 5.7)
+      < Math.hypot(topMoney.x, topMoney.z + 5.7),
+    "money ball is at the down-court/bottom end",
+  );
+  assert.ok(
+    Math.abs(visuals.root.children[0].matrices[2].yaw - topPresentation.visualYaw) < 1e-12,
+    "top rack mesh uses the radial visual yaw",
+  );
 });
 
 test("Arc Run integration wires rack placement, locked camera, and arbitrary QA jumps", async () => {
