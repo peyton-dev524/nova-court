@@ -1,5 +1,5 @@
 /* Final-loaded gameplay HUD polish.
-   Keeps the court readable while presenting game state as one broadcast system. */
+   Keeps essential state legible without reproducing a broadcast control room. */
 
 #hud {
   --hud-edge: max(18px, env(safe-area-inset-left));
@@ -663,5 +663,147 @@
   .game-prompt {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* Minimal gameplay pass: the court is primary, essential state is secondary. */
+#hud .broadcast-bug,
+#hud .control-hints {
+  display: none;
+}
+
+#hud .scoreboard {
+  top: var(--hud-top);
+  width: min(448px, calc(100vw - 156px));
+  min-width: 0;
+  grid-template-columns: minmax(88px, 1fr) minmax(148px, 1.35fr) minmax(88px, 1fr);
+  border: 1px solid rgba(225, 242, 246, 0.16);
+  border-radius: 7px;
+  background: rgba(5, 10, 15, 0.84);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(9px);
+}
+
+#hud .scoreboard::before {
+  content: none;
+}
+
+#hud .score-side {
+  min-width: 0;
+  min-height: 48px;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top-width: 2px;
+  background: transparent;
+}
+
+#hud .score-side::after {
+  content: none;
+}
+
+#hud .score-side span {
+  max-width: 64px;
+  color: rgba(230, 240, 243, 0.68);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+#hud .score-side strong {
+  min-width: 22px;
+  font-size: 27px;
+  font-style: normal;
+  line-height: 1;
+  text-shadow: none;
+}
+
+#hud .score-center {
+  min-width: 148px;
+  padding: 5px 10px;
+  border-inline: 1px solid rgba(225, 242, 246, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+  clip-path: none;
+}
+
+#hud .score-center span {
+  font-size: 7px;
+  letter-spacing: 0.13em;
+}
+
+#hud .score-center strong {
+  margin: 1px 0;
+  font-size: 14px;
+  font-style: normal;
+}
+
+#hud .score-center small {
+  max-width: 150px;
+  overflow: hidden;
+  font-size: 7px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Arc Run uses a fixed left-side ledger, outside the hoop and shooting lane. */
+#app[data-game-mode="threePoint"] #hud .rack-progress {
+  top: calc(var(--hud-top) + 66px);
+  left: var(--hud-edge);
+  width: 126px;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 9px 10px 10px;
+  transform: none;
+  border: 1px solid rgba(225, 242, 246, 0.14);
+  border-left: 2px solid var(--cyan);
+  border-radius: 5px;
+  background: rgba(5, 10, 15, 0.78);
+  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+#hud .rack-progress__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: #f3f7f8;
+}
+
+#hud .rack-progress__heading b {
+  font-size: 8px;
+  letter-spacing: 0.13em;
+}
+
+#hud .rack-progress__heading small {
+  color: rgba(216, 231, 235, 0.54);
+  font-size: 6px;
+  letter-spacing: 0.09em;
+}
+
+#hud .rack-progress__balls {
+  display: grid;
+  grid-template-columns: repeat(5, 9px);
+  gap: 7px 11px;
+}
+
+#app[data-game-mode="threePoint"] #hud .player-card-hud[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  #hud .scoreboard {
+    left: 50%;
+    width: calc(100vw - 80px);
+    grid-template-columns: minmax(50px, 1fr) minmax(110px, 1.4fr) minmax(50px, 1fr);
+    transform: translateX(-50%);
+  }
+
+  #app[data-game-mode="threePoint"] #hud .rack-progress {
+    top: calc(var(--hud-top) + 62px);
+    width: 112px;
+    padding-inline: 8px;
+  }
+
+  #hud .rack-progress__balls {
+    gap-inline: 8px;
   }
 }
