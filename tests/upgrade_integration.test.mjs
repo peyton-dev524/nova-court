@@ -51,7 +51,7 @@ test("engine source wires perfect greens, animated replay, park, swish, and boun
   const source = await readFile(new URL("../js/engine.js", import.meta.url), "utf8");
   assert.match(source, /this\.ball\.guaranteedMake = shotResult\.guaranteed/);
   assert.match(source, /this\._facePlayerToBasket\(player\)/);
-  assert.match(source, /perfectRelease: override\.perfectRelease \?\? isShotMeterPerfect/);
+  assert.match(source, /perfectRelease: override\.perfectRelease \?\? meterWindow\.perfect/);
   assert.doesNotMatch(source, /atApex \? 1 : timingQuality/);
   assert.match(source, /this\.ball\.plannedMade = shotResult\.made/);
   assert.match(source, /ball\.state === "shot" && ball\.guaranteedMake[\s\S]{0,100}ball\.plannedRimResult === RIM_RESULTS\.CLEAN_SWISH/);

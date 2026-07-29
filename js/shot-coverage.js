@@ -15,8 +15,37 @@ export function isShotMeterPerfect(
   ideal = SHOT_METER_IDEAL,
   halfWidth = SHOT_METER_PERFECT_HALF_WIDTH,
 ) {
-  return Math.abs(finite(charge) - finite(ideal, SHOT_METER_IDEAL))
-    <= Math.max(0.005, finite(halfWidth, SHOT_METER_PERFECT_HALF_WIDTH)) + 1e-9;
+  return resolveShotMeterWindow(charge, ideal, halfWidth).perfect;
+}
+
+/**
+ * Canonical meter snapshot shared by presentation and shot resolution.
+ * Keeping the normalized visible window and its perfect decision together
+ * prevents a displayed green release from being judged by a second threshold.
+ */
+export function resolveShotMeterWindow(
+  charge,
+  ideal = SHOT_METER_IDEAL,
+  halfWidth = SHOT_METER_PERFECT_HALF_WIDTH,
+) {
+  const normalizedCharge = clamp(finite(charge));
+  const normalizedIdeal = clamp(finite(ideal, SHOT_METER_IDEAL));
+  const normalizedHalfWidth = Math.max(
+    0.005,
+    finite(halfWidth, SHOT_METER_PERFECT_HALF_WIDTH),
+  );
+  const start = clamp(normalizedIdeal - normalizedHalfWidth);
+  const end = clamp(normalizedIdeal + normalizedHalfWidth);
+  return Object.freeze({
+    charge: normalizedCharge,
+    ideal: normalizedIdeal,
+    halfWidth: normalizedHalfWidth,
+    start,
+    end,
+    width: end - start,
+    perfect: normalizedCharge >= start - 1e-9
+      && normalizedCharge <= end + 1e-9,
+  });
 }
 
 export function shotFacingDirection(
@@ -140,6 +169,7 @@ export function calculateDefenderCoverage({
   releaseHeight = 2.25,
   defender = {},
   contestRange = 2.25,
+  groundedContestStrength = 0.6,
 } = {}) {
   const shooter = pointOf(shooterPosition);
   const rim = pointOf(rimPosition);
@@ -180,13 +210,17 @@ export function calculateDefenderCoverage({
     ? 1 - smoothstep(0.18, 1.15, handDistance)
     : 0;
   const contestIntent = clamp(finite(defender.contestIntent, defender.isContesting ? 1 : 0.55));
-  const coverage = clamp(
+  const unscaledCoverage = clamp(
     distanceFactor
       * (0.28 + frontAngle * 0.2)
       * (0.3 + timingFactor * 0.38 + contestIntent * 0.18)
       + releaseAdvantage * distanceFactor * timingFactor * 0.13
       + blockWindow * distanceFactor * (0.15 + handPressure * 0.13),
   );
+  const contestStrengthMultiplier = blockWindow > 0
+    ? 1
+    : clamp(finite(groundedContestStrength, 0.6));
+  const coverage = clamp(unscaledCoverage * contestStrengthMultiplier);
 
   return Object.freeze({
     defenderId: defender.id ?? null,
@@ -203,6 +237,8 @@ export function calculateDefenderCoverage({
       blockWindow,
       handPressure,
       contestIntent,
+      unscaledCoverage,
+      contestStrengthMultiplier,
     }),
   });
 }
@@ -217,6 +253,7 @@ export function calculateShotCoverage({
   releaseHeight = 2.25,
   defenders = [],
   contestRange = 2.25,
+  groundedContestStrength = 0.6,
 } = {}) {
   const individual = defenders
     .map((defender) => calculateDefenderCoverage({
@@ -225,6 +262,7 @@ export function calculateShotCoverage({
       releaseHeight,
       defender,
       contestRange,
+      groundedContestStrength,
     }))
     .sort((a, b) => b.coverage - a.coverage || String(a.defenderId).localeCompare(String(b.defenderId)));
   const combined = clamp(
@@ -246,6 +284,11 @@ export function calculateShotCoverage({
       coveragePercent: `${Math.round(combined * 100)}% COVERED`,
     }),
   });
+}
+
+export function hasMeaningfulJumpContest(coverageResult) {
+  return Boolean(coverageResult?.defenders?.some((entry) =>
+    entry.coverage >= 0.08 && entry.breakdown?.blockWindow > 0));
 }
 
 function ratingForRange(ratings = {}, rangeLabel) {
@@ -271,8 +314,9 @@ function difficultyAdjustment(difficulty, isAI) {
 }
 
 /**
- * Explainable make probability. The only forced result is the explicit design
- * invariant: a valid wide-open perfect release is guaranteed.
+ * Explainable make probability. A valid wide-open perfect release is always
+ * guaranteed. User-controlled greens also keep that promise through grounded
+ * closeouts; a meaningful active jump/block window can still disrupt them.
  */
 export function calculateShotMakePercentage({
   coverage,
@@ -287,6 +331,7 @@ export function calculateShotMakePercentage({
   stamina = 1,
   difficulty = "pro",
   isAI = false,
+  userControlled = false,
   threePointDistance = 6.15,
   maxValidDistance = 12,
 } = {}) {
@@ -302,7 +347,11 @@ export function calculateShotMakePercentage({
   const release = scoreReleaseTiming({ releaseQuality, releaseErrorSeconds, perfectRelease });
   const wideOpen = resolvedCoverage < 0.08;
   const validShot = shotDistance <= Math.max(1, finite(maxValidDistance, 12));
-  const guaranteed = validShot && wideOpen && release.quality >= 0.999;
+  const perfectTiming = release.quality >= 0.999;
+  const jumpContested = hasMeaningfulJumpContest(coverageResult);
+  const guaranteed = validShot && perfectTiming && (
+    wideOpen || (userControlled && !jumpContested)
+  );
   const baseByRange = {
     [RANGE_LABELS.AT_RIM]: 0.7,
     [RANGE_LABELS.MID_RANGE]: 0.47,
@@ -334,6 +383,7 @@ export function calculateShotMakePercentage({
     makeProbability,
     makePercent,
     guaranteed,
+    jumpContested,
     validShot,
     coverage: resolvedCoverage,
     coverageLabel: coverageName,
