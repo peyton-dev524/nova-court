@@ -142,6 +142,23 @@ export function xpForNextLevel(level) {
   return safeLevel >= 99 ? null : safeLevel * safeLevel * 120;
 }
 
+export const NIGHT_LEAGUE_RANKS = Object.freeze([
+  Object.freeze({ name: "Prospect", minLevel: 1, color: "#8ca0aa" }),
+  Object.freeze({ name: "Local", minLevel: 5, color: "#54e0eb" }),
+  Object.freeze({ name: "Starter", minLevel: 12, color: "#5c9dff" }),
+  Object.freeze({ name: "Headliner", minLevel: 22, color: "#a775ff" }),
+  Object.freeze({ name: "Night Star", minLevel: 38, color: "#ff8250" }),
+  Object.freeze({ name: "Court Icon", minLevel: 60, color: "#ffd46b" }),
+  Object.freeze({ name: "Nova Legend", minLevel: 85, color: "#f5f4ed" }),
+]);
+
+export function getNightLeagueRank(level = 1) {
+  const safeLevel = clamp(Math.floor(Number(level) || 1), 1, 99);
+  const rank = [...NIGHT_LEAGUE_RANKS].reverse().find((entry) => safeLevel >= entry.minLevel) || NIGHT_LEAGUE_RANKS[0];
+  const next = NIGHT_LEAGUE_RANKS[NIGHT_LEAGUE_RANKS.indexOf(rank) + 1] || null;
+  return Object.freeze({ ...rank, level: safeLevel, next });
+}
+
 export function getUpgradeCost(currentValue) {
   const rating = clamp(Math.floor(currentValue), 25, 99);
   return 35 + Math.max(0, rating - 55) * 6 + Math.max(0, rating - 80) * 10;

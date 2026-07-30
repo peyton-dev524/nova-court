@@ -179,7 +179,11 @@
         </div>
         <div class="score-center">
           <span id="mode-label">STREET DUEL</span>
-          <strong id="game-clock">FIRST TO 11</strong>
+          <div class="clock-bank">
+            <span class="clock-cell"><small>GAME</small><strong id="game-clock">--:--</strong></span>
+            <span class="clock-cell clock-cell--shot"><small>SHOT</small><strong id="shot-clock">12</strong></span>
+          </div>
+          <b id="target-label" class="target-label">FIRST TO 11</b>
           <small id="possession-label">YOUR BALL</small>
         </div>
         <div class="score-side score-side--away">
@@ -204,6 +208,7 @@
         <div id="shot-readout" class="shot-readout" aria-live="polite">
           <strong id="shot-chance">--%</strong>
           <span id="shot-coverage">READING DEFENSE</span>
+          <small id="shot-distance">-- FT · ENERGY --%</small>
         </div>
       </div>
 
@@ -278,9 +283,16 @@
           <label>Visual preset
             <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
           </label>
+          <label>Gameplay camera
+            <select id="camera-preset"><option value="follow">Street Close</option><option value="cinematic">Night Broadcast</option><option value="broadcast">Competitive Wide</option></select>
+          </label>
+          <label>Highlight replays
+            <select id="highlight-frequency"><option value="broadcast">NCN Broadcast</option><option value="reduced">Reduced</option><option value="off">Off</option></select>
+          </label>
           <label class="toggle">Reduce motion <input id="reduced-motion" type="checkbox"><span></span></label>
           <label class="toggle">High contrast <input id="high-contrast" type="checkbox"><span></span></label>
           <label class="toggle">Sound captions <input id="captions-enabled" type="checkbox" checked><span></span></label>
+          <label class="toggle">Opening control guide <input id="control-guide-enabled" type="checkbox" checked><span></span></label>
           <label class="toggle">Mute all <input id="mute-all" type="checkbox"><span></span></label>
         </div>
       </div>

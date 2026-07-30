@@ -1,0 +1,470 @@
+/* NCN presentation language: stylized broadcast realism for Nova Court. */
+:root {
+  --ncn-navy: #06101a;
+  --ncn-panel: rgba(5, 13, 21, .92);
+  --ncn-cyan: #54e0eb;
+  --ncn-orange: #ff8250;
+  --ncn-cream: #f4f1e8;
+}
+
+body,
+button,
+select,
+input { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+.screen:not(.is-hidden)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(112deg, rgba(84,224,235,.08), transparent 31%, rgba(255,130,80,.035) 72%, transparent);
+  animation: ncn-screen-wipe .46s cubic-bezier(.16,1,.3,1) both;
+}
+
+@keyframes ncn-screen-wipe {
+  from { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); filter: contrast(1.7); }
+  to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); filter: contrast(1); }
+}
+
+.court-vignette {
+  background:
+    linear-gradient(to bottom, rgba(2,5,9,.16), transparent 33%, rgba(1,3,6,.38)),
+    radial-gradient(ellipse at 48% 38%, transparent 35%, rgba(0,0,0,.5) 112%);
+}
+
+.court-vignette::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .16;
+  mix-blend-mode: screen;
+  background:
+    conic-gradient(from 88deg at 12% -20%, transparent 0 31%, rgba(84,224,235,.18) 33%, transparent 36%),
+    conic-gradient(from 245deg at 88% -18%, transparent 0 31%, rgba(255,130,80,.14) 33%, transparent 36%);
+  animation: arena-haze 8s ease-in-out infinite alternate;
+}
+
+@keyframes arena-haze {
+  to { opacity: .27; transform: translate3d(1.2%, .4%, 0) scale(1.03); }
+}
+
+/* Main menu: the live Three.js preview remains the hero, with an abstract crew layer. */
+.screen--menu { isolation: isolate; }
+.menu-rail,
+.menu-feature { position: relative; z-index: 3; }
+.menu-crew-scene {
+  position: absolute;
+  z-index: 1;
+  inset: 9% 2% 0 40%;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: .62;
+  filter: drop-shadow(0 28px 42px rgba(0,0,0,.72));
+}
+.menu-crew-scene::before {
+  content: "NIGHT RUNS";
+  position: absolute;
+  right: 3%;
+  top: 2%;
+  color: transparent;
+  font: italic 900 clamp(68px, 10vw, 164px)/.78 Impact, "Arial Narrow", sans-serif;
+  letter-spacing: -.04em;
+  -webkit-text-stroke: 1px rgba(84,224,235,.13);
+  transform: rotate(-5deg);
+}
+.menu-crew-scene i {
+  position: absolute;
+  bottom: -8%;
+  width: 19%;
+  height: 72%;
+  border: 1px solid rgba(84,224,235,.22);
+  border-radius: 48% 48% 14% 14%;
+  background: linear-gradient(145deg, rgba(84,224,235,.2), rgba(6,16,26,.9) 42%, rgba(255,130,80,.16));
+  transform-origin: 50% 100%;
+  animation: crew-shift 5.2s ease-in-out infinite alternate;
+}
+.menu-crew-scene i::before {
+  content: "";
+  position: absolute;
+  left: 16%;
+  top: -16%;
+  width: 68%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #0b1721;
+  box-shadow: inset 0 -12px 20px rgba(84,224,235,.08);
+}
+.menu-crew-scene i:nth-child(1) { left: 22%; height: 67%; transform: rotate(-6deg); }
+.menu-crew-scene i:nth-child(2) { left: 47%; height: 82%; animation-delay: -.9s; }
+.menu-crew-scene i:nth-child(3) { left: 72%; height: 63%; transform: rotate(7deg); animation-delay: -1.7s; }
+@keyframes crew-shift { to { transform: translateY(-2.5%) rotate(2deg); } }
+
+.menu-rank {
+  display: grid;
+  min-width: 176px;
+  padding-left: 18px;
+  border-left: 2px solid var(--ncn-orange);
+}
+.menu-rank span,
+.menu-rank small { color: #91a1aa; font-size: 8px; font-weight: 800; letter-spacing: .16em; }
+.menu-rank b { margin: 3px 0; color: var(--ncn-cream); font-size: 15px; }
+
+/* Mode deck: one broadcast feature and a horizontally browsable alternative rail. */
+.screen--panel {
+  gap: clamp(12px, 2vh, 24px);
+  padding: clamp(18px, 3vw, 42px);
+  background: linear-gradient(120deg, rgba(3,8,14,.97), rgba(5,15,23,.9));
+}
+.mode-feature {
+  position: relative;
+  display: grid;
+  min-height: clamp(190px, 31vh, 330px);
+  grid-template-columns: clamp(84px, 10vw, 150px) 1fr;
+  align-items: end;
+  gap: clamp(20px, 4vw, 62px);
+  overflow: hidden;
+  padding: clamp(22px, 3.6vw, 52px);
+  border: 1px solid rgba(84,224,235,.24);
+  border-left: 5px solid var(--ncn-cyan);
+  border-radius: 7px;
+  background:
+    linear-gradient(92deg, rgba(4,11,18,.98), rgba(8,28,38,.78) 56%, rgba(255,130,80,.12)),
+    repeating-linear-gradient(112deg, transparent 0 27px, rgba(255,255,255,.022) 28px 29px);
+  box-shadow: 0 24px 70px rgba(0,0,0,.42), inset 0 -1px rgba(255,255,255,.08);
+}
+.mode-feature::after {
+  content: "NCN / FEATURED RUN";
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  color: rgba(255,255,255,.42);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .2em;
+}
+.mode-feature__number {
+  color: transparent;
+  font: italic 900 clamp(80px, 12vw, 176px)/.72 Impact, "Arial Narrow", sans-serif;
+  -webkit-text-stroke: 2px rgba(84,224,235,.55);
+}
+.mode-feature__tag,
+.mode-feature small { color: var(--ncn-cyan); font-size: 9px; font-weight: 900; letter-spacing: .2em; }
+.mode-feature__title {
+  margin: 6px 0 8px;
+  color: var(--ncn-cream);
+  font: italic 900 clamp(42px, 6vw, 86px)/.82 Impact, "Arial Narrow", sans-serif;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+}
+.mode-feature__copy { max-width: 58ch; margin: 0 0 12px; color: #aebac0; font-size: clamp(12px, 1.25vw, 16px); }
+.mode-grid {
+  display: grid;
+  flex: 0 0 auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(210px, 24vw);
+  grid-template-columns: none;
+  gap: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-color: rgba(84,224,235,.5) rgba(255,255,255,.05);
+}
+.mode-card {
+  min-height: clamp(118px, 19vh, 176px);
+  padding: 16px 18px;
+  scroll-snap-align: start;
+  border-radius: 5px;
+  background: linear-gradient(145deg, rgba(10,24,32,.96), rgba(4,10,16,.96));
+}
+.mode-card strong { margin: 7px 0 4px; font-size: clamp(22px, 2.3vw, 34px); line-height: .85; }
+.mode-card p { margin: 0; overflow: hidden; color: #99a8af; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.mode-card__number { font-size: 9px; }
+.mode-card__tag { font-size: 7px; }
+.mode-card__cta { display: none; }
+.mode-card.is-selected {
+  border-color: var(--ncn-cyan);
+  background: linear-gradient(145deg, rgba(84,224,235,.18), rgba(5,14,21,.96));
+  box-shadow: inset 0 0 0 1px rgba(84,224,235,.2), 0 0 24px rgba(84,224,235,.09);
+}
+.mode-card:hover { transform: translateY(-3px); }
+.setup-strip { min-height: 56px; padding: 10px 0 0; }
+
+/* Compact NCN live scorebug. */
+.scoreboard {
+  top: 15px;
+  grid-template-columns: minmax(110px, 1fr) 176px minmax(110px, 1fr);
+  min-width: 0;
+  width: min(520px, calc(100vw - 190px));
+  clip-path: none;
+  border: 1px solid rgba(255,255,255,.13);
+  border-top: 2px solid rgba(84,224,235,.72);
+  border-radius: 4px;
+  background: rgba(5,11,18,.92);
+  box-shadow: 0 11px 34px rgba(0,0,0,.56);
+}
+.scoreboard::before {
+  content: "NCN  •  LIVE";
+  top: 0;
+  left: 9px;
+  padding: 2px 7px;
+  color: #071018;
+  background: var(--ncn-cyan);
+  font-size: 6px;
+  letter-spacing: .14em;
+  transform: translateY(-100%);
+}
+.score-side { min-width: 0; min-height: 58px; gap: 9px; padding: 7px 13px; }
+.score-side strong { min-width: 27px; font-size: 31px; text-shadow: none; transition: color .16s ease; }
+.score-side span { max-width: 72px; overflow: hidden; font-size: 8px; text-overflow: ellipsis; }
+.score-side::after { inset: auto 10px 4px; height: 1px; }
+.score-center {
+  display: grid;
+  min-width: 0;
+  padding: 4px 9px 5px;
+  gap: 2px;
+  clip-path: none;
+  border-inline: 1px solid rgba(255,255,255,.12);
+  background: #08111a;
+}
+.score-center > #mode-label { color: #95a4ac; font-size: 6px; letter-spacing: .16em; }
+.clock-bank { display: grid; grid-template-columns: 1fr 46px; gap: 5px; }
+.clock-cell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 5px;
+  background: rgba(255,255,255,.045);
+}
+.clock-cell small { color: #74858f; font-size: 5px; font-weight: 900; letter-spacing: .13em; }
+.clock-cell strong { margin: 0; color: var(--ncn-cream); font: 800 15px/1 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.clock-cell--shot strong { color: var(--ncn-orange); text-align: right; }
+.target-label { color: #d7dfe2; font-size: 6px; letter-spacing: .13em; }
+.score-center > #possession-label { color: var(--ncn-cyan); font-size: 6px; letter-spacing: .12em; }
+.score-side strong.is-changing { animation: score-pop .5s cubic-bezier(.16,1.2,.3,1); }
+@keyframes score-pop { 45% { color: var(--ncn-cyan); transform: translateY(-4px) scale(1.28); text-shadow: 0 0 20px currentColor; } }
+
+.broadcast-bug { top: 17px; left: 16px; transform: scale(.82); transform-origin: top left; }
+
+/* Controlled-player strip and anchored shooting information. */
+.player-card-hud {
+  left: 17px;
+  bottom: 18px;
+  min-width: 304px;
+  border-left-width: 3px;
+  transform: none;
+}
+.player-card-hud > * { transform: none; }
+.player-card-hud__number { min-width: 50px; min-height: 58px; font-size: 22px; }
+.player-card-hud div { gap: 2px; padding: 8px 14px 10px; }
+.player-card-hud b { font-size: 19px; }
+.player-card-hud small { color: #a7b4ba; font-size: 8px; }
+.player-card-hud::after { content: "NCN PLAYER TRACK"; right: 10px; bottom: 3px; transform: none; }
+.status-stack { left: 70px; bottom: 79px; width: 251px; }
+.stamina,
+.takeover { grid-template-columns: 70px 1fr; font-size: 8px; }
+
+.control-hints { transition: opacity .35s ease, transform .35s cubic-bezier(.16,1,.3,1); }
+.control-hints.is-dismissed { opacity: 0; transform: translate(-50%, 18px); }
+
+.shot-meter,
+.shot-meter.is-active,
+.shot-meter.is-result {
+  left: var(--player-anchor-x, 50%);
+  top: var(--player-anchor-y, 70%);
+  right: auto;
+  bottom: auto;
+  width: min(246px, 34vw);
+  padding: 7px 9px 8px;
+  border-left: 2px solid var(--ncn-cyan);
+  border-radius: 3px;
+  background: rgba(4,10,16,.86);
+  box-shadow: 0 8px 26px rgba(0,0,0,.48);
+  transform: translate(42px, -50%);
+  backdrop-filter: blur(10px);
+}
+.shot-meter.is-active,
+.shot-meter.is-result { display: grid; transform: translate(42px, -50%); }
+.shot-meter__label { justify-self: start; font-size: 7px; letter-spacing: .16em; }
+.shot-meter__track { height: 9px; border-radius: 2px; }
+.shot-readout { grid-template-columns: auto 1fr; align-items: center; }
+.shot-readout strong { font-size: 17px; }
+.shot-readout span { font-size: 7px; line-height: 1.25; }
+.shot-meter[data-quality="perfect"] { border-color: #79ffa1; filter: drop-shadow(0 0 10px rgba(121,255,161,.42)); }
+
+/* Short NCN broadcast stingers for matchup, fouls, turnovers, replay, and game point. */
+.broadcast-moment {
+  position: absolute;
+  z-index: 36;
+  left: 50%;
+  top: 20%;
+  display: grid;
+  min-width: min(520px, 70vw);
+  padding: 13px 22px 15px 26px;
+  overflow: hidden;
+  border-left: 5px solid var(--ncn-cyan);
+  color: var(--ncn-cream);
+  background: linear-gradient(93deg, rgba(4,10,17,.98), rgba(8,24,33,.94) 72%, rgba(255,130,80,.72));
+  box-shadow: 0 22px 60px rgba(0,0,0,.6);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-62%, -12px) skewX(-4deg);
+  transition: opacity .18s ease, transform .42s cubic-bezier(.16,1,.3,1);
+}
+.broadcast-moment::after {
+  content: "NCN";
+  position: absolute;
+  right: 16px;
+  top: -12px;
+  color: rgba(255,255,255,.09);
+  font: italic 900 74px/1 Impact, sans-serif;
+}
+.broadcast-moment > * { position: relative; z-index: 1; transform: skewX(4deg); }
+.broadcast-moment.is-visible { opacity: 1; transform: translate(-50%, 0) skewX(-4deg); }
+.broadcast-moment__kicker { color: var(--ncn-cyan); font-size: 7px; font-weight: 900; letter-spacing: .22em; }
+.broadcast-moment__title { margin: 2px 0; font: italic 900 clamp(24px, 3.2vw, 45px)/.9 Impact, "Arial Narrow", sans-serif; letter-spacing: .01em; text-transform: uppercase; }
+.broadcast-moment__detail { color: #b7c2c7; font-size: 8px; font-weight: 800; letter-spacing: .11em; }
+.broadcast-moment__stat { position: absolute; right: 22px; bottom: 12px; color: #fff; font-size: 10px; letter-spacing: .12em; }
+
+.app-shell[data-replay="playing"] .scoreboard::before { content: "NCN  •  REPLAY"; color: #fff; background: var(--ncn-orange); }
+.app-shell[data-replay="playing"] .scoreboard { opacity: .58; }
+
+.result-card { border-top: 4px solid var(--ncn-cyan); background: linear-gradient(145deg, rgba(5,14,22,.98), rgba(9,27,35,.96)); }
+.result-card::before { content: "NOVA COURT NETWORK · POSTGAME"; display: block; margin-bottom: 13px; color: var(--ncn-orange); font-size: 8px; font-weight: 900; letter-spacing: .2em; }
+
+@media (max-width: 900px) {
+  .mode-feature { grid-template-columns: 72px 1fr; min-height: 180px; }
+  .mode-grid { grid-auto-columns: minmax(200px, 38vw); }
+  .scoreboard { width: min(500px, calc(100vw - 76px)); }
+  .broadcast-bug { display: none; }
+}
+
+@media (max-width: 620px) {
+  .screen--panel { overflow-y: auto; }
+  .mode-feature { min-height: 165px; padding: 20px; grid-template-columns: 56px 1fr; }
+  .mode-feature::after { display: none; }
+  .mode-feature__number { font-size: 62px; }
+  .mode-grid { grid-template-columns: none; grid-auto-columns: 72vw; overflow-x: auto; }
+  .mode-card { min-height: 130px; }
+  .scoreboard { top: 10px; width: calc(100vw - 70px); grid-template-columns: 1fr 140px 1fr; }
+  .score-side { min-height: 52px; padding: 6px 8px; }
+  .score-side strong { font-size: 26px; }
+  .score-center { min-width: 0; }
+  .player-card-hud { min-width: 238px; transform: scale(.82); transform-origin: left bottom; }
+  .status-stack { left: 58px; bottom: 68px; width: 194px; }
+  .shot-meter,
+  .shot-meter.is-active,
+  .shot-meter.is-result { width: 190px; transform: translate(-50%, -112%); }
+  .broadcast-moment { top: 16%; min-width: calc(100vw - 34px); padding-inline: 18px; }
+  .broadcast-moment__stat { position: static; margin-top: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen:not(.is-hidden)::before,
+  .menu-crew-scene i,
+  .court-vignette::before { animation: none; }
+  .broadcast-moment { transition-duration: .01ms; }
+}
+/* Gameplay brief completion: contextual possession, living stats, and Nova pulse meter. */
+.menu-rank { border-left-color: var(--rank-color, var(--ncn-orange)); }
+.menu-rank b { color: var(--rank-color, var(--ncn-cream)); text-shadow: 0 0 18px color-mix(in srgb, var(--rank-color, var(--ncn-cyan)) 42%, transparent); }
+
+.target-label { max-height: 12px; opacity: 1; transition: max-height .28s ease, opacity .24s ease; }
+.target-label.is-dismissed { max-height: 0; opacity: 0; }
+.score-side.has-possession::before {
+  content: "◆";
+  position: absolute;
+  bottom: 7px;
+  color: var(--ncn-cyan);
+  font-size: 6px;
+  filter: drop-shadow(0 0 6px currentColor);
+  animation: possession-pulse 1.4s ease-in-out infinite;
+}
+.score-side--home.has-possession::before { left: 7px; }
+.score-side--away.has-possession::before { right: 7px; color: var(--ncn-orange); }
+@keyframes possession-pulse { 50% { opacity: .42; transform: scale(.75); } }
+
+.player-card-hud em {
+  display: block;
+  margin-top: 3px;
+  color: #d6e1e4;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 850;
+  letter-spacing: .09em;
+  white-space: nowrap;
+}
+.player-card-hud.grade-up { animation: grade-up .52s cubic-bezier(.16,1,.3,1); }
+.player-card-hud.grade-down { animation: grade-down .52s ease; }
+@keyframes grade-up { 45% { border-color: #72ff9b; box-shadow: 0 0 28px rgba(114,255,155,.38); transform: translateY(-3px); } }
+@keyframes grade-down { 45% { border-color: #ff5d72; box-shadow: 0 0 24px rgba(255,93,114,.3); transform: translateX(-3px); } }
+
+.shot-meter { isolation: isolate; overflow: visible; }
+.shot-meter::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -17px;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  border: 2px solid color-mix(in srgb, var(--ncn-cyan) 70%, transparent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: .62;
+  transform: translateY(-50%) rotate(calc(var(--shot-value) * 220deg));
+  box-shadow: 0 0 16px rgba(84,224,235,.22);
+  transition: transform .05s linear, border-color .16s ease;
+}
+.shot-meter.is-active::after {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  left: -9px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--ncn-cyan);
+  border-radius: 50%;
+  animation: nova-energy-pulse .72s ease-out infinite;
+}
+.shot-meter[data-quality="perfect"]::before { border-color: #72ff9b; border-right-color: transparent; box-shadow: 0 0 22px rgba(114,255,155,.62); }
+.shot-meter[data-quality="early"]::before { border-color: #ff6b79; border-right-color: transparent; }
+@keyframes nova-energy-pulse { from { opacity: .65; transform: translateY(-50%) scale(.55); } to { opacity: 0; transform: translateY(-50%) scale(2.2); } }
+#shot-distance { grid-column: 1 / -1; color: #83949d; font-size: 6px; font-weight: 850; letter-spacing: .13em; }
+
+.mode-card[data-mode="street"].is-selected { --mode-accent: #54e0eb; }
+.mode-card[data-mode="threePoint"].is-selected { --mode-accent: #ff8250; }
+.mode-card[data-mode="team"].is-selected { --mode-accent: #a775ff; }
+.mode-card[data-mode="duos"].is-selected { --mode-accent: #5c9dff; }
+.mode-card[data-mode="fives"].is-selected { --mode-accent: #ffd46b; }
+.mode-card[data-mode="practice"].is-selected { --mode-accent: #9ca8ae; }
+.mode-card.is-selected {
+  border-color: var(--mode-accent, var(--ncn-cyan));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mode-accent, var(--ncn-cyan)) 28%, transparent), 0 0 26px color-mix(in srgb, var(--mode-accent, var(--ncn-cyan)) 14%, transparent);
+  animation: selected-mode-breathe 2.4s ease-in-out infinite alternate;
+}
+.mode-feature[data-mode="threePoint"] { border-left-color: #ff8250; }
+.mode-feature[data-mode="team"] { border-left-color: #a775ff; }
+.mode-feature[data-mode="duos"] { border-left-color: #5c9dff; }
+.mode-feature[data-mode="fives"] { border-left-color: #ffd46b; }
+.mode-feature[data-mode="practice"] { border-left-color: #9ca8ae; }
+@keyframes selected-mode-breathe { to { filter: brightness(1.12); transform: translateY(-3px); } }
+
+.app-shell[data-input="gamepad"] .control-hints kbd { color: #061018; background: var(--ncn-cyan); }
+.settings-list select { min-width: 156px; }
+
+@media (max-width: 620px) {
+  .player-card-hud em { font-size: 6px; }
+  .shot-meter::before,
+  .shot-meter.is-active::after { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-side.has-possession::before,
+  .shot-meter.is-active::after,
+  .mode-card.is-selected { animation: none; }
+}

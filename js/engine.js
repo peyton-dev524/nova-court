@@ -268,6 +268,9 @@ export class ProceduralPlayer {
     this.sprintBlend = 0;
     this.defenseBlend = 0;
     this.airborneBlend = 0;
+    this.brakeBlend = 0;
+    this.turnBlend = 0;
+    this.motionAcceleration = 0;
     this.metadata = {
       ...(options.metadata || {}),
       role: options.role ?? options.metadata?.role ?? "guard",
@@ -355,6 +358,7 @@ export class ProceduralPlayer {
     const torso = this._mesh(new T.CapsuleGeometry(0.305, 0.54, 5, 12), jersey);
     torso.position.y = 0.65;
     torso.scale.set(1, 1, 0.68);
+    this.torso = torso;
     this.hips.add(torso);
     const collar = this._mesh(new T.TorusGeometry(0.16, 0.025, 6, 18, Math.PI), trim);
     collar.position.set(0, 0.94, -0.205);
@@ -387,43 +391,47 @@ export class ProceduralPlayer {
     const neck = this._mesh(new T.CylinderGeometry(0.105, 0.115, 0.18, 10), skin);
     neck.position.y = 1.04;
     this.hips.add(neck);
+    const headRig = new T.Group();
+    headRig.position.y = 1.25;
+    this.head = headRig;
+    this.hips.add(headRig);
     const head = this._mesh(new T.SphereGeometry(0.205, 18, 14), skin);
-    head.position.y = 1.25;
     head.scale.set(0.94, 1.08, 0.92);
-    this.hips.add(head);
+    headRig.add(head);
     const hairCap = this._mesh(new T.SphereGeometry(0.207, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hair);
-    hairCap.position.y = 1.27;
+    hairCap.position.y = 0.02;
     hairCap.scale.set(0.96, 1.04, 0.94);
-    this.hips.add(hairCap);
+    headRig.add(hairCap);
 
     const faceDark = this._material(0x17191c, 0.82);
     for (const side of [-1, 1]) {
       const eye = this._mesh(new T.SphereGeometry(0.018, 8, 6), faceDark, false);
-      eye.position.set(side * 0.07, 1.3, 0.188);
+      eye.position.set(side * 0.07, 0.05, 0.188);
       eye.scale.set(1, 0.72, 0.42);
-      this.hips.add(eye);
+      headRig.add(eye);
       this.detailMeshes.push(eye);
     }
     const nose = this._mesh(new T.SphereGeometry(0.027, 8, 6), skin, false);
-    nose.position.set(0, 1.255, 0.207);
+    nose.position.set(0, 0.005, 0.207);
     nose.scale.set(0.72, 1.05, 0.72);
-    this.hips.add(nose);
+    headRig.add(nose);
     this.detailMeshes.push(nose);
     const headband = this._mesh(new T.TorusGeometry(0.198, 0.014, 5, 24), trim);
-    headband.position.set(0, 1.33, 0);
+    headband.position.set(0, 0.08, 0);
     headband.rotation.x = Math.PI / 2;
     headband.scale.z = 0.91;
-    this.hips.add(headband);
+    headRig.add(headband);
     this.detailMeshes.push(headband);
     const jerseyHem = this._mesh(new T.BoxGeometry(0.54, 0.045, 0.29), trim);
     jerseyHem.position.y = 0.36;
+    this.jerseyHem = jerseyHem;
     this.hips.add(jerseyHem);
     this.detailMeshes.push(jerseyHem);
 
     this.arms = [];
     for (const side of [-1, 1]) {
       const shoulder = new T.Group();
-      shoulder.position.set(side * 0.36, 0.87, 0);
+      shoulder.position.set(side * 0.335, 0.87, 0);
       this.hips.add(shoulder);
       const shoulderBand = this._mesh(new T.CylinderGeometry(0.09, 0.083, 0.145, 9), trim);
       shoulderBand.position.y = -0.08;
@@ -490,7 +498,7 @@ export class ProceduralPlayer {
       new T.MeshBasicMaterial({
         color: 0x030506,
         transparent: true,
-        opacity: 0.2,
+        opacity: 0.34,
         depthWrite: false,
         toneMapped: false,
       }),
@@ -506,7 +514,7 @@ export class ProceduralPlayer {
     group.add(this.marker);
     const widthScale = this.height / 1.9;
     const heightScale = this.height / 2.722;
-    group.scale.set(widthScale * 0.96, heightScale, widthScale * 0.96);
+    group.scale.set(widthScale * 0.91, heightScale * 1.015, widthScale * 0.91);
     return group;
   }
 
@@ -547,7 +555,15 @@ export class ProceduralPlayer {
     }
     const t = action === PLAYER_STATES.SHOOT ? this.shotElapsed : this.stateTime;
     const speedTarget = clamp(speedRatio, 0, 1.15);
+    const previousSmoothedSpeed = this.smoothedSpeed;
     this.smoothedSpeed = damp(this.smoothedSpeed, speedTarget, speedTarget > this.smoothedSpeed ? 11 : 7, dt);
+    this.motionAcceleration = damp(this.motionAcceleration, clamp((this.smoothedSpeed - previousSmoothedSpeed) / Math.max(dt, 0.001), -5, 5), 8, dt);
+    this.brakeBlend = damp(this.brakeBlend, speedTarget < 0.08 && previousSmoothedSpeed > 0.16 ? 1 : 0, speedTarget < 0.08 ? 10 : 7, dt);
+    const planarSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+    const signedTurn = planarSpeed > 0.08
+      ? clamp((this.facing.z * this.velocity.x - this.facing.x * this.velocity.z) / planarSpeed, -1, 1)
+      : 0;
+    this.turnBlend = damp(this.turnBlend, signedTurn, 9, dt);
     this.locomotionBlend = damp(this.locomotionBlend, smoothstep(0.035, 0.32, this.smoothedSpeed), 9, dt);
     this.sprintBlend = damp(this.sprintBlend, action === PLAYER_STATES.SPRINT ? 1 : 0, 7.5, dt);
     this.defenseBlend = damp(this.defenseBlend, action === PLAYER_STATES.DEFEND ? 1 : 0, 9, dt);
@@ -563,6 +579,7 @@ export class ProceduralPlayer {
     );
     const stride = Math.sin(this.gaitPhase);
     const breath = Math.sin(this.animationClock * 2.2 + this.animationPhaseOffset) * 0.012;
+    const idleWeightShift = Math.sin(this.animationClock * 0.86 + this.animationPhaseOffset) * 0.018 * (1 - this.locomotionBlend);
     const landingSquash = Math.sin(clamp(this.landingImpact, 0, 1) * Math.PI * 0.5) * 0.1;
 
     const moveActive = !!this.dribbleMove && this.dribbleMoveTime > 0;
@@ -616,8 +633,9 @@ export class ProceduralPlayer {
       ? sampleDunkChoreography(this.dunkSelection, this.dunkProgress)
       : null;
 
+    this.hips.position.x = damp(this.hips.position.x, idleWeightShift + moveLean * 0.035, 7, dt);
     this.hips.position.y = this.baseHipHeight + this.rigGroundOffset + breath
-      - landingSquash - defensiveCrouch - moveCrouch
+      - landingSquash - defensiveCrouch - moveCrouch - this.brakeBlend * 0.045
       + Math.abs(stride) * 0.035 * locomotion
       - (shootPose?.dip || 0) * 0.055
       + (shootPose?.torsoLift || 0);
@@ -626,6 +644,8 @@ export class ProceduralPlayer {
     const forwardLean = dunkPose
       ? dunkPose.torso.pitch
       : -0.16 * this.sprintBlend - 0.1 * this.defenseBlend
+        - clamp(this.motionAcceleration * 0.018, -0.085, 0.09)
+        + this.brakeBlend * 0.045
         + (moveActive ? handleForwardLean : 0)
         + (shootPose ? lerp(0.1 + shootPose.dip * 0.04, -0.055, shootPose.setPoint) : 0);
     this.hips.rotation.x = damp(this.hips.rotation.x, forwardLean + stumble * 0.28, 13, dt);
@@ -639,7 +659,7 @@ export class ProceduralPlayer {
       clamp(this.velocity.x * -0.032, -0.14, 0.14),
       clamp(this.velocity.x * -0.055, -0.18, 0.18),
       this.defenseBlend,
-    );
+    ) - this.turnBlend * lerp(0.07, 0.13, this.sprintBlend);
     this.hips.rotation.z = damp(
       this.hips.rotation.z,
       dunkPose
@@ -648,6 +668,21 @@ export class ProceduralPlayer {
       13,
       dt,
     );
+    if (this.torso) {
+      this.torso.scale.y = damp(this.torso.scale.y, 1 + breath * 0.9, 6, dt);
+      this.torso.scale.z = damp(this.torso.scale.z, 0.68 + Math.abs(breath) * 0.42, 6, dt);
+    }
+    if (this.jerseyHem) {
+      this.jerseyHem.rotation.z = damp(this.jerseyHem.rotation.z, -this.turnBlend * 0.06 + stride * locomotion * 0.018, 8, dt);
+    }
+    if (this.head) {
+      const look = this.engine.ball.position;
+      const worldYaw = Math.atan2(look.x - this.root.position.x, look.z - this.root.position.z);
+      const localYaw = Math.atan2(Math.sin(worldYaw - this.root.rotation.y - this.hips.rotation.y), Math.cos(worldYaw - this.root.rotation.y - this.hips.rotation.y));
+      const lookHeight = clamp((look.y - (this.root.position.y + 1.65)) * -0.18, -0.24, 0.22);
+      this.head.rotation.y = damp(this.head.rotation.y, clamp(localYaw, -0.62, 0.62), 8.5, dt);
+      this.head.rotation.x = damp(this.head.rotation.x, lookHeight, 7.5, dt);
+    }
 
     const strideAmount = lerp(0.6, 0.78, this.sprintBlend);
     const legSwing = stride * lerp(strideAmount, 0.34, this.defenseBlend) * locomotion;
@@ -699,7 +734,7 @@ export class ProceduralPlayer {
       const phase = i === 0 ? -1 : 1;
       let swing = stride * 0.48 * locomotion * phase;
       let out = phase * 0.88 * this.defenseBlend;
-      let elbow = lerp(-0.12, -0.3, this.defenseBlend);
+      let elbow = lerp(-0.24, -0.34, this.defenseBlend);
       let wristX = 0;
       let wristZ = 0;
       if (shootPose) {
@@ -782,7 +817,7 @@ export class ProceduralPlayer {
         const localBall = this._ballLocal.copy(this.engine.ball.position)
           .sub(this.root.position)
           .applyAxisAngle(this._upAxis, -this.root.rotation.y);
-        const shoulderX = arm.side * 0.36 * this.root.scale.x;
+        const shoulderX = arm.side * 0.335 * this.root.scale.x;
         const shoulderY = (this.hips.position.y + 0.87) * this.root.scale.y;
         const dx = localBall.x - shoulderX;
         const dy = localBall.y - shoulderY;
@@ -880,6 +915,8 @@ export class NovaCourtEngine {
     this.difficulty = options.difficulty || "pro";
     this.cameraMode = options.cameraMode || "follow";
     this.cameraShake = 0;
+    this.presentationIntroUntil = 0;
+    this.presentationIntroDuration = 0;
     this.handleFlash = 0;
     this.score = { home: 0, away: 0 };
     this.possessionTeam = "home";
@@ -1034,7 +1071,7 @@ export class NovaCourtEngine {
   _buildArena() {
     const T = this.T;
     const woodTexture = this._makeCanvasTexture(1024, 1024, (ctx, canvas) => {
-      ctx.fillStyle = "#a96835";
+      ctx.fillStyle = "#70452f";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const plankHeight = 44;
       const plankWidth = 178;
@@ -1043,7 +1080,7 @@ export class NovaCourtEngine {
         for (let column = -1; column < Math.ceil(canvas.width / plankWidth) + 1; column++) {
           const x = column * plankWidth + offset;
           const hue = 27 + ((row * 7 + column * 3) % 5);
-          const light = 42 + ((row * 11 + column * 13) % 9);
+          const light = 30 + ((row * 11 + column * 13) % 8);
           ctx.fillStyle = "hsl(" + hue + " 48% " + light + "%)";
           ctx.fillRect(x + 1, row * plankHeight + 1, plankWidth - 2, plankHeight - 2);
           ctx.strokeStyle = "rgba(55,26,12,.22)";
@@ -1064,6 +1101,15 @@ export class NovaCourtEngine {
       sheen.addColorStop(1, "rgba(53,20,8,.14)");
       ctx.fillStyle = sheen;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(28,18,14,.15)";
+      ctx.lineWidth = 3;
+      for (let mark = 0; mark < 22; mark++) {
+        const x = 310 + (mark * 71) % 420;
+        const y = 110 + (mark * 97) % 770;
+        ctx.beginPath();
+        ctx.arc(x, y, 18 + (mark % 4) * 5, 0.2, 1.5);
+        ctx.stroke();
+      }
     });
 
     const surround = new T.Mesh(
@@ -1079,9 +1125,9 @@ export class NovaCourtEngine {
       new T.PlaneGeometry(COURT.width, COURT.length),
       new T.MeshStandardMaterial({
         map: this.venue === "park" ? null : woodTexture,
-        color: this.venue === "park" ? 0x31545c : 0xd8b48c,
-        roughness: this.venue === "park" ? 0.88 : 0.4,
-        metalness: 0.01,
+        color: this.venue === "park" ? 0x253f46 : 0x8b7462,
+        roughness: this.venue === "park" ? 0.9 : 0.3,
+        metalness: this.venue === "park" ? 0.01 : 0.06,
       }),
     );
     floor.rotation.x = -Math.PI / 2;
@@ -1345,6 +1391,51 @@ export class NovaCourtEngine {
     crowdHeads.count = crowd.count;
     this.worldRoot.add(crowd, crowdHeads);
 
+    const benchMat = new T.MeshStandardMaterial({ color: 0x142936, roughness: 0.68, metalness: 0.24 });
+    const benchLegMat = new T.MeshStandardMaterial({ color: 0x485763, roughness: 0.38, metalness: 0.76 });
+    for (const side of [-1, 1]) {
+      const bench = new T.Mesh(new T.BoxGeometry(0.46, 0.13, 3.2), benchMat);
+      bench.position.set(side * 7.72, 0.48, 1.8);
+      bench.castShadow = true;
+      this.worldRoot.add(bench);
+      for (const z of [0.85, 2.75]) {
+        const leg = new T.Mesh(new T.BoxGeometry(0.08, 0.42, 0.16), benchLegMat);
+        leg.position.set(side * 7.72, 0.25, z);
+        this.worldRoot.add(leg);
+      }
+    }
+    const photographerBody = new T.CapsuleGeometry(0.13, 0.28, 3, 7);
+    const photographerMat = new T.MeshStandardMaterial({ color: 0x1a222b, roughness: 0.86 });
+    const cameraMat = new T.MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.38, metalness: 0.52 });
+    for (let index = 0; index < 5; index++) {
+      const photographer = new T.Group();
+      const body = new T.Mesh(photographerBody, photographerMat);
+      body.position.y = 0.43;
+      const cameraRig = new T.Mesh(new T.BoxGeometry(0.22, 0.14, 0.25), cameraMat);
+      cameraRig.position.set(0, 0.68, 0.08);
+      photographer.add(body, cameraRig);
+      photographer.position.set(-3.6 + index * 1.8, 0, -7.28 - (index % 2) * 0.16);
+      photographer.rotation.y = Math.PI;
+      this.worldRoot.add(photographer);
+    }
+    const scorerTable = new T.Mesh(new T.BoxGeometry(3.3, 0.82, 0.72), new T.MeshStandardMaterial({ color: 0x0b1822, roughness: 0.48, metalness: 0.32 }));
+    scorerTable.position.set(-7.72, 0.42, -2.1);
+    scorerTable.rotation.y = Math.PI / 2;
+    scorerTable.castShadow = true;
+    this.worldRoot.add(scorerTable);
+    for (const side of [-1, 1]) {
+      const cooler = new T.Mesh(new T.CylinderGeometry(0.23, 0.25, 0.62, 12), new T.MeshStandardMaterial({ color: side > 0 ? 0xff8250 : 0x54e0eb, roughness: 0.62 }));
+      cooler.position.set(side * 7.76, 0.31, 3.75);
+      this.worldRoot.add(cooler);
+    }
+    const tunnel = new T.Mesh(new T.PlaneGeometry(3.2, 2.8), new T.MeshBasicMaterial({ color: 0x010307, toneMapped: false }));
+    tunnel.position.set(0, 1.4, 10.82);
+    tunnel.rotation.y = Math.PI;
+    this.worldRoot.add(tunnel);
+    const tunnelGlow = new T.PointLight(0x54e0eb, 1.3, 5.5, 2);
+    tunnelGlow.position.set(0, 1.5, 9.6);
+    this.worldRoot.add(tunnelGlow);
+
     const bannerMaterial = (color, title, subtitle) => {
       const texture = this._makeCanvasTexture(384, 512, (ctx, canvas) => {
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1434,13 +1525,34 @@ export class NovaCourtEngine {
 
   _buildBall() {
     const T = this.T;
+    const pebbleTexture = this._makeCanvasTexture(128, 128, (ctx, canvas) => {
+      ctx.fillStyle = "#777";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let y = 3; y < canvas.height; y += 6) {
+        for (let x = 3; x < canvas.width; x += 6) {
+          ctx.beginPath();
+          ctx.arc(x + ((y / 6) % 2) * 1.6, y, 1.45, 0, Math.PI * 2);
+          ctx.fillStyle = "#b6b6b6";
+          ctx.fill();
+        }
+      }
+    });
+    pebbleTexture.wrapS = pebbleTexture.wrapT = T.RepeatWrapping;
+    pebbleTexture.repeat.set(2.2, 2.2);
     const material = new T.MeshStandardMaterial({
-      color: 0xd86d28, roughness: 0.72, metalness: 0.0,
+      color: 0xd86d28, roughness: 0.74, metalness: 0.0, bumpMap: pebbleTexture, bumpScale: 0.018,
     });
     this.ballMesh = new T.Mesh(new T.SphereGeometry(COURT.ballRadius, 22, 16), material);
     this.ballMesh.castShadow = true;
     this.ballMesh.receiveShadow = true;
     this.worldRoot.add(this.ballMesh);
+    this.ballContactShadow = new T.Mesh(
+      new T.CircleGeometry(0.29, 24),
+      new T.MeshBasicMaterial({ color: 0x010203, transparent: true, opacity: 0.34, depthWrite: false, toneMapped: false }),
+    );
+    this.ballContactShadow.rotation.x = -Math.PI / 2;
+    this.ballContactShadow.position.y = COURT.floorY + 0.012;
+    this.worldRoot.add(this.ballContactShadow);
     const seamMat = new T.LineBasicMaterial({ color: 0x2d180f, transparent: true, opacity: 0.9 });
     for (const rotation of [[0, 0, 0], [0, Math.PI / 2, 0], [Math.PI / 2, 0, 0]]) {
       const curve = new T.EllipseCurve(0, 0, COURT.ballRadius * 1.005, COURT.ballRadius * 1.005, 0, Math.PI * 2);
@@ -1658,9 +1770,34 @@ export class NovaCourtEngine {
     return true;
   }
 
+  beginPresentationIntro(duration = 2.8) {
+    this.presentationIntroDuration = Math.max(0.4, duration);
+    this.presentationIntroUntil = this.elapsed + this.presentationIntroDuration;
+    this.camera.position.set(-7.6, 2.25, 6.8);
+    this.cameraTarget.set(0, 1.1, -1.8);
+    return this.presentationIntroDuration;
+  }
+
+  getControlledScreenAnchor() {
+    const player = this.controlledPlayer;
+    if (!player || !this.camera) return null;
+    const world = this._scratchD.copy(player.root.position);
+    world.y += 1.95;
+    world.project(this.camera);
+    return {
+      x: clamp((world.x * 0.5 + 0.5) * 100, 8, 92),
+      y: clamp((-world.y * 0.5 + 0.5) * 100, 14, 84),
+      visible: world.z > -1 && world.z < 1,
+    };
+  }
+
   cycleCamera() {
-    const modes = ["follow", "broadcast", "cinematic"];
+    const modes = ["follow", "cinematic", "broadcast"];
     this.setCameraMode(modes[(modes.indexOf(this.cameraMode) + 1) % modes.length]);
+  }
+
+  skipHighlight() {
+    return this.replayFlow.skip("user-skip", this.replay?.flowToken);
   }
 
   start() {
@@ -1894,7 +2031,10 @@ export class NovaCourtEngine {
   }
 
   _integratePlayer(player, dt) {
-    const accel = player.grounded ? 13 : 4;
+    const sizeFactor = clamp((player.height - 1.82) / 0.34, 0, 1);
+    const accelerationRating = clamp((player.metadata?.ratings?.acceleration ?? player.metadata?.acceleration ?? 70) / 99, 0.45, 1);
+    const groundAcceleration = lerp(10.8, 15.8, accelerationRating) * lerp(1.04, 0.82, sizeFactor);
+    const accel = player.grounded ? groundAcceleration : 4;
     player.velocity.x = damp(player.velocity.x, player.desiredVelocity.x, accel, dt);
     player.velocity.z = damp(player.velocity.z, player.desiredVelocity.z, accel, dt);
     if (!player.grounded) {
@@ -1944,7 +2084,8 @@ export class NovaCourtEngine {
       const targetRotation = Math.atan2(player.facing.x, player.facing.z);
       let diff = targetRotation - player.root.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      const turnRate = player.grounded ? (player.state === PLAYER_STATES.DEFEND ? 9 : 10.5) : 5.5;
+      const baseTurnRate = player.state === PLAYER_STATES.DEFEND ? 9.4 : player.state === PLAYER_STATES.SPRINT ? 5.8 : 8.7;
+      const turnRate = player.grounded ? baseTurnRate * lerp(1.05, 0.82, sizeFactor) : 5.2;
       player.root.rotation.y += diff * animationDampingFactor(turnRate, dt);
     }
   }
@@ -1959,13 +2100,27 @@ export class NovaCourtEngine {
         const dist = Math.hypot(dx, dz);
         const minDist = a.radius + b.radius;
         if (dist > 0.001 && dist < minDist) {
-          const push = (minDist - dist) * 0.5;
           const nx = dx / dist;
           const nz = dz / dist;
-          a.root.position.x -= nx * push;
-          a.root.position.z -= nz * push;
-          b.root.position.x += nx * push;
-          b.root.position.z += nz * push;
+          const massA = Math.max(0.7, a.height * a.height * (0.72 + (a.metadata?.strength ?? 0.68) * 0.45));
+          const massB = Math.max(0.7, b.height * b.height * (0.72 + (b.metadata?.strength ?? 0.68) * 0.45));
+          const totalMass = massA + massB;
+          const overlap = minDist - dist;
+          const pushA = overlap * (massB / totalMass);
+          const pushB = overlap * (massA / totalMass);
+          a.root.position.x -= nx * pushA;
+          a.root.position.z -= nz * pushA;
+          b.root.position.x += nx * pushB;
+          b.root.position.z += nz * pushB;
+          const closingSpeed = (b.velocity.x - a.velocity.x) * nx + (b.velocity.z - a.velocity.z) * nz;
+          if (closingSpeed < -0.08) {
+            const impulse = Math.min(2.1, -closingSpeed * 0.42);
+            a.velocity.x -= nx * impulse * (massB / totalMass);
+            a.velocity.z -= nz * impulse * (massB / totalMass);
+            b.velocity.x += nx * impulse * (massA / totalMass);
+            b.velocity.z += nz * impulse * (massA / totalMass);
+            if (impulse > 0.9) this.cameraShake = Math.max(this.cameraShake, impulse * 0.018);
+          }
         }
       }
     }
@@ -2330,6 +2485,11 @@ export class NovaCourtEngine {
     return true;
   }
 
+  _shotMeterHalfWidth(player) {
+    const stamina = clamp(player?.stamina ?? 1, 0, 1);
+    return this.shotPerfectHalfWidth * lerp(0.68, 1.04, stamina);
+  }
+
   holdShot(dt) {
     if (!this.chargingShot) return;
     this.shotCharge = Math.min(1.25, this.shotCharge + dt * 1.48);
@@ -2338,10 +2498,11 @@ export class NovaCourtEngine {
     const apexQuality = player && this.shotContext === "jumper" && !player.grounded
       ? apexReleaseQuality(player.jumpVelocity) : 0;
     const quality = meterQuality;
+    const liveHalfWidth = this._shotMeterHalfWidth(player);
     const perfectRelease = isShotMeterPerfect(
       this.shotCharge,
       this.shotIdeal,
-      this.shotPerfectHalfWidth,
+      liveHalfWidth,
     );
     this.lastShotQuality = quality;
     this.aimRing.material.color.setHex(quality > 0.9 ? 0x72ff9b : quality > 0.48 ? 0xffd45b : 0xff5475);
@@ -2356,9 +2517,11 @@ export class NovaCourtEngine {
       quality,
       perfectRelease,
       apex: apexQuality > 0.91,
-      perfectWindowStart: this.shotIdeal - this.shotPerfectHalfWidth,
-      perfectWindowWidth: this.shotPerfectHalfWidth * 2,
+      perfectWindowStart: this.shotIdeal - liveHalfWidth,
+      perfectWindowWidth: liveHalfWidth * 2,
       jumpVelocity: player?.jumpVelocity || 0,
+      distanceFeet: player ? Math.hypot(player.root.position.x - this._basketForTeam(player.team).x, player.root.position.z - this._basketForTeam(player.team).z) * 3.28084 : 0,
+      stamina: player?.stamina ?? 1,
       makeProbability: preview?.percentage.makeProbability ?? 0,
       makePercent: preview?.percentage.makePercent ?? 0,
       coverage: preview?.coverageResult.coverage ?? 0,
@@ -2395,6 +2558,7 @@ export class NovaCourtEngine {
       return this._beginDunkChoreography(player, timingQuality, override);
     }
     const meterQuality = 1 - clamp(Math.abs(this.shotCharge - this.shotIdeal) / 0.45, 0, 1);
+    const liveHalfWidth = this._shotMeterHalfWidth(player);
     if (context === "jumper" && !override.immediate && !override.atApex &&
         !player.grounded && player.jumpVelocity > this.shotApexTolerance) {
       this.queuedRelease = {
@@ -2405,7 +2569,7 @@ export class NovaCourtEngine {
           perfectRelease: override.perfectRelease ?? isShotMeterPerfect(
             this.shotCharge,
             this.shotIdeal,
-            this.shotPerfectHalfWidth,
+            liveHalfWidth,
           ),
         },
       };
@@ -2421,7 +2585,7 @@ export class NovaCourtEngine {
     const perfectRelease = override.perfectRelease ?? isShotMeterPerfect(
       this.shotCharge,
       this.shotIdeal,
-      this.shotPerfectHalfWidth,
+      liveHalfWidth,
     );
     this._facePlayerToBasket(player);
     const releaseHand = context === "dunk" && player.dunkSelection?.finishHand
@@ -2523,6 +2687,8 @@ export class NovaCourtEngine {
       coverage: shotModel.coverageResult.coverage,
       coveragePercent: shotModel.coverageResult.percent,
       coverageLabel: shotModel.coverageResult.displayLabel,
+      distanceFeet: Math.hypot(player.root.position.x - basket.x, player.root.position.z - basket.z) * 3.28084,
+      stamina: player.stamina,
       rimResult: shotResult.rim.result,
       hud: shotResult.hud,
     });
@@ -2879,16 +3045,26 @@ export class NovaCourtEngine {
   _updatePossessedBall(dt) {
     const owner = this.ball.owner;
     const speed = Math.hypot(owner.velocity.x, owner.velocity.z);
-    const frequency = 2.0 + Math.min(1.2, speed * 0.22);
+    const frequency = 1.82 + Math.min(1.42, speed * 0.25);
     const phaseStep = advancePeriodicPhase(owner.dribblePhase, dt * frequency);
     owner.dribblePhase = phaseStep.phase;
     const phase = owner.dribblePhase;
     const bounceCurve = Math.abs(Math.cos(phase * Math.PI));
     const moveActive = !!owner.dribbleMove && owner.dribbleMoveTime > 0;
     if (!moveActive && phaseStep.crossings > 0 && speed > 1.7) owner.dribbleHand *= -1;
-    let side = owner.dribbleHand * 0.42;
-    let forward = 0.12 + speed * 0.025;
-    let height = lerp(COURT.ballRadius + 0.04, 1.05, bounceCurve);
+    const nearestDefender = this.players
+      .filter((candidate) => candidate.team !== owner.team)
+      .sort((a, b) => a.root.position.distanceToSquared(owner.root.position) - b.root.position.distanceToSquared(owner.root.position))[0];
+    const pressureDistance = nearestDefender?.root.position.distanceTo(owner.root.position) ?? Infinity;
+    const protectBlend = smoothstep(1.55, 0.72, pressureDistance);
+    if (protectBlend > 0.2 && nearestDefender) {
+      const localDefenderX = this._scratchD.copy(nearestDefender.root.position).sub(owner.root.position).applyAxisAngle(this._upAxis, -owner.root.rotation.y).x;
+      owner.dribbleHand = localDefenderX > 0 ? -1 : 1;
+    }
+    let side = owner.dribbleHand * lerp(0.42, 0.35, protectBlend);
+    let forward = lerp(0.12 + speed * 0.025, -0.03, protectBlend);
+    const peakHeight = lerp(0.88, 1.14, smoothstep(0.4, 4.8, speed));
+    let height = lerp(COURT.ballRadius + 0.04, peakHeight, bounceCurve);
     const shotGather = owner.state === PLAYER_STATES.SHOOT && this.chargingShot;
     const dunkGather = owner.state === PLAYER_STATES.DUNK
       && owner.dunkSelection
@@ -2914,7 +3090,7 @@ export class NovaCourtEngine {
     const target = new this.T.Vector3(side, height, forward);
     target.applyAxisAngle(new this.T.Vector3(0, 1, 0), owner.root.rotation.y);
     target.add(owner.root.position);
-    const follow = dunkGather ? 46 : shotGather ? 32 : moveActive ? 38 : (phase > 0.42 && phase < 0.58 ? 34 : 22);
+    const follow = dunkGather ? 46 : shotGather ? 34 : moveActive ? 42 : (phase > 0.42 && phase < 0.58 ? 38 : 28);
     this.ball.position.lerp(target, animationDampingFactor(follow, dt));
     if (moveActive) {
       owner.handleTrailTimer -= dt;
@@ -3163,7 +3339,16 @@ export class NovaCourtEngine {
     }
     const pulse = 1 + Math.sin(this.elapsed * 2.2) * 0.035;
     for (let i = 0; i < this.accentLights.length; i++) {
-      this.accentLights[i].intensity = (4.2 + Math.sin(this.elapsed * 1.4 + i * Math.PI) * 0.55) * pulse;
+      const light = this.accentLights[i];
+      light.intensity = (4.2 + Math.sin(this.elapsed * 1.4 + i * Math.PI) * 0.55) * pulse;
+      light.target.position.x = Math.sin(this.elapsed * 0.42 + i * 1.7) * 2.8;
+      light.target.position.z = -1.8 + Math.cos(this.elapsed * 0.34 + i * 1.3) * 3.6;
+      light.target.updateMatrixWorld();
+    }
+    if (this.arenaCrowd && this.arenaCrowdHeads) {
+      const crowdLift = Math.max(0, Math.sin(this.elapsed * 2.2)) * (0.008 + this.scoreRingPulse * 0.045);
+      this.arenaCrowd.position.y = crowdLift;
+      this.arenaCrowdHeads.position.y = crowdLift;
     }
   }
 
@@ -3178,6 +3363,14 @@ export class NovaCourtEngine {
     this._updateVFX(dt);
     this.fullCourtVisuals?.update(dt);
     this.park?.update(dt, clamp(0.28 + this.handleFlash * 0.4 + this.scoreRingPulse * 0.5, 0, 1));
+    if (this.ballContactShadow) {
+      const height = Math.max(0, this.ball.position.y - COURT.floorY);
+      const scale = clamp(1.18 - height * 0.13, 0.42, 1.12);
+      this.ballContactShadow.position.x = this.ball.position.x;
+      this.ballContactShadow.position.z = this.ball.position.z;
+      this.ballContactShadow.scale.set(scale, scale, scale);
+      this.ballContactShadow.material.opacity = clamp(0.36 - height * 0.045, 0.08, 0.36);
+    }
     this._updateCamera(dt);
     this._updateReplay(dt);
     this._processReplayFlowEvents();
@@ -3190,51 +3383,61 @@ export class NovaCourtEngine {
     const desired = this._scratchA.set(0, 0, 0);
     const target = this._scratchB.set(0, 0, 0);
     const isShot = !this.ball.owner && this.ball.state === "shot";
-    let desiredFov = 42;
     const activeBasket = this._basketForTeam(this.ball.owner?.team || this.possessionTeam || this.controlledPlayer?.team || "home");
-    if (this.cameraMode === "broadcast") {
-      const actionX = clamp((focus.x + player.x) * 0.16, -1.2, 1.2);
+    const hoopDistance = Math.hypot(focus.x - activeBasket.x, focus.z - activeBasket.z);
+    const speed = this.ball.owner?.velocity.length() || this.controlledPlayer?.velocity.length() || 0;
+    const introRemaining = Math.max(0, this.presentationIntroUntil - this.elapsed);
+    let desiredFov = 40;
+    if (introRemaining > 0) {
+      const progress = 1 - introRemaining / Math.max(0.4, this.presentationIntroDuration);
+      const sweep = smoothstep(0, 1, progress);
+      desired.set(lerp(-7.6, 6.2, sweep), lerp(2.25, 3.2, sweep), lerp(6.8, 4.6, sweep));
+      target.set(lerp(-1.8, focus.x * 0.35, sweep), lerp(1.05, 1.35, sweep), lerp(-3.4, focus.z - 1.2, sweep));
+      desiredFov = lerp(34, 40, sweep);
+    } else if (this.cameraMode === "broadcast") {
+      const actionX = clamp((focus.x + player.x) * 0.15, -1.1, 1.1);
       if (this.courtRuntime.kind === "full") {
-        desired.set(6.85 + actionX * 0.18, 6.7, clamp(focus.z, -8.8, 8.8));
-        target.set(clamp(focus.x * 0.2, -1.5, 1.5), isShot ? 2 : 1.3, clamp(focus.z, -11.5, 11.5));
-        desiredFov = 48;
+        const zoom = clamp(hoopDistance / 15, 0.25, 1);
+        desired.set(6.45 + actionX * 0.18, lerp(4.85, 6.15, zoom), clamp(focus.z + 0.8, -8.8, 8.8));
+        target.set(clamp(focus.x * 0.22 - 0.4, -1.7, 1.25), isShot ? 2 : 1.25, clamp(focus.z, -11.5, 11.5));
+        desiredFov = lerp(42, 48, zoom);
       } else {
-        desired.set(7.12 + actionX * 0.32, 5.65, 1.35);
-        target.set(
-          clamp(focus.x * 0.22, -1.45, 1.45),
-          isShot ? 1.85 : 1.24,
-          clamp(focus.z * 0.24 - 2.45, -4.25, 0.35),
-        );
-        desiredFov = 41.5;
+        const zoom = clamp(hoopDistance / 10, 0.18, 1);
+        desired.set(6.45 + actionX * 0.28, lerp(4.15, 5.2, zoom), lerp(-0.4, 1.55, zoom));
+        target.set(clamp(focus.x * 0.24 - 0.48, -1.65, 1.1), isShot ? 1.9 : 1.18, clamp(focus.z * 0.3 - 2.35, -4.4, 0.45));
+        desiredFov = lerp(37.5, 42.5, zoom);
       }
     } else if (this.cameraMode === "cinematic") {
-      const orbit = this.elapsed * 0.075;
-      desired.set(Math.cos(orbit) * 9.1, 3.8, Math.sin(orbit) * 5.4 + 0.5);
-      target.copy(focus).lerp(this._scratchC.set(activeBasket.x, 1.45, activeBasket.z), 0.28);
-      target.y = 1.38;
-      desiredFov = 38;
+      const orbit = this.elapsed * 0.095;
+      desired.set(Math.cos(orbit) * 8.2, 3.25, Math.sin(orbit) * 4.9 + 0.3);
+      target.copy(focus).lerp(this._scratchC.set(activeBasket.x, 1.45, activeBasket.z), 0.3);
+      target.y = 1.32;
+      desiredFov = 36.5;
     } else if (isShot) {
-      desired.set(7.9, 4.55, clamp(player.z + 3.9, 1.6, 7.4));
-      target.copy(this.ball.position).lerp(this._scratchC.set(activeBasket.x, activeBasket.y, activeBasket.z), 0.44);
-      desiredFov = 39;
+      desired.set(7.15, 3.9, clamp(player.z + 3.25, 1.35, 7.05));
+      target.copy(this.ball.position).lerp(this._scratchC.set(activeBasket.x, activeBasket.y, activeBasket.z), 0.46);
+      desiredFov = 38;
     } else {
-      const side = clamp(player.x * 0.2, -1.25, 1.25);
-      desired.set(5.05 + side, 3.08, clamp(player.z + 4.45, 3.25, 8.75));
-      target.copy(player).lerp(focus, 0.38);
-      target.y = 1.12;
-      target.z -= 1.12;
-      desiredFov = 40.5 + clamp(this.controlledPlayer?.velocity.length() || 0, 0, 5) * 0.3;
+      const zoom = clamp(hoopDistance / 10, 0.2, 1);
+      const side = clamp(player.x * 0.17, -1.05, 1.05);
+      desired.set(4.55 + side, lerp(2.62, 3.15, zoom), clamp(player.z + lerp(3.65, 4.35, zoom), 2.8, 8.35));
+      target.copy(player).lerp(focus, 0.42);
+      target.x -= 0.54;
+      target.y = 1.08;
+      target.z -= lerp(0.78, 1.25, zoom);
+      desiredFov = lerp(38, 42, zoom) + clamp(speed, 0, 5) * 0.24;
     }
-    this.camera.position.lerp(desired, 1 - Math.exp(-4.2 * dt));
-    this.cameraTarget.lerp(target, 1 - Math.exp(-6.4 * dt));
-    this.camera.fov = damp(this.camera.fov, desiredFov, 4.8, dt);
+    const cameraDamping = introRemaining > 0 ? 3.4 : isShot ? 6.1 : 4.8;
+    this.camera.position.lerp(desired, 1 - Math.exp(-cameraDamping * dt));
+    this.cameraTarget.lerp(target, 1 - Math.exp(-(isShot ? 8.2 : 6.8) * dt));
+    this.camera.fov = damp(this.camera.fov, desiredFov, 5.2, dt);
     this.camera.updateProjectionMatrix();
     if (this.cameraShake > 0.001) {
       const strength = this.cameraShake;
       this.camera.position.x += rand(-strength, strength);
-      this.camera.position.y += rand(-strength, strength) * 0.55;
+      this.camera.position.y += rand(-strength, strength) * 0.48;
       this.camera.position.z += rand(-strength, strength);
-      this.cameraShake *= Math.exp(-12 * dt);
+      this.cameraShake *= Math.exp(-13 * dt);
     }
     this.camera.lookAt(this.cameraTarget);
   }

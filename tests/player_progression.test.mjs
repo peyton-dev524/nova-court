@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   ATTRIBUTE_GROUPS,
   COSMETIC_PALETTES,
+  NIGHT_LEAGUE_RANKS,
   POSITION_PRESETS,
   PROFILE_STORAGE_KEY,
   awardMatch,
@@ -11,6 +12,7 @@ import {
   createDefaultProfile,
   equipCosmetic,
   getEnginePlayerConfig,
+  getNightLeagueRank,
   getProfileSummary,
   getUpgradeCost,
   levelFromXp,
@@ -38,6 +40,15 @@ test("overall is weighted by position and cannot exceed 99", () => {
   assert.notEqual(calculateOverall("PG", pg.attributes), calculateOverall("C", pg.attributes));
 });
 
+
+test("Night League ranks progress through seven original tiers", () => {
+  assert.equal(NIGHT_LEAGUE_RANKS.length, 7);
+  assert.equal(getNightLeagueRank(1).name, "Prospect");
+  assert.equal(getNightLeagueRank(22).name, "Headliner");
+  assert.equal(getNightLeagueRank(85).name, "Nova Legend");
+  assert.equal(getNightLeagueRank(99).next, null);
+  assert.equal(getNightLeagueRank(-20).level, 1);
+});
 test("normalization migrates a legacy single build and clamps corrupt values", () => {
   const migrated = normalizeProfile({
     version: 1,

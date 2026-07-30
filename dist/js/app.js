@@ -17,6 +17,7 @@ import {
   awardMatch,
   equipCosmetic,
   getEnginePlayerConfig,
+  getNightLeagueRank,
   getProfileSummary,
   getUpgradeCost,
   loadProfile,
@@ -73,11 +74,24 @@ let selectedModeKey = "street";
 let audioUnlocked = false;
 let aiAccumulator = 0;
 let hudAccumulator = 0;
+let broadcastMomentTimer = 0;
+let controlHintTimer = 0;
+let gamePointSignature = "";
+const lastRenderedScores = { home: null, away: null };
+let livePlayerStats = { points: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, grade: 76 };
+let assistCandidate = null;
+let targetLabelTimer = 0;
+let controlGuideHeld = false;
+let lastInputScheme = "keyboard";
 
 const compat = document.createElement("link");
 compat.rel = "stylesheet";
 compat.href = "./js/compat.css?v=5.0";
 document.head.append(compat);
+const ncnPresentation = document.createElement("link");
+ncnPresentation.rel = "stylesheet";
+ncnPresentation.href = "./js/ncn-presentation.css?v=1.0";
+document.head.append(ncnPresentation);
 
 function setHidden(node, hidden) {
   if (!node) return;
@@ -150,6 +164,90 @@ function feedback(text, tone = "neutral", duration = 900) {
   feedback.timer = setTimeout(() => node.classList.remove("is-visible"), duration);
 }
 
+function showBroadcastMoment(kicker, title, detail = "", stat = "", duration = 1800) {
+  const node = $("#broadcast-moment");
+  if (!node) return;
+  $(".broadcast-moment__kicker", node).textContent = kicker;
+  $(".broadcast-moment__title", node).textContent = title;
+  $(".broadcast-moment__detail", node).textContent = detail;
+  $(".broadcast-moment__stat", node).textContent = stat;
+  node.dataset.kind = String(kicker || "live").toLowerCase().replaceAll(" ", "-");
+  node.classList.remove("is-visible");
+  requestAnimationFrame(() => node.classList.add("is-visible"));
+  clearTimeout(broadcastMomentTimer);
+  broadcastMomentTimer = setTimeout(() => node.classList.remove("is-visible"), duration);
+}
+
+function setScoreValue(id, value) {
+  const node = $(id);
+  const key = id.includes("home") ? "home" : "away";
+  const normalized = String(value ?? 0);
+  if (lastRenderedScores[key] !== null && lastRenderedScores[key] !== normalized) {
+    node.classList.remove("is-changing");
+    requestAnimationFrame(() => node.classList.add("is-changing"));
+  }
+  lastRenderedScores[key] = normalized;
+  node.textContent = normalized;
+}
+
+function gradeFromScore(score = livePlayerStats.grade) {
+  if (score >= 94) return "A+";
+  if (score >= 88) return "A";
+  if (score >= 83) return "A-";
+  if (score >= 78) return "B+";
+  if (score >= 72) return "B";
+  if (score >= 67) return "B-";
+  if (score >= 61) return "C+";
+  return "C";
+}
+
+function adjustGrade(amount, reason = "") {
+  livePlayerStats.grade = clamp(livePlayerStats.grade + amount, 40, 100);
+  const card = $("#player-card-hud");
+  card?.classList.remove(amount >= 0 ? "grade-down" : "grade-up");
+  card?.classList.add(amount >= 0 ? "grade-up" : "grade-down");
+  setTimeout(() => card?.classList.remove("grade-up", "grade-down"), 520);
+  if (reason) feedback(`${reason} · GRADE ${gradeFromScore()}`, amount >= 0 ? "good" : "warning", 620);
+}
+
+function maybeQueueHighlight(kind, delay = 180) {
+  const frequency = $("#highlight-frequency")?.value || "broadcast";
+  if (frequency === "off" || currentModeKey === "practice" || currentModeKey === "threePoint") return;
+  if (frequency === "reduced" && !["dunk", "gameWinner"].includes(kind)) return;
+  setTimeout(() => {
+    if (!gameActive || engine?.isReplayFrozen?.() || engine?.highlightPending > 0) return;
+    engine?.queueHighlight?.(kind === "ankleBreak" ? 1.8 : 2.05);
+  }, delay);
+}
+
+function updateControlHintScheme(force = false) {
+  const gamepad = Boolean(navigator.getGamepads?.().some(Boolean));
+  const scheme = gamepad ? "gamepad" : "keyboard";
+  if (!force && scheme === lastInputScheme) return;
+  lastInputScheme = scheme;
+  app.dataset.input = scheme;
+  const hints = $("#control-hints");
+  if (!hints) return;
+  hints.innerHTML = gamepad
+    ? '<span><kbd>LS</kbd> MOVE</span><span><kbd>X</kbd> SHOOT</span><span><kbd>A</kbd> PASS</span><span><kbd>RT</kbd> SPRINT</span>'
+    : '<span><kbd>WASD</kbd> MOVE</span><span><kbd>SPACE</kbd> SHOOT</span><span><kbd>E</kbd> PASS</span><span><kbd>SHIFT</kbd> SPRINT</span>';
+}
+
+function updateModeFeature(card = $(".mode-card.is-selected")) {
+  const feature = $("#mode-feature");
+  if (!feature || !card) return;
+  const number = $(".mode-card__number", card)?.textContent || "01";
+  const tag = $(".mode-card__tag", card)?.textContent || "NIGHT RUN";
+  const title = $("strong", card)?.textContent?.replace(/\s+/g, " ").trim() || "PARK DUEL";
+  const description = $("p", card)?.textContent || "Choose a run and take the court.";
+  $(".mode-feature__number", feature).textContent = number;
+  $(".mode-feature__tag", feature).textContent = tag;
+  $(".mode-feature__title", feature).textContent = title;
+  $(".mode-feature__copy", feature).textContent = description;
+  feature.dataset.mode = card.dataset.mode || "street";
+  $(".panel-index").textContent = `${number} / 06`;
+}
+
 function profileMessage(text, tone = "neutral") {
   const node = $("#profile-status");
   if (!node) return;
@@ -180,6 +278,12 @@ function renderPlayerProfile() {
   $("#profile-xp-label").textContent = nextXp ? `${summary.xp} / ${nextXp} XP` : "MAX LEVEL";
   $("#profile-xp-fill").style.width = `${Math.round(xpProgress * 100)}%`;
   $("#menu-player-summary").textContent = `${summary.position} / ${summary.overall} OVR / ${summary.credits.toLocaleString()} CR`;
+  const menuRank = $("#menu-rank");
+  const rank = getNightLeagueRank(summary.level);
+  if (menuRank) {
+    menuRank.style.setProperty("--rank-color", rank.color);
+    menuRank.innerHTML = `<span>NIGHT LEAGUE RANK</span><b>${rank.name.toUpperCase()}</b><small>LEVEL ${summary.level} · ${summary.wins} WINS · ${summary.xp} XP</small>`;
+  }
 
   const positions = $("#position-tabs");
   positions.replaceChildren(...Object.entries(POSITION_PRESETS).map(([key, value]) => {
@@ -376,7 +480,7 @@ function startMode(modeKey = selectedModeKey) {
   currentDifficulty = $("#difficulty-select")?.value || "pro";
   const token = runToken;
   createEngine(currentModeKey);
-  engine.setCameraMode(["threePoint", "duos", "team"].includes(currentModeKey) ? "broadcast" : "follow");
+  engine.setCameraMode($("#camera-preset")?.value || (["threePoint", "duos", "team"].includes(currentModeKey) ? "broadcast" : "follow"));
   mode = createModeController(currentModeKey);
   const opening = mode.start({ teamIds: ["home", "away"], userTeamId: "home" });
   processCommands(opening?.commands, token);
@@ -389,7 +493,9 @@ function startMode(modeKey = selectedModeKey) {
   $("#mode-label").textContent = meta.label;
   $("#home-label").textContent = meta.home;
   $("#away-label").textContent = meta.away;
-  $("#game-clock").textContent = meta.objective;
+  $("#game-clock").textContent = "--:--";
+  $("#shot-clock").textContent = "--";
+  $("#target-label").textContent = meta.objective;
   setHidden($("#three-point-progress"), currentModeKey !== "threePoint");
   setHidden($("#teammate-hints"), !isTeamModeKey(currentModeKey));
   if (currentModeKey === "threePoint") buildRackProgress();
@@ -398,13 +504,44 @@ function startMode(modeKey = selectedModeKey) {
   }
   showGame();
   gameActive = true;
+  gamePointSignature = "";
+  lastRenderedScores.home = null;
+  lastRenderedScores.away = null;
+  livePlayerStats = { points: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, grade: 76 };
+  assistCandidate = null;
+  const introDuration = engine.beginPresentationIntro?.(ui.settings.reducedMotion ? 0.5 : 2.8) || 0.5;
+  engine.controls.setEnabled(false);
+  const controls = $("#control-hints");
+  const showGuide = $("#control-guide-enabled")?.checked !== false;
+  controls?.classList.toggle("is-dismissed", !showGuide);
+  updateControlHintScheme(true);
+  clearTimeout(controlHintTimer);
+  controlHintTimer = setTimeout(() => {
+    if (!controlGuideHeld) controls?.classList.add("is-dismissed");
+  }, 9000);
+  const targetLabel = $("#target-label");
+  targetLabel?.classList.remove("is-dismissed");
+  clearTimeout(targetLabelTimer);
+  targetLabelTimer = setTimeout(() => targetLabel?.classList.add("is-dismissed"), Math.max(2600, introDuration * 1000));
+  const summary = getProfileSummary(playerProfile);
+  showBroadcastMoment(
+    "NCN MATCHUP",
+    `${meta.home}  vs  ${meta.away}`,
+    `${meta.label} · ${currentDifficulty.toUpperCase()}`,
+    `${summary.position} · ${summary.overall} OVR · LEVEL ${summary.level}`,
+    Math.max(900, introDuration * 1000),
+  );
+  setTimeout(() => {
+    if (token !== runToken || !gameActive || engine.isReplayFrozen()) return;
+    if (mode?.phase === MODE_PHASES.LIVE) engine.controls.setEnabled(true);
+  }, introDuration * 1000);
   announcer.reset();
   announcer.announce("tip", { force: true, seed: `${currentModeKey}-${runToken}` });
   audio.playSfx("whistle");
   const openingCall = currentModeKey === "threePoint" ? "ARC RUN"
     : currentModeKey === "practice" ? "OPEN GYM"
       : currentModeKey === "street" ? "WELCOME TO NOVA PARK"
-        : currentModeKey === "fives" ? "FULL COURT ? TEN PLAYERS ? TWO HOOPS"
+        : currentModeKey === "fives" ? "FULL COURT · TEN PLAYERS · TWO HOOPS"
           : "CHECK BALL";
   feedback(openingCall, "accent", 1200);
   updateHUD();
@@ -597,6 +734,10 @@ function bindEngineEvents() {
   engine.on("bounce", () => audio.playSfx("bounce"));
   engine.on("pass", (event) => {
     audio.playSfx("pass");
+    if (event.player?.controlled) {
+      assistCandidate = { targetId: event.target?.id, at: performance.now() };
+      adjustGrade(1.2, "GOOD PASS");
+    }
     handleModeEvent("PASS_COMPLETE", {
       playerId: event.player?.id,
       targetPlayerId: event.target?.id,
@@ -623,7 +764,9 @@ function bindEngineEvents() {
     const chance = $("#shot-chance");
     const coverage = $("#shot-coverage");
     if (chance) chance.textContent = `${makePercent}%`;
-    if (coverage) coverage.textContent = `${event.coverageLabel || "WIDE OPEN"} ? ${coveredPercent}% COVERED`;
+    if (coverage) coverage.textContent = `${event.coverageLabel || "WIDE OPEN"} · ${coveredPercent}% COVERED`;
+    const distance = $("#shot-distance");
+    if (distance) distance.textContent = `${Math.round(event.distanceFeet || 0)} FT · ENERGY ${Math.round((event.stamina ?? 1) * 100)}%`;
     ui.setShotMeter(event.charge, event.perfectRelease ? "perfect" : "charging", event.perfectRelease ? "PERFECT" : "RELEASE IN WHITE");
   });
   engine.on("shotqueued", (event) => {
@@ -659,6 +802,8 @@ function bindEngineEvents() {
     if (coverage) coverage.textContent = event.perfectRelease
       ? `${event.guaranteed ? "WIDE OPEN" : event.coverageLabel || "CONTESTED"} / PERFECT / ${coveragePercent}% COVERED`
       : `${event.coverageLabel || "WIDE OPEN"} / ${coveragePercent}% COVERED`;
+    const distance = $("#shot-distance");
+    if (distance) distance.textContent = `${Math.round(event.distanceFeet || 0)} FT · ENERGY ${Math.round((event.stamina ?? 1) * 100)}%`;
     feedback(
       event.guaranteed
         ? "100% / WIDE OPEN / PERFECT"
@@ -688,11 +833,27 @@ function bindEngineEvents() {
     audio.playSfx(event.swish ? "swish" : "score", 1);
     feedback(event.swish ? "PURE SWISH" : pendingShot?.perfectRelease ? "PERFECT RELEASE" : event.points === 3 ? "DEEP WATER" : "BUCKET", "good", 1000);
     const state = mode?.getState?.() || {};
+    if (event.player?.controlled) {
+      livePlayerStats.points += points;
+      adjustGrade(pendingShot?.coverage >= 0.65 ? 0.4 : 1.8, pendingShot?.coverage >= 0.65 ? "TOUGH MAKE" : "GOOD SHOT SELECTION");
+    } else if (assistCandidate?.targetId === event.player?.id && performance.now() - assistCandidate.at < 6500) {
+      livePlayerStats.assists += 1;
+      adjustGrade(2.4, "ASSIST");
+    }
+    if (callType === "dunk") maybeQueueHighlight("dunk", 320);
+    assistCandidate = null;
     announcer.announce(callType, {
       playerName: event.player?.name,
       homeScore: state.scores?.home,
       awayScore: state.scores?.away,
     });
+    showBroadcastMoment(
+      "NCN SCORE UPDATE",
+      event.swish ? "PURE. NO RIM." : callType === "dunk" ? "ABOVE THE LIGHTS" : "COUNT IT",
+      `${String(event.player?.name || "NOVA").toUpperCase()} · ${points} POINT${points === 1 ? "" : "S"}`,
+      `${state.scores?.home ?? "–"}  —  ${state.scores?.away ?? "–"}`,
+      1250,
+    );
     pendingShot = null;
     setTimeout(() => $("#shot-meter")?.classList.remove("is-result"), 1100);
   });
@@ -704,31 +865,47 @@ function bindEngineEvents() {
       pendingShot = null;
     }
     handleModeEvent("REBOUND", { playerId: event.player?.id, teamId: event.team, offensive: event.offensive });
-    feedback(event.offensive ? "SECOND CHANCE" : "BOARD", "neutral", 650);
+    if (event.player?.controlled) {
+      livePlayerStats.rebounds += 1;
+      adjustGrade(event.offensive ? 1.8 : 1.3, event.offensive ? "SECOND CHANCE" : "STRONG BOARD");
+    } else feedback(event.offensive ? "SECOND CHANCE" : "BOARD", "neutral", 650);
 
     setTimeout(() => $("#shot-meter")?.classList.remove("is-result"), 900);
   });
   engine.on("steal", (event) => {
     audio.playSfx(event.success ? "steal" : "ui", event.success ? 1 : 0.35);
+    if (!event.success && event.defender?.controlled) adjustGrade(-1.5, "BAD STEAL ATTEMPT");
     if (event.success) {
+      if (event.defender?.controlled) {
+        livePlayerStats.steals += 1;
+        adjustGrade(2.6, "FORCED TURNOVER");
+      }
       feedback("BALL POKED LOOSE / LIVE BALL", "warning", 900);
+      showBroadcastMoment("NCN TURNOVER", "POKED FREE", "LIVE BALL · NO RESET", String(event.defender?.name || "DEFENSE").toUpperCase(), 1200);
       announcer.announce("steal", { playerName: event.defender?.name });
     }
   });
   engine.on("ballloose", () => {
-    feedback("LIVE BALL ? GO GET IT", "warning", 760);
+    feedback("LIVE BALL · GO GET IT", "warning", 760);
   });
   engine.on("anklebreak", (event) => {
     audio.playSfx("dribble", 1);
+    if (event.handler?.controlled) adjustGrade(1.5, "PERFECT CROSSOVER");
+    maybeQueueHighlight("ankleBreak", 520);
     feedback(`ANKLE BREAK / ${(event.stunSeconds || 1.5).toFixed(1)}S STUN`, "accent", 1050);
     announcer.announce("ankle_break", { playerName: event.handler?.name });
   });
   engine.on("controlchange", (event) => {
     const name = event.to?.name || "TEAMMATE";
-    feedback(`CONTROL ? ${String(name).toUpperCase()}`, "accent", 650);
+    feedback(`CONTROL · ${String(name).toUpperCase()}`, "accent", 650);
   });
   engine.on("block", (event) => {
     if (!event.success) return;
+    if (event.defender?.controlled) {
+      livePlayerStats.blocks += 1;
+      adjustGrade(2.8, "STRONG RIM DEFENSE");
+    }
+    maybeQueueHighlight("block", 260);
     audio.playSfx("block");
     handleModeEvent("BLOCK", { teamId: event.defender?.team, playerId: event.defender?.id });
     feedback("ERASED", "warning", 900);
@@ -765,6 +942,7 @@ function bindEngineEvents() {
       teamFouls: event.teamFouls,
     });
     feedback("REACH-IN FOUL · " + String(event.offendedTeamId || "OFFENSE").toUpperCase() + " BALL", "warning", 1150);
+    showBroadcastMoment("NCN FOUL", "REACH-IN", `${String(event.offendedTeamId || "OFFENSE").toUpperCase()} BALL`, `TEAM FOULS ${event.teamFouls || 1}`, 1400);
   });
   engine.on("performance", (event) => {
     app.dataset.qualityTier = event.tier;
@@ -775,8 +953,10 @@ function bindEngineEvents() {
   engine.on("replay", (event) => {
     app.dataset.replay = event.phase || (event.playing ? "playing" : "idle");
     app.dataset.replayFrozen = event.frozen ? "true" : "false";
-    if (event.phase === "playing") feedback("NOVA REPLAY · CINEMATIC", "accent", 900);
-    else if (event.phase === "restoring") feedback("NOVA REPLAY · RESTORING", "accent", 420);
+    if (event.phase === "playing") {
+      feedback("NCN REPLAY · CINEMATIC", "accent", 900);
+      showBroadcastMoment("NCN INSTANT REPLAY", "RUN IT BACK", "THE GAME REMAINS FROZEN UNTIL THE REPLAY ENDS", "HIGHLIGHT ANGLE", 1050);
+    } else if (event.phase === "restoring") feedback("NCN REPLAY · RETURNING LIVE", "accent", 420);
   });
   engine.on("violation", (event) => {
     audio.playSfx("whistle");
@@ -805,7 +985,8 @@ function bindEngineEvents() {
     if (event.pending === 0) feedback("NOVA REPLAY · QUEUED", "accent", 420);
   });
   engine.on("camera", (event) => {
-    ui.toast(`Camera: ${event.mode}`);
+    const labels = { follow: "Street Close", cinematic: "Night Broadcast", broadcast: "Competitive Wide" };
+    ui.toast(`Camera: ${labels[event.mode] || event.mode}`);
     announcer.announce("camera", { seed: event.mode });
   });
 }
@@ -906,41 +1087,64 @@ function applyAI(dt) {
 }
 
 function updateHUD() {
-  if (!mode) return;
-  const owner = engine?.ball?.owner;
+  if (!mode || !engine) return;
+  const controlled = engine.controlledPlayer;
   const playerName = $("#player-card-name");
   const playerMeta = $("#player-card-meta");
   const playerCard = $("#player-card-hud");
-  if (playerName) playerName.textContent = owner?.name || "LOOSE BALL";
-  if (playerMeta) playerMeta.textContent = owner
-    ? (owner.controlled ? "USER CONTROL" : "CPU") + " · " + String(owner.state || "LIVE").replaceAll("_", " ").toUpperCase()
-    : "LIVE BALL · CRASH THE GLASS";
-  if (playerCard) playerCard.dataset.team = owner?.team || "neutral";
+  const summary = getProfileSummary(playerProfile);
+  if (playerName) playerName.textContent = controlled?.name || "ACE NOVA";
+  if (playerMeta) playerMeta.textContent = `${summary.position} · ${summary.overall} OVR · GRADE ${gradeFromScore()}`;
+  const playerStats = $("#player-card-stats");
+  if (playerStats) playerStats.textContent = `${livePlayerStats.points} PTS  ${livePlayerStats.rebounds} REB  ${livePlayerStats.assists} AST  ${livePlayerStats.steals} STL  ${livePlayerStats.blocks} BLK`;
+  if (playerCard) playerCard.dataset.team = controlled?.team || "home";
   const state = mode.getState();
   const uiState = mode.getUIState();
   if (currentModeKey === "practice") {
-    $("#home-score").textContent = state.makes ?? 0;
-    $("#away-score").textContent = state.attempts ?? 0;
-    $("#game-clock").textContent = "FREEPLAY";
-    $("#possession-label").textContent = "STREAK " + (state.streak || 0) + " · BEST " + (state.bestStreak || 0) + " · Q: BASIC · SHIFT+Q: ELITE";
+    setScoreValue("#home-score", state.makes ?? 0);
+    setScoreValue("#away-score", state.attempts ?? 0);
+    $("#game-clock").textContent = "FREE";
+    $("#shot-clock").textContent = "--";
+    $("#target-label").textContent = "OPEN GYM";
+    $("#possession-label").textContent = `STREAK ${state.streak || 0} · BEST ${state.bestStreak || 0}`;
   } else if (currentModeKey === "threePoint") {
-    $("#home-score").textContent = state.score ?? 0;
-    $("#away-score").textContent = state.targetScore ?? 18;
+    setScoreValue("#home-score", state.score ?? 0);
+    setScoreValue("#away-score", state.targetScore ?? 18);
     $("#game-clock").textContent = uiState.clockText || "1:00";
+    $("#shot-clock").textContent = "--";
+    $("#target-label").textContent = `TARGET ${state.targetScore ?? 18}`;
     $("#possession-label").textContent = `${uiState.rackLabel || "RACK"} · BALL ${uiState.ballProgress || "1/5"}`;
   } else {
-    $("#home-score").textContent = state.scores?.home ?? 0;
-    $("#away-score").textContent = state.scores?.away ?? 0;
-    $("#game-clock").textContent = currentModeKey === "team"
-      ? `${uiState.clockText || "5:00"} · ${Math.ceil(state.shotClock || 0)}`
-      : `${Math.ceil(state.shotClock || 0)} · FIRST TO ${state.targetScore}`;
-    if (isTeamModeKey(currentModeKey)) {
-      $("#game-clock").textContent = `${uiState.clockText || (currentModeKey === "fives" ? "6:00" : "5:00")} / ${Math.ceil(state.shotClock || 0)}`;
-    }
+    const home = state.scores?.home ?? 0;
+    const away = state.scores?.away ?? 0;
+    setScoreValue("#home-score", home);
+    setScoreValue("#away-score", away);
+    $("#game-clock").textContent = isTeamModeKey(currentModeKey)
+      ? uiState.clockText || (currentModeKey === "fives" ? "6:00" : "5:00")
+      : "--:--";
+    $("#shot-clock").textContent = String(Math.ceil(state.shotClock ?? engine.shotClock ?? 12)).padStart(2, "0");
+    $("#target-label").textContent = `FIRST TO ${state.targetScore}`;
     $("#possession-label").textContent = (uiState.statusText || `${state.possessionTeamId} ball`).toUpperCase();
+    const possession = state.possessionTeamId || engine.possessionTeam || "home";
+    $(".score-side--home")?.classList.toggle("has-possession", possession === "home");
+    $(".score-side--away")?.classList.toggle("has-possession", possession === "away");
+    $(".scoreboard").dataset.possession = possession;
+    const leader = Math.max(home, away);
+    const signature = leader >= (state.targetScore || 99) - 1 ? `${home}-${away}-${state.targetScore}` : "";
+    if (signature && signature !== gamePointSignature) {
+      gamePointSignature = signature;
+      showBroadcastMoment("NCN GAME POINT", "ONE SCORE AWAY", `${home} — ${away}`, "EVERY POSSESSION MATTERS", 1600);
+    }
   }
   const momentum = clamp(((state.scores?.home || state.score || 0) + 1) / ((state.targetScore || 15) + 1));
   $("#takeover-fill").style.width = `${Math.round(momentum * 100)}%`;
+  const meter = $("#shot-meter");
+  updateControlHintScheme();
+  const anchor = engine.getControlledScreenAnchor?.();
+  if (meter && anchor?.visible) {
+    meter.style.setProperty("--player-anchor-x", `${anchor.x}%`);
+    meter.style.setProperty("--player-anchor-y", `${anchor.y}%`);
+  }
 }
 
 function endGame(result = mode?.getState()?.result || {}) {
@@ -951,7 +1155,7 @@ function endGame(result = mode?.getState()?.result || {}) {
   const state = mode?.getState() || {};
   const won = result.outcome === "win";
   announcer.announce("game_over", { force: true, userWon: won });
-  $("#result-kicker").textContent = currentModeKey === "threePoint" ? "FINAL RACK" : "FINAL";
+  $("#result-kicker").textContent = currentModeKey === "threePoint" ? "NCN · FINAL RACK" : "NCN · FINAL";
   $("#result-title").textContent = won ? "COURT CLEARED" : result.outcome === "complete" ? "RUN COMPLETE" : "RUN IT BACK";
   if (currentModeKey === "threePoint") {
     $("#result-summary").textContent = `${state.score || 0} POINTS`;
@@ -969,7 +1173,8 @@ function endGame(result = mode?.getState()?.result || {}) {
   if (reward.ok) {
     playerProfile = saveProfile(reward.profile);
     const summary = getProfileSummary(playerProfile);
-    $("#result-reward").innerHTML = `<span><b>+${reward.credits} CR</b> MATCH PAY</span><span><b>+${reward.xp} XP</b> LEVEL ${summary.level}</span><span><b>${summary.overall} OVR</b> ${summary.position}</span>`;
+    const rank = getNightLeagueRank(summary.level);
+    $("#result-reward").innerHTML = `<span><b>+${reward.credits} CR</b> MATCH PAY</span><span><b>+${reward.xp} XP</b> ${rank.name.toUpperCase()}</span><span><b>${summary.overall} OVR</b> ${summary.position} · GRADE ${gradeFromScore()}</span>`;
     renderPlayerProfile();
   } else {
     $("#result-reward").textContent = "MATCH REWARD ALREADY SAVED";
@@ -985,6 +1190,7 @@ function pauseGame() {
   mode?.pause();
   showOverlay("pause-screen");
   app.dataset.state = "paused";
+  showBroadcastMoment("NCN TIMEOUT", "RUN PAUSED", "MAKE THE ADJUSTMENT", MODE_META[currentModeKey]?.label || "NIGHT RUN", 1000);
 }
 
 function resumeGame() {
@@ -1036,6 +1242,27 @@ function ensurePracticeCard() {
 function ensureBroadcastChrome() {
   const hud = $("#hud");
   if (!hud || $("#broadcast-bug")) return;
+  const modeGrid = $(".mode-grid");
+  if (modeGrid && !$("#mode-feature")) {
+    const feature = document.createElement("article");
+    feature.id = "mode-feature";
+    feature.className = "mode-feature";
+    feature.innerHTML = '<span class="mode-feature__number">01</span><div><span class="mode-feature__tag">HEAD-TO-HEAD</span><h3 class="mode-feature__title">PARK DUEL</h3><p class="mode-feature__copy">Outdoor 1v1 · First to 11 · Live crowd</p><small>NCN FEATURED RUN</small></div>';
+    modeGrid.before(feature);
+  }
+  const menu = $("#main-menu");
+  if (menu && !$("#menu-crew-scene")) {
+    const crew = document.createElement("div");
+    crew.id = "menu-crew-scene";
+    crew.className = "menu-crew-scene";
+    crew.setAttribute("aria-hidden", "true");
+    crew.innerHTML = "<i></i><i></i><i></i>";
+    menu.append(crew);
+    const rank = document.createElement("div");
+    rank.id = "menu-rank";
+    rank.className = "menu-rank";
+    $(".menu-feature")?.append(rank);
+  }
   const bug = document.createElement("div");
   bug.id = "broadcast-bug";
   bug.className = "broadcast-bug";
@@ -1045,8 +1272,15 @@ function ensureBroadcastChrome() {
   playerCard.id = "player-card-hud";
   playerCard.className = "player-card-hud";
   playerCard.dataset.team = "home";
-  playerCard.innerHTML = '<span class="player-card-hud__number">01</span><div><b id="player-card-name">ACE NOVA</b><small id="player-card-meta">USER CONTROL · BALL HANDLER</small></div>';
+  playerCard.innerHTML = '<span class="player-card-hud__number">01</span><div><b id="player-card-name">ACE NOVA</b><small id="player-card-meta">PG · 64 OVR · GRADE B+</small><em id="player-card-stats">0 PTS  0 REB  0 AST  0 STL  0 BLK</em></div>';
   hud.append(playerCard);
+  const moment = document.createElement("div");
+  moment.id = "broadcast-moment";
+  moment.className = "broadcast-moment";
+  moment.setAttribute("role", "status");
+  moment.innerHTML = '<span class="broadcast-moment__kicker">NCN LIVE</span><strong class="broadcast-moment__title">NOVA COURT</strong><small class="broadcast-moment__detail">NIGHT LEAGUE</small><b class="broadcast-moment__stat"></b>';
+  hud.append(moment);
+  updateModeFeature();
 }
 
 function bindUI() {
@@ -1112,6 +1346,7 @@ function bindUI() {
     $$(".mode-card").forEach((item) => item.classList.remove("is-selected"));
     card.classList.add("is-selected");
     selectedModeKey = card.dataset.mode;
+    updateModeFeature(card);
     audio.playSfx("ui");
   }));
 
@@ -1132,6 +1367,15 @@ function bindUI() {
   $("#difficulty-select")?.addEventListener("change", (event) => {
     currentDifficulty = event.target.value;
     audio.playSfx("ui");
+  });
+  $("#camera-preset")?.addEventListener("change", (event) => {
+    engine?.setCameraMode(event.target.value);
+    localStorage.setItem("nova-court-camera-preset", event.target.value);
+  });
+  $("#highlight-frequency")?.addEventListener("change", (event) => localStorage.setItem("nova-court-highlight-frequency", event.target.value));
+  $("#control-guide-enabled")?.addEventListener("change", (event) => {
+    localStorage.setItem("nova-court-control-guide", event.target.checked ? "on" : "off");
+    $("#control-hints")?.classList.toggle("is-dismissed", !event.target.checked);
   });
   $("#quality-select")?.addEventListener("change", () => {
     if (!engine) return;
@@ -1163,10 +1407,30 @@ function bindUI() {
     engine && (engine.options.reducedMotion = event.detail.reducedMotion);
   });
   window.addEventListener("keydown", (event) => {
+    if (event.code === "Escape" && engine?.isReplayFrozen?.()) {
+      engine.skipHighlight?.();
+      event.preventDefault();
+      return;
+    }
+    if (event.code === "KeyH" && gameActive) {
+      controlGuideHeld = true;
+      $("#control-hints")?.classList.remove("is-dismissed");
+    }
     if (event.code === "Escape" && !$("#settings-screen").hidden) hideOverlay("settings-screen");
     else if (event.code === "Escape" && !$("#controls-screen").hidden) hideOverlay("controls-screen");
     else if (event.code === "Escape" && !$("#my-player-screen").hidden) showMainMenu();
   });
+  window.addEventListener("keyup", (event) => {
+    if (event.code === "KeyH") {
+      controlGuideHeld = false;
+      if (gameActive) $("#control-hints")?.classList.add("is-dismissed");
+    }
+  });
+  const savedCamera = localStorage.getItem("nova-court-camera-preset");
+  if (["follow", "cinematic", "broadcast"].includes(savedCamera)) $("#camera-preset").value = savedCamera;
+  const savedHighlights = localStorage.getItem("nova-court-highlight-frequency");
+  if (["broadcast", "reduced", "off"].includes(savedHighlights)) $("#highlight-frequency").value = savedHighlights;
+  $("#control-guide-enabled").checked = localStorage.getItem("nova-court-control-guide") !== "off";
   window.addEventListener("pointerdown", unlockAudio, { once: true });
   window.addEventListener("keydown", unlockAudio, { once: true });
 }

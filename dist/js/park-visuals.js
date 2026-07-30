@@ -250,9 +250,9 @@ export function createNightPark(T, options = {}) {
 
   const darkMetal = material(new T.MeshStandardMaterial({ color: 0x26333b, roughness: 0.54, metalness: 0.68 }));
   const fenceMaterial = material(new T.MeshBasicMaterial({
-    color: 0x607782,
+    color: 0x26343c,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.18,
     wireframe: true,
     depthWrite: false,
   }));

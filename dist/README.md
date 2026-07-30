@@ -34,6 +34,17 @@ The build task writes the deployable static game to `dist/`.
 
 Every mode has its own rules, HUD/objective, difficulty tuning where applicable, restart/rematch or return flow, and a complete finish state. Replay playback pauses live game flow until the replay and camera restoration are finished.
 
+## NCN presentation
+
+Nova Court Network (NCN) frames the game as an original underground night broadcast rather than a recreation of an existing basketball brand. The presentation now includes:
+
+- A compact scorebug with separately labeled game clock, shot clock, target, score, and possession.
+- Pregame matchup cards, animated scoring, game-point, foul, turnover, timeout, replay, and postgame moments.
+- Three named camera presets—Street Close, Night Broadcast, and Competitive Wide—with possession-aware framing, dynamic distance, impact shake, intros, and replay angles.
+- Player-anchored pulse shot timing with a fatigue-sensitive perfect window, distance, energy, make probability, release quality, and coverage feedback.
+- A darker reflective court, stronger player and ball grounding, moving arena lights, animated crowd energy, benches, photographers, signage, and haze.
+- A featured-mode deck, Night League rank/progression, and animated menu crew treatment at compact desktop sizes.
+
 ## Controls
 
 | Action | Keyboard | Gamepad |
@@ -44,7 +55,7 @@ Every mode has its own rules, HUD/objective, difficulty tuning where applicable,
 | Shoot / layup / dunk; contest / block | Hold and release `Space` or `K`; `Space` or `L` on defense | Hold and release `X` |
 | Pass and switch to receiving teammate / steal | `E` or `J`; `E` or `I` on defense | `A` |
 | Signature dribble | `Q` plus direction; double-tap or `Shift+Q` variants | Left trigger plus left stick |
-| Cycle follow / broadcast / cinematic camera | `C` | View / Share |
+| Cycle Street Close / Night Broadcast / Competitive Wide camera | `C` | View / Share |`n| Reopen contextual control guide | Hold `H` | Any gamepad input swaps the guide |
 | Pause | `Escape` or `P` | Start |
 | Restart current run | `R` | — |
 
@@ -54,7 +65,7 @@ For jump shots, hold to gather and rise, then release while the moving meter tip
 
 ## My Player and progression
 
-My Player stores progress locally in the browser. Choose PG, SG, SF, PF, or C; each position has a distinct archetype, base ratings, attribute weights, and caps. Completed matches award credits and XP, wins pay a bonus, difficulty and mode affect rewards, and duplicate match rewards are rejected. Spend credits on applied attribute upgrades or original colorway cosmetics. Each selected build drives movement, shooting, passing, finishing, defense, rebounding, stamina, size, and colors the next time it enters a game. Overall and level are capped at 99.
+My Player stores progress locally in the browser. Choose PG, SG, SF, PF, or C; each position has a distinct archetype, base ratings, attribute weights, and caps. Completed matches award credits and XP, wins pay a bonus, difficulty and mode affect rewards, and duplicate match rewards are rejected. Spend credits on applied attribute upgrades or original colorway cosmetics. Each selected build drives movement, shooting, passing, finishing, defense, rebounding, stamina, size, and colors the next time it enters a game. Overall and level are capped at 99. Night League progression uses seven original broadcast ranks: Prospect, Local, Starter, Headliner, Night Star, Court Icon, and Nova Legend.
 
 Progress is device/browser-local rather than account-synced. Clearing site data resets it.
 
@@ -80,7 +91,7 @@ The renderer targets 60 FPS with a bounded 60 Hz simulation, three-step catch-up
 
 ## Validation
 
-The complete test suite contains 150 tests covering all six mode flows, scoring, clocks, progression/persistence, applied position ratings, coverage odds, white-window timing, basket-facing shot alignment, wide-open guarantees, all nine dribbles, 1.5-second ankle breaks, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, AI decisions, team formats, pass handoff, full-court direction, replay freeze/restoration, controls, UI/audio, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
+The complete test suite contains 151 tests covering all six mode flows, scoring, clocks, progression/persistence, applied position ratings, coverage odds, white-window timing, basket-facing shot alignment, wide-open guarantees, all nine dribbles, 1.5-second ankle breaks, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, AI decisions, team formats, pass handoff, full-court direction, replay freeze/restoration, controls, UI/audio, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
 
 Final browser QA results are recorded in the completion handoff after exercising all six modes, My Player navigation/persistence, desktop and compact viewports, local resource loading, console output, and performance telemetry.
 
