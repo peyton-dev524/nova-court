@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAIDirector } from "../js/ai.js";
-import { getShotAnimationPose } from "../js/engine.js";
+import { getShotAnimationPose, JUMP_SHOT_RELEASE_POSE } from "../js/engine.js";
 
 function shootingSnapshot({ shotClock = 14, defenderX = 5.8 } = {}) {
   return {
@@ -70,4 +70,15 @@ test("shooting animation moves from gather to set point and follow-through", () 
   assert.ok(apex.setPoint > gather.setPoint);
   assert.ok(follow.followThrough > 0.9);
   assert.ok(gather.kneeBend > apex.kneeBend);
+});
+
+test("jump-shot release pose preserves the authored joint rotations", () => {
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.leftArm.upper, [-127, -170, 5.7]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.leftArm.bend, [-21.8, 0, 0]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.rightArm.upper, [-133, -6, -8]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.rightArm.bend, [-51, -76, -20]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.leftLeg.upper, [-4.6, 0, 0]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.leftLeg.bend, [9.2, 0, 0]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.rightLeg.upper, [2.9, 0, 0]);
+  assert.deepEqual(JUMP_SHOT_RELEASE_POSE.rightLeg.bend, [5.7, 0, 0]);
 });

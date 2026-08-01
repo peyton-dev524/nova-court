@@ -184,7 +184,27 @@ export const BALL_HANDLER_GUARD_POSE = Object.freeze({
   knee: Object.freeze([30, 0, 0]),
 });
 
+export const JUMP_SHOT_RELEASE_POSE = Object.freeze({
+  leftArm: Object.freeze({
+    upper: Object.freeze([-127, -170, 5.7]),
+    bend: Object.freeze([-21.8, 0, 0]),
+  }),
+  rightArm: Object.freeze({
+    upper: Object.freeze([-133, -6, -8]),
+    bend: Object.freeze([-51, -76, -20]),
+  }),
+  leftLeg: Object.freeze({
+    upper: Object.freeze([-4.6, 0, 0]),
+    bend: Object.freeze([9.2, 0, 0]),
+  }),
+  rightLeg: Object.freeze({
+    upper: Object.freeze([2.9, 0, 0]),
+    bend: Object.freeze([5.7, 0, 0]),
+  }),
+});
+
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const toRadians = (degrees) => degrees * Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
 const damp = (a, b, lambda, dt) => lerp(a, b, animationDampingFactor(lambda, dt));
 const smoothstep = (min, max, v) => {
@@ -877,8 +897,11 @@ export class ProceduralPlayer {
       const leg = this.legs[i];
       const phase = i === 0 ? 1 : -1;
       let hipTarget = legSwing * phase;
+      let hipYaw = 0;
       let kneeTarget = Math.max(0, -legSwing * phase) * lerp(0.52, 0.72, this.sprintBlend)
         + landingSquash * 2.2;
+      let kneeYaw = 0;
+      let kneeRoll = 0;
       let spread = phase * 0.16 * this.defenseBlend;
       if (shootPose) {
         const shootingFoot = i === (this.shootingHand > 0 ? 1 : 0);
@@ -899,6 +922,17 @@ export class ProceduralPlayer {
         const airKnee = action === PLAYER_STATES.DUNK ? 0.72 : shootPose ? shootPose.kneeBend : 0.5;
         hipTarget = lerp(hipTarget, airHip, this.airborneBlend);
         kneeTarget = lerp(kneeTarget, airKnee, this.airborneBlend);
+      }
+      if (shootPose) {
+        const releaseLeg = i === 0
+          ? JUMP_SHOT_RELEASE_POSE.rightLeg
+          : JUMP_SHOT_RELEASE_POSE.leftLeg;
+        hipTarget = lerp(hipTarget, toRadians(releaseLeg.upper[0]), shootPose.setPoint);
+        hipYaw = toRadians(releaseLeg.upper[1]) * shootPose.setPoint;
+        spread = lerp(spread, toRadians(releaseLeg.upper[2]), shootPose.setPoint);
+        kneeTarget = lerp(kneeTarget, toRadians(releaseLeg.bend[0]), shootPose.setPoint);
+        kneeYaw = toRadians(releaseLeg.bend[1]) * shootPose.setPoint;
+        kneeRoll = toRadians(releaseLeg.bend[2]) * shootPose.setPoint;
       }
       if (moveActive) {
         if (featuredMoveSample) {
@@ -930,11 +964,26 @@ export class ProceduralPlayer {
       const guardHip = guardPoseRadians.hip;
       const guardKnee = guardPoseRadians.knee;
       leg.hip.rotation.x = damp(leg.hip.rotation.x, lerp(hipTarget, guardHip[0], guardBlend), 17, dt);
-      leg.hip.rotation.y = damp(leg.hip.rotation.y, guardHip[1] * guardBlend, 15, dt);
+      leg.hip.rotation.y = damp(
+        leg.hip.rotation.y,
+        lerp(hipYaw, guardHip[1], guardBlend),
+        15,
+        dt,
+      );
       leg.hip.rotation.z = damp(leg.hip.rotation.z, lerp(spread, guardHip[2], guardBlend), 15, dt);
       leg.knee.rotation.x = damp(leg.knee.rotation.x, lerp(kneeTarget, guardKnee[0], guardBlend), 18, dt);
-      leg.knee.rotation.y = damp(leg.knee.rotation.y, guardKnee[1] * guardBlend, 18, dt);
-      leg.knee.rotation.z = damp(leg.knee.rotation.z, guardKnee[2] * guardBlend, 18, dt);
+      leg.knee.rotation.y = damp(
+        leg.knee.rotation.y,
+        lerp(kneeYaw, guardKnee[1], guardBlend),
+        18,
+        dt,
+      );
+      leg.knee.rotation.z = damp(
+        leg.knee.rotation.z,
+        lerp(kneeRoll, guardKnee[2], guardBlend),
+        18,
+        dt,
+      );
     }
 
     this.shortsRig?.update(dt, {
@@ -960,24 +1009,37 @@ export class ProceduralPlayer {
       const arm = this.arms[i];
       const phase = i === 0 ? -1 : 1;
       let swing = stride * 0.48 * locomotion * phase;
+      let shoulderYaw = 0;
       let out = phase * 0.88 * this.defenseBlend;
       let elbow = lerp(-0.12, -0.3, this.defenseBlend);
+      let elbowYaw = 0;
+      let elbowRoll = 0;
       let wristX = 0;
       let wristZ = 0;
       if (shootPose) {
         const shootingArm = i === (this.shootingHand > 0 ? 1 : 0);
+        const releaseArm = i === 0
+          ? JUMP_SHOT_RELEASE_POSE.rightArm
+          : JUMP_SHOT_RELEASE_POSE.leftArm;
         swing = shootingArm
-          ? lerp(-0.34 - shootPose.dip * 0.2, -2.88, shootPose.setPoint)
-          : lerp(-0.42 - shootPose.dip * 0.12, -2.58, shootPose.setPoint);
+          ? lerp(-0.34 - shootPose.dip * 0.2, toRadians(releaseArm.upper[0]), shootPose.setPoint)
+          : lerp(-0.42 - shootPose.dip * 0.12, toRadians(releaseArm.upper[0]), shootPose.setPoint);
+        shoulderYaw = toRadians(releaseArm.upper[1]) * shootPose.setPoint;
         if (this.shotReleased) {
           swing -= shootPose.followThrough * (shootingArm ? 0.22 : 0.04);
         }
-        out = shootingArm
-          ? phase * lerp(0.2, 0.08, shootPose.elbowStack)
-          : phase * lerp(0.27, 0.18 + shootPose.guideRelease * 0.26, shootPose.setPoint);
-        elbow = shootingArm
-          ? lerp(-1.02, -0.045, shootPose.elbowStack)
-          : lerp(-0.86, -0.34, shootPose.setPoint);
+        const gatherRoll = shootingArm ? phase * 0.2 : phase * 0.27;
+        out = lerp(gatherRoll, toRadians(releaseArm.upper[2]), shootPose.setPoint);
+        if (this.shotReleased && !shootingArm) {
+          out += phase * shootPose.guideRelease * 0.26;
+        }
+        elbow = lerp(
+          shootingArm ? -1.02 : -0.86,
+          toRadians(releaseArm.bend[0]),
+          shootPose.elbowStack,
+        );
+        elbowYaw = toRadians(releaseArm.bend[1]) * shootPose.setPoint;
+        elbowRoll = toRadians(releaseArm.bend[2]) * shootPose.setPoint;
         wristX = shootingArm ? -shootPose.wristSnap * 1.05 : shootPose.guideRelease * 0.24;
         wristZ = shootingArm ? phase * 0.04 : phase * shootPose.guideRelease * 0.34;
       } else if (dunkPose) {
@@ -1092,7 +1154,7 @@ export class ProceduralPlayer {
       );
       arm.shoulder.rotation.y = damp(
         arm.shoulder.rotation.y,
-        guardShoulder[1] * guardBlend,
+        lerp(shoulderYaw, guardShoulder[1], guardBlend),
         18,
         dt,
       );
@@ -1108,8 +1170,18 @@ export class ProceduralPlayer {
         19,
         dt,
       );
-      arm.elbow.rotation.y = damp(arm.elbow.rotation.y, guardElbow[1] * guardBlend, 19, dt);
-      arm.elbow.rotation.z = damp(arm.elbow.rotation.z, guardElbow[2] * guardBlend, 19, dt);
+      arm.elbow.rotation.y = damp(
+        arm.elbow.rotation.y,
+        lerp(elbowYaw, guardElbow[1], guardBlend),
+        19,
+        dt,
+      );
+      arm.elbow.rotation.z = damp(
+        arm.elbow.rotation.z,
+        lerp(elbowRoll, guardElbow[2], guardBlend),
+        19,
+        dt,
+      );
       arm.hand.rotation.x = damp(arm.hand.rotation.x, wristX, 21, dt);
       arm.hand.rotation.z = damp(arm.hand.rotation.z, wristZ, 21, dt);
     }

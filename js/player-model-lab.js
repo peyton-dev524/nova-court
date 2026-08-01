@@ -1,5 +1,6 @@
 import {
   BALL_HANDLER_GUARD_POSE,
+  JUMP_SHOT_RELEASE_POSE,
   ProceduralPlayer,
 } from "./engine.js?v=6.1";
 import {
@@ -550,14 +551,14 @@ function applyPose(player, pose) {
   } else if (pose === "release") {
     player.hips.position.y += 0.22;
     player.hips.rotation.x = -0.04;
-    leftLeg.hip.rotation.x = -0.08;
-    rightLeg.hip.rotation.x = 0.05;
-    leftLeg.knee.rotation.x = 0.16;
-    rightLeg.knee.rotation.x = 0.1;
-    leftArm.shoulder.rotation.set(-2.48, 0, 0.1);
-    rightArm.shoulder.rotation.set(-2.82, 0, -0.08);
-    leftArm.elbow.rotation.x = -0.38;
-    rightArm.elbow.rotation.x = -0.08;
+    leftLeg.hip.rotation.set(...JUMP_SHOT_RELEASE_POSE.leftLeg.upper.map(toRadians));
+    rightLeg.hip.rotation.set(...JUMP_SHOT_RELEASE_POSE.rightLeg.upper.map(toRadians));
+    leftLeg.knee.rotation.set(...JUMP_SHOT_RELEASE_POSE.leftLeg.bend.map(toRadians));
+    rightLeg.knee.rotation.set(...JUMP_SHOT_RELEASE_POSE.rightLeg.bend.map(toRadians));
+    leftArm.shoulder.rotation.set(...JUMP_SHOT_RELEASE_POSE.leftArm.upper.map(toRadians));
+    rightArm.shoulder.rotation.set(...JUMP_SHOT_RELEASE_POSE.rightArm.upper.map(toRadians));
+    leftArm.elbow.rotation.set(...JUMP_SHOT_RELEASE_POSE.leftArm.bend.map(toRadians));
+    rightArm.elbow.rotation.set(...JUMP_SHOT_RELEASE_POSE.rightArm.bend.map(toRadians));
     rightArm.hand.rotation.x = -0.72;
   } else if (pose === "layup") {
     player.hips.position.y += 0.2;
