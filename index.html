@@ -337,6 +337,33 @@
       </div>
     </section>
 
+    <section id="match-intro" class="screen screen--match-intro is-hidden" aria-labelledby="match-intro-title">
+      <div class="match-intro__sweep" aria-hidden="true"><i></i><i></i><i></i></div>
+      <header class="match-intro__header">
+        <div><span class="ncn-live">NCN LIVE</span><span id="intro-venue">NOVA PARK / NIGHT RUN</span></div>
+        <button id="skip-match-intro" class="button button--quiet" type="button">SKIP INTRO</button>
+      </header>
+      <div class="match-intro__content">
+        <div class="match-intro__title-block">
+          <span class="overline">NOVA COURT NETWORK / PARK DUEL</span>
+          <h2 id="match-intro-title">THE NIGHT RUN STARTS HERE</h2>
+          <p id="intro-call">Tyler Cruz and Mira Vale have the call from courtside.</p>
+        </div>
+        <div class="matchup-card" aria-label="Park Duel matchup">
+          <article class="matchup-card__player matchup-card__player--home"><span>NOVA</span><strong id="intro-home-name">ACE</strong><b id="intro-home-rating">72 OVR</b><small id="intro-home-record">0-0 PARK RECORD</small></article>
+          <div class="matchup-card__versus"><span>FIRST TO</span><strong id="intro-target-score">11</strong><small>WIN BY TWO</small></div>
+          <article class="matchup-card__player matchup-card__player--away"><span>ECLIPSE</span><strong id="intro-away-name">SHADE</strong><b id="intro-away-rating">SCOUTED MATCHUP</b><small id="intro-away-record">4-2 RECENT</small></article>
+        </div>
+        <div class="match-intro__intel">
+          <article><span class="overline">NCN SCOUTING REPORT</span><h3 id="intro-archetype">CHANGE-OF-PACE CREATOR</h3><dl id="intro-scouting"></dl></article>
+          <article><span class="overline">TONIGHT'S SETUP</span><h3 id="intro-ball-name">CLASSIC ORANGE</h3><dl id="intro-setup"></dl></article>
+        </div>
+        <div class="match-intro__possession"><span>FIRST POSSESSION</span><strong id="intro-possession">NOVA BALL / CHECK AT THE TOP</strong><small id="intro-rules">STREET RULES / MINIMAL CALLS</small></div>
+        <button id="begin-park-duel" class="button button--primary match-intro__start" type="button"><strong>TAKE THE COURT</strong></button>
+      </div>
+      <div class="match-intro__progress" aria-hidden="true"><i id="match-intro-progress"></i></div>
+    </section>
+
     <div id="hud" class="hud is-hidden" aria-live="polite">
       <div class="scoreboard">
         <div class="score-side score-side--home">
@@ -386,21 +413,47 @@
     <div id="toast" class="toast" role="status"></div>
 
     <section id="pause-screen" class="screen screen--overlay is-hidden" aria-labelledby="pause-title">
-      <div class="modal modal--pause">
-        <span class="overline">TIMEOUT</span>
-        <h2 id="pause-title">PAUSED</h2>
-        <button id="resume-game" class="button button--primary">RESUME</button>
-        <button id="restart-game" class="button">RESTART RUN</button>
-        <button data-action="open-settings" class="button">SETTINGS</button>
-        <button data-action="quit-menu" class="button button--quiet">QUIT TO MENU</button>
+      <div class="modal modal--pause modal--pause-tabs">
+        <header><div><span class="overline">NCN TIMEOUT</span><h2 id="pause-title">PAUSED</h2></div><button id="resume-game" class="button button--primary">RESUME</button></header>
+        <nav id="pause-tabs" class="pause-tabs" aria-label="Pause menu sections" role="tablist">
+          <button class="is-active" role="tab" aria-selected="true" data-pause-tab="replay">REPLAY</button>
+          <button role="tab" aria-selected="false" data-pause-tab="statistics">STATISTICS</button>
+          <button role="tab" aria-selected="false" data-pause-tab="controls">CONTROLS</button>
+          <button role="tab" aria-selected="false" data-pause-tab="camera">CAMERA</button>
+          <button role="tab" aria-selected="false" data-pause-tab="audio">AUDIO</button>
+          <button role="tab" aria-selected="false" data-pause-tab="accessibility">ACCESSIBILITY</button>
+          <button role="tab" aria-selected="false" data-pause-tab="challenges">CHALLENGES</button>
+          <button role="tab" aria-selected="false" data-pause-tab="rules">RULES</button>
+        </nav>
+        <div id="pause-tab-panel" class="pause-tab-panel" role="tabpanel" tabindex="0"></div>
+        <footer class="pause-actions"><button id="open-instant-replay" class="button">INSTANT REPLAY</button><button id="restart-game" class="button">RESTART RUN</button><button data-action="open-settings" class="button">FULL SETTINGS</button><button data-action="quit-menu" class="button button--quiet">QUIT TO MENU</button></footer>
       </div>
+    </section>
+
+    <section id="replay-screen" class="screen screen--overlay screen--replay is-hidden" aria-labelledby="replay-title">
+      <div class="replay-chrome">
+        <header><div><span class="ncn-live">NCN REPLAY</span><h2 id="replay-title">INSTANT REPLAY DIRECTOR</h2></div><button id="close-replay" class="button button--primary">RETURN TO GAME</button></header>
+        <div class="replay-stage" aria-label="Replay uses the frozen live court view"><span id="replay-status">FROZEN AT LIVE FRAME</span><div id="replay-marker-list" class="replay-markers"></div></div>
+        <div class="replay-controls" aria-label="Replay controls">
+          <button id="replay-restart" type="button">|&lt;</button><button id="replay-play" type="button">PLAY</button><button id="replay-frame-back" type="button">- FRAME</button><button id="replay-frame-forward" type="button">+ FRAME</button>
+          <label>SPEED <select id="replay-speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option></select></label>
+          <label>CAMERA <select id="replay-camera"><option value="broadcast">BROADCAST</option><option value="follow">FOLLOW</option><option value="cinematic">CINEMATIC</option><option value="free">FREE</option></select></label>
+          <label>ZOOM <input id="replay-zoom" type="range" min="55" max="120" value="82"></label>
+          <button id="replay-hud-toggle" type="button">HIDE HUD</button><button id="open-photo-mode" type="button">PHOTO MODE</button><button id="save-highlight" type="button">SAVE HIGHLIGHT</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="photo-mode" class="screen screen--overlay screen--photo is-hidden" aria-labelledby="photo-title">
+      <div class="photo-panel"><span class="overline">POSTGAME / REPLAY ONLY</span><h2 id="photo-title">NOVA PHOTO MODE</h2><label>FIELD OF VIEW <input id="photo-fov" type="range" min="30" max="90" value="55"></label><label>DEPTH OF FIELD <input id="photo-dof" type="range" min="0" max="100" value="35"></label><label>EXPOSURE <input id="photo-exposure" type="range" min="50" max="150" value="100"></label><label>CONTRAST <input id="photo-contrast" type="range" min="50" max="150" value="105"></label><label>FILTER <select id="photo-filter"><option value="nova">NOVA NIGHT</option><option value="mono">MIDNIGHT MONO</option><option value="ember">EMBER COURT</option></select></label><button id="close-photo-mode" class="button button--primary">BACK TO REPLAY</button></div>
     </section>
 
     <section id="game-over" class="screen screen--overlay is-hidden" aria-labelledby="result-title">
       <div class="result-card">
-        <span id="result-kicker" class="overline">FINAL</span>
+        <div class="result-card__broadcast"><span id="result-kicker" class="overline">NCN FINAL</span><span id="result-save-state" role="status">SAVING PROGRESSION...</span></div>
         <h2 id="result-title">COURT CLEARED</h2>
         <p id="result-summary">11 — 7</p>
+        <section id="highlight-reel" class="highlight-reel" aria-labelledby="highlight-reel-title"><header><div><span class="overline">AUTOMATIC HIGHLIGHT REEL</span><h3 id="highlight-reel-title">PLAYS OF THE NIGHT</h3></div><span id="highlight-reel-status">READY</span></header><div id="highlight-reel-list"></div><div class="highlight-reel__actions"><button id="play-highlight-reel" class="button">PLAY REEL</button><button id="skip-highlight-reel" class="button button--quiet">SKIP</button><button id="save-highlight-reel" class="button">SAVE LOCAL COPY</button></div></section>
         <div id="result-stats" class="result-stats"></div>
         <div id="result-reward" class="result-reward" aria-live="polite"></div>
         <div class="result-actions">
@@ -470,6 +523,11 @@
           <label>Visual preset
             <select id="quality-select"><option value="auto">Auto</option><option value="high">High</option><option value="performance">Performance</option></select>
           </label>
+          <label>HUD scale <input id="hud-scale" type="range" min="75" max="150" value="100"><output>100</output></label>
+          <label>Menu scale <input id="menu-scale" type="range" min="80" max="140" value="100"><output>100</output></label>
+          <label>Safe area <input id="safe-area" type="range" min="0" max="10" value="4"><output>4</output></label>
+          <label>Vibration <input id="vibration-strength" type="range" min="0" max="100" value="68"><output>68</output></label>
+          <label class="toggle">Stream-safe music only <input id="stream-safe" type="checkbox" checked><span></span></label>
           <label class="toggle">Reduce motion <input id="reduced-motion" type="checkbox"><span></span></label>
           <label class="toggle">High contrast <input id="high-contrast" type="checkbox"><span></span></label>
           <label class="toggle">Announcer captions <input id="captions-enabled" type="checkbox" checked><span></span></label>

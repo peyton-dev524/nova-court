@@ -35,6 +35,14 @@ The build task writes the deployable static game to `dist/`.
 
 Every mode has its own rules, HUD/objective, difficulty tuning where applicable, restart/rematch or return flow, and a complete finish state. Replay playback pauses live game flow until the replay and camera restoration are finished.
 
+### Park Duel production slice
+
+Park Duel now follows a contained production route from Main Menu through Ball Locker, Venue Select, a skippable NCN introduction, live 1v1, pause/replay/Photo Mode, automatic highlights, advanced postgame statistics, verified local rewards, and immediate quick rematch. The pregame report redacts hidden ratings while exposing actionable tendencies, and the live opponent uses gradual possession-based defensive adaptation.
+
+Append `?qa` only during local validation to expose the browser QA control strip for deterministic endgame, input-family, recovery, and performance sampling. It is absent from normal play. See [PRODUCTION_VALIDATION.md](./PRODUCTION_VALIDATION.md) for the exact evidence, viewport matrix, performance results, requirement status, and limitations.
+
+The new tactical, off-ball, expanded-defense, triple-threat, post, substitutions, chemistry, broadcast, audio, platform, and online-integrity work is deliberately split into deterministic modules. Several are reusable foundations rather than fully bound live features; the validation report distinguishes those states precisely.
+
 ### Reproducible Arc Run QA
 
 Start Arc Run with `?qa` in the URL. After the game screen opens, run this in
@@ -107,9 +115,9 @@ The renderer targets 60 FPS with a bounded 60 Hz simulation, three-step catch-up
 
 ## Validation
 
-The complete test suite contains 179 tests covering all seven mode flows, scoring, 21-second clocks, progression/persistence, exact win bonuses and titles, applied position ratings, green-window timing, basket-facing shot alignment, all nine dribbles, live loose balls, blocks/fouls, rim/bank/swish outcomes, contextual layups/dunks, free throws, AI decisions, team formats, pass-gated inbounds, full-court direction, tutorial/attract presentation, replay freeze/restoration, controls, UI/audio, the player-model harness, responsive behavior, and performance budgets. `npm run check` syntax-checks every runtime/build module and `npm run build` creates the static distribution.
+The complete test suite contains 281 tests across 55 files. It covers the seven established mode flows plus scouting redaction, bounded adaptation, tactics/off-ball/defense/footwork legality, rotations/chemistry/tendencies, input buffering/controllers/vibration, replay/highlights/Photo Mode, advanced statistics/history, resilient saves, localization/RTL, safe areas, graphics/preload/recovery contracts, and honest online boundaries. `npm run check` syntax-checks 70 runtime/build files and `npm run build` creates the static distribution.
 
-Final browser QA results are recorded in the completion handoff after exercising the integrated mode selection, My Player navigation/persistence, tutorial/attract presentation, representative team and practice modes, local resource loading, console output, and performance telemetry.
+The dated browser, viewport, console, local-resource, recovery, input, replay, progression, rematch, frame-pacing, draw-call, geometry/texture, and memory evidence is recorded in [PRODUCTION_VALIDATION.md](./PRODUCTION_VALIDATION.md).
 
 ## Honest limitations
 

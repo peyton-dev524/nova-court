@@ -1,6 +1,6 @@
 # NOVA COURT asset and license register
 
-Last reviewed: 2026-07-28
+Last reviewed: 2026-08-01
 
 NOVA COURT intentionally avoids downloaded art, real-player likenesses, team branding, commercial music, sampled sound libraries, motion capture, and copied interface art. Courts, athletes, props, lighting, effects, UI graphics, animations, announcer copy, and sound effects are generated from original project code and Three.js primitives. Original music and voice performances were generated specifically for this project through the project owner's ElevenLabs account; no third-party track, celebrity voice, or recognizable performer imitation was requested.
 
@@ -32,6 +32,7 @@ Neither reference is present in `dist/`. Because the references were rejected, n
 | Six mode-specific music loops | NOVA COURT project; generated through ElevenLabs Music | Project asset generated through project-owner account | Six original 40-second instrumental MP3 loops using `music_v1`: Park After Dark, Arc Pressure, Night Tactics, Two-Man Current, Full Court Voltage, and Open Gym Focus. Prompts prohibit vocals, recognizable samples, and artist imitation. Exact prompts, sizes, and SHA-256 hashes are in `assets/audio/manifest.json`. | Audition-oriented prompts match each mode's pace and visual language. All files were decoded successfully, are 128 kbps MP3, total about 3.84 MB, are served locally, and leave dynamic space for gameplay effects. |
 | Announcer and arena-PA performances | NOVA COURT project; generated through ElevenLabs Text to Speech | Project asset generated through project-owner account | Thirty original caption-matched MP3 clips using `eleven_v3`. Tyler Cruz (`SA7eD52NRr8WAehitVt1`) performs fictional play-by-play; Sarah (`EXAVITQu4vr4xnSDxMaL`) performs neutral PA/game-state calls. Exact text, role, model, sizes, and SHA-256 hashes are in `assets/audio/manifest.json`. | No real broadcaster, celebrity, catchphrase, or voice clone was requested. Clips decode successfully, total about 1.14 MB, and are selected by the same deterministic cue index as visible captions. |
 | Crowd bed and basketball/interface sound effects | NOVA COURT project | Project code | Web Audio oscillators, envelopes, filters, and generated noise buffers for bounce, rim, backboard, swish, whistle, UI, crowd reactions, and procedural fallback music | No downloaded samples. Short procedural nodes/buffers are independently mixed and released after playback. |
+| Production-slice scouting, tactics, replay, broadcast, platform, QA, and interface additions (2026-08-01) | NOVA COURT project | Project code | Original JavaScript domain logic, semantic HTML, CSS panels/gradients, Three.js runtime state, Web Audio routing contracts, and browser-local JSON metadata | No external images, models, animation, music, voice, fonts, icons, or network resources were added. The browser asset inventory observed only localhost resources, so there is no new attribution, hotlink, archive, or binary-security burden. |
 
 ## Network, format, and security review
 

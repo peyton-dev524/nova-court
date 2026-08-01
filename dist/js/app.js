@@ -84,6 +84,22 @@ import {
   getPlayerCardContent,
 } from "./hud-presentation.js?v=1.0";
 import { applyGameplayHudVisibility } from "./gameplay-hud-visibility.js?v=1.0";
+import { createParkDuelExperience } from "./park-duel-experience.js?v=1.0";
+import {
+  InputDeviceManager,
+  VibrationManager,
+} from "./interaction-systems.js?v=1.0";
+import {
+  addMatchRecord,
+  applyRewardReceipt,
+  computeResponsiveLayout,
+  createAdvancedStats,
+  createDefaultPlatformState,
+  loadPlatformState,
+  recordAdvancedStat,
+  savePlatformState,
+  summarizeAdvancedStats,
+} from "./platform-foundations.js?v=1.0";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -134,6 +150,22 @@ let selectedModeKey = "street";
 let audioUnlocked = false;
 let aiAccumulator = 0;
 let hudAccumulator = 0;
+const parkDuelExperience = createParkDuelExperience({ difficulty: currentDifficulty, seed: 524 });
+const inputDevices = new InputDeviceManager();
+const vibration = new VibrationManager({ strength: 0.68, enabled: true });
+let matchIntroResolver = null;
+let matchIntroTimer = 0;
+let matchIntroStartedAt = 0;
+let activePauseTab = "replay";
+let replayReturnState = "paused";
+let replayWasPostgame = false;
+let liveMatchPostgame = null;
+let pendingParkObservations = [];
+let lastInputFamily = "keyboard";
+let lastParkScore = { home: 0, away: 0 };
+let platformState = createDefaultPlatformState(Date.now());
+let platformRecovery = { source: "default", recovered: false, warnings: [] };
+let liveAdvancedStats = createAdvancedStats();
 let presentationDirector = null;
 let presentationKind = null;
 let ballSelectionPreview = null;
@@ -168,6 +200,7 @@ for (const href of [
   "./js/ui-shooting-settings.css?v=1.0",
   "./js/ui-ball-selection.css?v=1.4",
   "./js/ui-venue-selection.css?v=1.0",
+  "./js/ui-production-slice.css?v=1.0",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -180,6 +213,60 @@ function setHidden(node, hidden) {
   node.classList.toggle("is-hidden", hidden);
   node.hidden = hidden;
   node.setAttribute("aria-hidden", String(hidden));
+}
+
+function loadPlatformProgress() {
+  try {
+    const loaded = loadPlatformState(globalThis.localStorage, { now: Date.now() });
+    platformState = loaded.state;
+    platformRecovery = { source: loaded.source, recovered: loaded.recovered, warnings: loaded.warnings };
+    if (loaded.recovered) ui.toast(`Progress recovered from ${loaded.source}.`);
+    return loaded;
+  } catch (error) {
+    platformState = createDefaultPlatformState(Date.now());
+    platformRecovery = { source: "memory", recovered: false, warnings: [error?.message || String(error)] };
+    return { ok: false, ...platformRecovery, state: platformState };
+  }
+}
+
+function persistPlatformProgress(nextState = platformState) {
+  try {
+    const saved = savePlatformState(globalThis.localStorage, nextState, { now: Date.now() });
+    if (saved.ok) platformState = saved.state;
+    return saved;
+  } catch (error) {
+    return { ok: false, reason: "storage-unavailable", message: error?.message || String(error), state: nextState };
+  }
+}
+
+function applyResponsiveSafeArea() {
+  const layout = computeResponsiveLayout({
+    width: globalThis.innerWidth,
+    height: globalThis.innerHeight,
+    overscan: clamp(Number(platformState.settings?.safeArea ?? 3.5), 0, 10) / 100,
+    hudScale: Number(platformState.settings?.hudScale) || 1,
+    menuScale: Number(platformState.settings?.menuScale) || 1,
+  });
+  for (const [name, value] of Object.entries(layout.cssVariables)) document.documentElement.style.setProperty(name, value);
+  document.documentElement.dataset.layoutSize = layout.sizeClass;
+  document.documentElement.dataset.ultrawide = String(layout.ultrawide);
+  app.dataset.safeArea = `${Math.round(layout.inset.left)},${Math.round(layout.inset.top)}`;
+  return layout;
+}
+
+function updateAdvancedStats(event) {
+  const result = recordAdvancedStat(liveAdvancedStats, event);
+  if (result.ok) liveAdvancedStats = result.stats;
+  return result;
+}
+
+function triggerHaptic(pattern, strength = 1) {
+  try {
+    const pads = globalThis.navigator?.getGamepads?.() || [];
+    const pad = [...pads].find((candidate) => candidate?.connected && candidate.vibrationActuator?.playEffect);
+    if (!pad) return { played: false, reason: "unsupported" };
+    return vibration.trigger(pattern, pad.vibrationActuator, { now: performance.now(), strength });
+  } catch { return { played: false, reason: "actuator_error" }; }
 }
 
 function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState.loadedIds, detail = {}) {
@@ -208,6 +295,9 @@ function updateSceneLoading(sceneId, phase, progress, loadedIds = sceneLoadState
 }
 
 function showMainMenu() {
+  finishMatchIntroduction("menu");
+  for (const id of ["match-intro", "replay-screen", "photo-mode"]) setHidden($(`#${id}`), true);
+  parkDuelExperience.replay.resetForWorldReplacement();
   gameActive = false;
   ballSelectionPreview?.setVisible(false);
   venueSelectionPreview?.setVisible(false);
@@ -264,6 +354,7 @@ function showCreatePlayer(step = "identity") {
 }
 
 function showModeSelect() {
+  for (const id of ["match-intro", "replay-screen", "photo-mode"]) setHidden($(`#${id}`), true);
   engine?.setPaused(true);
   ballSelectionPreview?.setVisible(false);
   venueSelectionPreview?.setVisible(false);
@@ -280,6 +371,7 @@ function showModeSelect() {
 }
 
 function showGame() {
+  for (const id of ["match-intro", "replay-screen", "photo-mode", "game-over"]) setHidden($(`#${id}`), true);
   ballSelectionPreview?.setVisible(false);
   venueSelectionPreview?.setVisible(false);
   for (const id of ["main-menu", "my-player-screen", "mode-select", "ball-select", "venue-select", "pause-screen", "game-over", "controls-screen", "settings-screen"]) {
@@ -340,6 +432,7 @@ function renderBallSelection() {
 }
 
 function showBallSelection(modeKey = selectedModeKey, origin = "modes") {
+  for (const id of ["match-intro", "replay-screen", "photo-mode"]) setHidden($(`#${id}`), true);
   pendingModeKey = MODE_META[modeKey] ? modeKey : "street";
   selectedModeKey = pendingModeKey;
   pendingBallStyle = ui.settings.ballStyle;
@@ -418,6 +511,7 @@ function renderVenueSelection() {
 }
 
 function showVenueSelection(venueId = loadVenueSelection()) {
+  for (const id of ["match-intro", "replay-screen", "photo-mode"]) setHidden($(`#${id}`), true);
   pendingVenueId = getVenueOption(venueId).id;
   gameActive = false;
   engine?.setPaused(true);
@@ -450,6 +544,203 @@ function confirmVenueSelection() {
   pendingVenueId = saveVenueSelection(pendingVenueId);
   venueSelectionPreview?.setVisible(false);
   startMode(pendingModeKey);
+}
+
+function detailList(entries) {
+  return Object.entries(entries).map(([label, value]) => {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    const detail = document.createElement("dd");
+    term.textContent = label;
+    detail.textContent = value;
+    row.append(term, detail);
+    return row;
+  });
+}
+
+function renderMatchIntroduction() {
+  const intro = parkDuelExperience.getIntro();
+  $("#intro-venue").textContent = `${intro.venue.name.toUpperCase()} / NIGHT RUN`;
+  $("#intro-home-name").textContent = intro.home.name.toUpperCase();
+  $("#intro-home-rating").textContent = `${intro.home.overall} OVR`;
+  $("#intro-home-record").textContent = `${intro.home.record} PARK RECORD`;
+  $("#intro-away-name").textContent = intro.away.name.toUpperCase();
+  $("#intro-away-record").textContent = `${intro.scout.recentRecord} RECENT`;
+  $("#intro-target-score").textContent = String(intro.targetScore);
+  $("#intro-archetype").textContent = intro.scout.primaryArchetype.toUpperCase();
+  $("#intro-ball-name").textContent = intro.ball.name.toUpperCase();
+  $("#intro-possession").textContent = intro.firstPossession.toUpperCase();
+  $("#intro-rules").textContent = `${intro.rules.label.toUpperCase()} RULES / ${intro.rules.summary.toUpperCase()}`;
+  $("#intro-scouting").replaceChildren(...detailList({
+    "SCORING AREA": intro.scout.preferredScoringArea,
+    "DOMINANT HAND": intro.scout.dominantHand,
+    "PUBLIC STRENGTH": intro.scout.strongestAttribute,
+    "DEFENSIVE READ": intro.scout.defensiveWeakness,
+    "FAVORITE MOVE": intro.scout.favoriteMove,
+    "RECENT FORM": intro.scout.recentRecord,
+  }));
+  $("#intro-setup").replaceChildren(...detailList({
+    VENUE: intro.venue.name,
+    BALL: intro.ball.name,
+    RULES: intro.rules.label,
+    TARGET: `First to ${intro.targetScore}, win by ${intro.winBy}`,
+    DIFFICULTY: currentDifficulty,
+    POSSESSION: "Check at the top",
+  }));
+  const call = intro.ncn.scouting?.text || intro.ncn.venue?.text;
+  if (call) $("#intro-call").textContent = call;
+}
+
+function finishMatchIntroduction(reason = "complete") {
+  clearTimeout(matchIntroTimer);
+  matchIntroTimer = 0;
+  const resolve = matchIntroResolver;
+  matchIntroResolver = null;
+  if (resolve) resolve(reason);
+}
+
+function updateMatchIntroProgress() {
+  if (!matchIntroResolver || app.dataset.state !== "match-intro") return;
+  const progress = clamp((performance.now() - matchIntroStartedAt) / 7200);
+  $("#match-intro-progress").style.width = `${Math.round(progress * 100)}%`;
+  requestAnimationFrame(updateMatchIntroProgress);
+}
+
+function playMatchIntroduction(token) {
+  if (currentModeKey !== "street" || token !== runToken) return Promise.resolve("not-required");
+  renderMatchIntroduction();
+  engine.setPaused(true);
+  engine.controls.setEnabled(false);
+  setHidden($("#loading-screen"), true);
+  for (const id of ["main-menu", "mode-select", "ball-select", "venue-select", "pause-screen", "replay-screen", "photo-mode", "game-over", "hud"]) setHidden($(`#${id}`), true);
+  setHidden($("#match-intro"), false);
+  app.dataset.state = "match-intro";
+  matchIntroStartedAt = performance.now();
+  $("#match-intro-progress").style.width = "0%";
+  requestAnimationFrame(updateMatchIntroProgress);
+  ui.caption("NCN pregame: opponent report, selected setup, rules, and first possession.");
+  return new Promise((resolve) => {
+    matchIntroResolver = resolve;
+    matchIntroTimer = window.setTimeout(() => finishMatchIntroduction("auto"), 7200);
+    $("#begin-park-duel")?.focus({ preventScroll: true });
+  });
+}
+
+function pauseTabCopy(tabId = activePauseTab) {
+  const snapshot = parkDuelExperience.getSnapshot();
+  const state = mode?.getState?.() || {};
+  const map = {
+    replay: ["INSTANT REPLAY", engine?.replayBuffer?.length >= 2 ? "Review the last five seconds, step frames, change cameras, or save browser-local highlight metadata." : "Replay becomes available after live action is recorded."],
+    statistics: ["ADVANCED STATISTICS", `NOVA ${snapshot.stats.home.makes}/${snapshot.stats.home.attempts} shooting / ${snapshot.stats.home.paintPoints} paint points / ${snapshot.stats.home.defensiveStops} defensive stops.`],
+    controls: ["CONTROL MAP", `Move WASD / shoot Space / finish or steal I / pass E / tactics Tab / pause Escape. Active prompts: ${lastInputFamily.toUpperCase()}.`],
+    camera: ["CAMERA", `Current view: ${(engine?.cameraMode || "follow").toUpperCase()}. Cycle with C; replay adds broadcast, player, and free camera contracts.`],
+    audio: ["AUDIO", `Music ${Math.round(ui.settings.musicVolume * 100)} / effects ${Math.round(ui.settings.sfxVolume * 100)} / NCN captions ${ui.settings.captions ? "ON" : "OFF"}.`],
+    accessibility: ["ACCESSIBILITY", `Reduced motion ${ui.settings.reducedMotion ? "ON" : "OFF"} / high contrast ${ui.settings.highContrast ? "ON" : "OFF"} / scalable safe-area HUD enabled.`],
+    challenges: ["CURRENT CHALLENGE", `Night Read: force three opponent adjustments. ${Math.min(3, snapshot.adaptation.possession || 0)}/3 possessions read.`],
+    rules: ["MATCH RULES", `${parkDuelExperience.rulePreset.label}: ${parkDuelExperience.rulePreset.summary} First to ${state.targetScore || 11}, win by two.`],
+  };
+  return map[tabId] || map.replay;
+}
+
+function renderPauseTab(tabId = activePauseTab) {
+  activePauseTab = tabId;
+  $$("[data-pause-tab]").forEach((button) => {
+    const active = button.dataset.pauseTab === tabId;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  const [title, copyText] = pauseTabCopy(tabId);
+  const panel = $("#pause-tab-panel");
+  panel.replaceChildren();
+  const heading = document.createElement("h3");
+  const copyNode = document.createElement("p");
+  heading.textContent = title;
+  copyNode.textContent = copyText;
+  panel.append(heading, copyNode);
+  if (tabId === "statistics") {
+    const stats = parkDuelExperience.getSnapshot().stats.home;
+    const grid = document.createElement("div");
+    grid.className = "pause-stat-grid";
+    for (const [label, value] of [["FG", `${stats.makes}/${stats.attempts}`], ["CONTESTED", `${Math.round(stats.contestedPercent * 100)}%`], ["PAINT", stats.paintPoints], ["EFFICIENCY", stats.possessionEfficiency.toFixed(2)]]) {
+      const item = document.createElement("span");
+      item.innerHTML = `<b>${value}</b><small>${label}</small>`;
+      grid.append(item);
+    }
+    panel.append(grid);
+  }
+}
+
+function replayFrames() {
+  const frames = engine?.replayBuffer?.slice(-150) || [];
+  if (frames.length) {
+    const origin = frames[0].t;
+    return frames.map((frame) => ({ ...frame, t: frame.t - origin }));
+  }
+  const snapshot = engine?.getSnapshot?.() || {};
+  return [{ t: 0, snapshot }, { t: 1 / 30, snapshot }];
+}
+
+function renderReplayDirector() {
+  const snapshot = parkDuelExperience.replay.getSnapshot();
+  $("#replay-play").textContent = snapshot.phase === "playing" ? "PAUSE" : "PLAY";
+  $("#replay-status").textContent = `${snapshot.phase.toUpperCase()} / FRAME ${Math.max(0, snapshot.frameIndex + 1)} / ${snapshot.duration.toFixed(2)}S / ${snapshot.camera.toUpperCase()}`;
+  $("#replay-marker-list").replaceChildren(...snapshot.markers.map(() => {
+    const marker = document.createElement("i");
+    return marker;
+  }));
+  $("#replay-hud-toggle").textContent = snapshot.hudVisible ? "HIDE HUD" : "SHOW HUD";
+}
+
+function openInstantReplay({ postgame = false } = {}) {
+  if (!engine) return false;
+  const frames = replayFrames();
+  if (parkDuelExperience.replay.ownsSimulationLock) parkDuelExperience.replay.resetForWorldReplacement();
+  parkDuelExperience.replay.open({
+    id: `${parkDuelExperience.matchId}-instant`,
+    frames,
+    markers: parkDuelExperience.events,
+    liveState: engine.getSnapshot(),
+    match: { matchId: parkDuelExperience.matchId, venueId: pendingVenueId, mode: "park-duel" },
+  });
+  replayReturnState = app.dataset.state;
+  replayWasPostgame = postgame || !gameActive;
+  engine.setPaused(true);
+  engine.controls.setEnabled(false);
+  setHidden($("#pause-screen"), true);
+  setHidden($("#game-over"), true);
+  setHidden($("#replay-screen"), false);
+  app.dataset.state = "replay-director";
+  renderReplayDirector();
+  return true;
+}
+
+function closeInstantReplay() {
+  const request = parkDuelExperience.replay.requestRestoration("close");
+  if (request) parkDuelExperience.replay.confirmRestoration(request.token, request.fingerprint);
+  setHidden($("#photo-mode"), true);
+  setHidden($("#replay-screen"), true);
+  if (replayWasPostgame) {
+    showOverlay("game-over");
+    app.dataset.state = "postgame";
+  } else {
+    showOverlay("pause-screen");
+    app.dataset.state = replayReturnState === "paused" ? "paused" : "paused";
+    renderPauseTab(activePauseTab);
+  }
+}
+
+function renderHighlightReel(postgame) {
+  const list = $("#highlight-reel-list");
+  list.replaceChildren(...postgame.reel.clips.map((clip, index) => {
+    const item = document.createElement("article");
+    const title = document.createElement("b");
+    const meta = document.createElement("span");
+    title.textContent = `${String(index + 1).padStart(2, "0")} / ${clip.type.replaceAll("-", " ").toUpperCase()}`;
+    meta.textContent = `${clip.duration.toFixed(1)}S / ${Math.round(clip.timestamp)}S MARK`;
+    item.append(title, meta);
+    return item;
+  }));
+  $("#highlight-reel-status").textContent = postgame.reel.clips.length ? `${postgame.reel.clips.length} CLIPS / ${postgame.reel.duration.toFixed(0)}S` : "NO MARKED PLAYS";
 }
 
 function renderShootingAssistSetting(value = ui.settings.shootingAssist) {
@@ -1040,6 +1331,22 @@ function createEngine(modeKey, preview = false, roster = null, venueOverride = "
         option: getVenueOption(pendingVenueId),
         preview: venueSelectionPreview?.getSnapshot?.() || null,
       }),
+      parkDuel: () => parkDuelExperience.getSnapshot(),
+      platform: () => ({
+        source: platformLoadResult.source,
+        recovered: platformLoadResult.recovered,
+        warnings: [...platformLoadResult.warnings],
+        historyCount: platformState.matchHistory?.length || 0,
+        rewardReceiptCount: platformState.rewardLedger?.length || 0,
+      }),
+      verticalSlice: () => ({
+        appState: app.dataset.state,
+        inputFamily: lastInputFamily,
+        saveState: $("#result-save-state")?.textContent || "",
+        gameActive,
+        mode: currentModeKey,
+      }),
+      finishParkDuel: (awayScore = 3) => finishParkDuelForQA(awayScore),
       ai: () => ai?.getDecisionSnapshot?.() || {
         enabled: false,
         limit: 0,
@@ -1187,6 +1494,8 @@ async function startMode(modeKey = selectedModeKey) {
   const token = runToken;
   setHidden($("#loading-screen"), false);
   createEngine(currentModeKey, false, null, pendingVenueId);
+  engine.setPaused(true);
+  engine.controls.setEnabled(false);
   const loadQuality = $("#quality-select")?.value === "performance" ? "low" : "medium";
   activeVenueLoader = createProductionVenueLoader({
     T: globalThis.THREE,
@@ -1253,8 +1562,31 @@ async function startMode(modeKey = selectedModeKey) {
   if (isTeamModeKey(currentModeKey)) {
     $("#teammate-hints").innerHTML = "<span>J / E <b>PASS + SWITCH</b></span><span>I <b>STEAL</b></span><span>C <b>CAMERA</b></span>";
   }
+  const profile = getProfileSummary(playerProfile);
+  const selectedVenue = getVenueOption(pendingVenueId);
+  const selectedBall = getBallSelectionOption(ui.settings.ballStyle);
+  const liveState = mode.getState?.() || {};
+  parkDuelExperience.reset({
+    matchId: `${profileSessionId}-${runToken}`,
+    difficulty: currentDifficulty,
+    venueId: pendingVenueId,
+    venueName: selectedVenue.name,
+    ball: { id: selectedBall.id, name: selectedBall.name },
+    targetScore: liveState.targetScore || configForMode(currentModeKey).targetScore || 11,
+    homeName: profile.displayName,
+    homeOverall: profile.overall,
+    homeRecord: `${profile.wins}-${Math.max(0, profile.games - profile.wins)}`,
+    rulePreset: currentModeKey === "practice" ? "shooting_lab" : currentModeKey === "fives" ? "simulation" : "street",
+  });
+  liveMatchPostgame = null;
+  liveAdvancedStats = createAdvancedStats();
+  lastParkScore = { home: 0, away: 0 };
+  await playMatchIntroduction(token);
+  if (token !== runToken) return;
   showGame();
   gameActive = true;
+  engine.setPaused(false);
+  engine.controls.setEnabled(true);
   announcer.reset();
   announcer.announce("tip", { force: true, seed: `${currentModeKey}-${runToken}` });
   audio.playSfx("whistle");
@@ -1342,6 +1674,45 @@ function handleModeEvent(type, payload = {}) {
   processCommands(response.commands, runToken);
   updateHUD();
   return response;
+}
+
+function finishParkDuelForQA(awayScore = 3) {
+  if (currentModeKey !== "street" || !mode || !gameActive) {
+    return { ok: false, reason: "park_duel_not_active" };
+  }
+  const scoreFor = (teamId) => {
+    let guard = 0;
+    while (mode.phase !== MODE_PHASES.FINISHED && guard < 80) {
+      if (mode.phase === MODE_PHASES.CHECK) {
+        mode.checkTimer = 0;
+        handleModeEvent("CHECK_COMPLETE", { offenseTeamId: mode.getState().possessionTeamId });
+        guard += 1;
+        continue;
+      }
+      const state = mode.getState();
+      if (state.possessionTeamId !== teamId) {
+        handleModeEvent("TURNOVER", { teamId });
+        guard += 1;
+        continue;
+      }
+      parkDuelExperience.record("shot", { teamId, made: true, context: "layup", releaseQuality: 0.8 });
+      parkDuelExperience.record("score", { teamId, points: 1, context: "layup" });
+      if (teamId === "home") {
+        updateAdvancedStats({ type: "shot", zone: "restricted", made: true, contested: false, points: 1, releaseOffsetMs: 24 });
+        updateAdvancedStats({ type: "paint-points", points: 1 });
+      } else {
+        updateAdvancedStats({ type: "opponent-shot", made: true });
+      }
+      updateAdvancedStats({ type: "possession" });
+      handleModeEvent("BASKET", { teamId, points: 1, shotType: "layup" });
+      guard += 1;
+      if ((mode.getState().scores?.[teamId] || 0) >= (teamId === "away" ? awayScore : mode.getState().targetScore)) break;
+    }
+  };
+  scoreFor("away");
+  scoreFor("home");
+  updateHUD();
+  return { ok: mode.phase === MODE_PHASES.FINISHED, state: mode.getState(), postgame: parkDuelExperience.getPostgame("win") };
 }
 
 function advanceThreePointContestForQA(sequenceIndex = 4, made = false) {
@@ -1702,6 +2073,7 @@ function markRackBall(rackIndex, ballIndex, made) {
 
 function bindEngineEvents() {
   engine.on("dribblemove", (event) => {
+    if (currentModeKey === "street") parkDuelExperience.record("dribble", { teamId: event.player?.team, move: event.move, success: true });
     const labels = {
       crossover: "CROSSOVER",
       behindBack: "BEHIND THE BACK",
@@ -1809,7 +2181,19 @@ function bindEngineEvents() {
       guaranteed: event.guaranteed,
       rimResult: event.rimResult,
       context: event.context,
+      points: event.points,
     };
+    if (currentModeKey === "street") {
+      parkDuelExperience.record("shot", {
+        teamId: event.player?.team,
+        context: event.context,
+        quality: event.quality,
+        coverage: event.coverage,
+        isThree: event.points === 3,
+        made: false,
+      });
+    }
+    if (event.perfectRelease) triggerHaptic("perfect_release");
     meter?.classList.remove("is-active");
     meter?.classList.add("is-result");
     meter?.setAttribute("aria-hidden", "false");
@@ -1848,6 +2232,24 @@ function bindEngineEvents() {
       isThree: event.points === 3,
       perfectRelease: pendingShot?.perfectRelease === true,
     });
+    if (currentModeKey === "street") {
+      updateAdvancedStats({ type: "shot", zone: pendingShot?.context === "dunk" || pendingShot?.context === "layup" ? "restricted" : event.points === 3 ? "above-break-3" : "mid-center", made: true, contested: (pendingShot?.coverage || 0) >= 0.35, points });
+      updateAdvancedStats({ type: "possession" });
+      if (pendingShot?.context === "dunk" || pendingShot?.context === "layup") updateAdvancedStats({ type: "paint-points", points });
+      if (event.team === "away") updateAdvancedStats({ type: "opponent-shot", made: true });
+      parkDuelExperience.record("score", {
+        teamId: event.team,
+        playerId: event.player?.id,
+        points,
+        context: pendingShot?.context,
+        coverage: pendingShot?.coverage,
+        isThree: event.points === 3,
+        isLong: event.points === 3,
+      });
+      const matchSnapshot = parkDuelExperience.getSnapshot();
+      lastParkScore = { ...matchSnapshot.score };
+      if (matchSnapshot.soundtrack.state === "game-point") feedback("GAME POINT / NCN PRESSURE", "warning", 1150);
+    }
     audio.playSfx(event.swish ? "swish" : "score", 1);
     feedback(event.swish ? "PURE SWISH" : pendingShot?.perfectRelease ? "PERFECT RELEASE" : event.points === 3 ? "DEEP WATER" : "BUCKET", "good", 1000);
     const state = mode?.getState?.() || {};
@@ -1863,10 +2265,24 @@ function bindEngineEvents() {
       meterNode?.setAttribute("aria-hidden", "true");
     }, 1100);
   });
-  engine.on("rim", () => audio.playSfx("rim"));
+  engine.on("rim", () => {
+    audio.playSfx("rim");
+    triggerHaptic("hard_rim", 0.72);
+  });
   engine.on("backboard", () => audio.playSfx("backboard"));
   engine.on("rebound", (event) => {
     if (pendingShot && !pendingShot.scored) {
+      if (currentModeKey === "street") {
+        updateAdvancedStats({ type: "shot", zone: pendingShot.context === "dunk" || pendingShot.context === "layup" ? "restricted" : pendingShot.points === 3 ? "above-break-3" : "mid-center", made: false, contested: (pendingShot.coverage || 0) >= 0.35 });
+        updateAdvancedStats({ type: "possession" });
+        if (pendingShot.player?.team === "away") updateAdvancedStats({ type: "opponent-shot", made: false });
+        parkDuelExperience.record("miss", {
+          teamId: pendingShot.player?.team,
+          context: pendingShot.context,
+          quality: pendingShot.quality,
+          coverage: pendingShot.coverage,
+        });
+      }
       handleModeEvent("MISS", {
         shotId: pendingShot.shotId,
         playerId: pendingShot.player?.id,
@@ -1874,6 +2290,7 @@ function bindEngineEvents() {
       });
       pendingShot = null;
     }
+    if (currentModeKey === "street") parkDuelExperience.record("rebound", { teamId: event.team, playerId: event.player?.id });
     handleModeEvent("REBOUND", { playerId: event.player?.id, teamId: event.team, offensive: event.offensive });
     feedback(event.offensive ? "SECOND CHANCE" : "BOARD", "neutral", 650);
 
@@ -1882,6 +2299,7 @@ function bindEngineEvents() {
   engine.on("steal", (event) => {
     audio.playSfx(event.success ? "steal" : "ui", event.success ? 1 : 0.35);
     if (event.success) {
+      if (currentModeKey === "street") parkDuelExperience.record("steal", { teamId: event.defender?.team, playerId: event.defender?.id });
       feedback("BALL POKED LOOSE / LIVE BALL", "warning", 900);
       announcer.announce("steal", { playerName: event.defender?.name });
     }
@@ -1909,6 +2327,8 @@ function bindEngineEvents() {
   });
   engine.on("block", (event) => {
     if (!event.success) return;
+    triggerHaptic("block");
+    if (currentModeKey === "street") parkDuelExperience.record("block", { teamId: event.defender?.team, playerId: event.defender?.id });
     audio.playSfx("block");
     handleModeEvent("BLOCK", { teamId: event.defender?.team, playerId: event.defender?.id });
     feedback("ERASED", "warning", 900);
@@ -2068,8 +2488,25 @@ function applyAI(dt) {
     const player = engine.players.find((candidate) => candidate.id === intent.playerId);
     if (!player || player.controlled) continue;
     player.metadata.externallyDriven = true;
-    const dx = intent.move.target.x - player.root.position.x;
-    const dz = intent.move.target.z - player.root.position.z;
+    let targetX = intent.move.target.x;
+    let targetZ = intent.move.target.z;
+    if (currentModeKey === "street" && player.team === "away" && engine.ball.owner?.team === "home") {
+      const plan = parkDuelExperience.getSnapshot().adaptation;
+      const handler = engine.ball.owner;
+      const closeout = plan.adjustments.threePointCloseout + plan.adjustments.crossoverPressure;
+      const gap = plan.adjustments.shooterGap;
+      const pressureMix = clamp((closeout - gap) * 1.8, -0.3, 0.42);
+      targetX += (handler.root.position.x - targetX) * pressureMix;
+      targetZ += (handler.root.position.z - targetZ) * pressureMix;
+      const basket = engine.courtRuntime.baskets.home;
+      const paintMix = clamp(plan.adjustments.paintProtection * 0.9, 0, 0.22);
+      targetX += (basket.x - targetX) * paintMix;
+      targetZ += (basket.z - targetZ) * paintMix;
+      player.metadata.adaptation = plan.recommendations;
+      app.dataset.aiAdaptation = plan.recommendations.join(",") || "base";
+    }
+    const dx = targetX - player.root.position.x;
+    const dz = targetZ - player.root.position.z;
     const length = Math.hypot(dx, dz) || 1;
     const speed = player.speed * clamp(intent.move.speed, 0, 1.1);
     player.desiredVelocity.set((dx / length) * speed, 0, (dz / length) * speed);
@@ -2159,7 +2596,7 @@ function endGame(result = mode?.getState()?.result || {}) {
   const state = mode?.getState() || {};
   const won = result.outcome === "win";
   announcer.announce("game_over", { force: true, userWon: won });
-  $("#result-kicker").textContent = currentModeKey === "threePoint" ? "FINAL RACK" : "FINAL";
+  $("#result-kicker").textContent = currentModeKey === "threePoint" ? "NCN FINAL RACK" : "NCN FINAL";
   $("#result-title").textContent = won ? "COURT CLEARED" : result.outcome === "complete" ? "RUN COMPLETE" : "RUN IT BACK";
   if (currentModeKey === "threePoint") {
     $("#result-summary").textContent = `${state.score || 0} POINTS`;
@@ -2168,8 +2605,13 @@ function endGame(result = mode?.getState()?.result || {}) {
     $("#result-summary").textContent = `${state.scores?.home || 0} — ${state.scores?.away || 0}`;
     $("#result-stats").innerHTML = `<span><b>${Math.round(state.elapsed || 0)}s</b> RUN TIME</span><span><b>${currentDifficulty.toUpperCase()}</b> DIFFICULTY</span><span><b>${MODE_META[currentModeKey].objective}</b> FORMAT</span>`;
   }
+  const advanced = summarizeAdvancedStats(liveAdvancedStats);
+  if (currentModeKey === "street") {
+    $("#result-stats").insertAdjacentHTML("beforeend", `<span><b>${advanced.shootingZones.restricted.made}/${advanced.shootingZones.restricted.attempts}</b> AT RIM</span><span><b>${advanced.contestedFieldGoalPercentage == null ? "--" : `${Math.round(advanced.contestedFieldGoalPercentage * 100)}%`}</b> CONTESTED FG</span><span><b>${advanced.possessionEfficiency == null ? "--" : advanced.possessionEfficiency.toFixed(2)}</b> PTS / POSS</span><span><b>${advanced.opponentFieldGoalPercentage == null ? "--" : `${Math.round(advanced.opponentFieldGoalPercentage * 100)}%`}</b> OPP FG</span>`);
+  }
+  const matchId = `${profileSessionId}-${runToken}`;
   const reward = awardMatch(playerProfile, {
-    matchId: `${profileSessionId}-${runToken}`,
+    matchId,
     won,
     mode: currentModeKey,
     difficulty: currentDifficulty,
@@ -2182,8 +2624,47 @@ function endGame(result = mode?.getState()?.result || {}) {
   } else {
     $("#result-reward").textContent = "MATCH REWARD ALREADY SAVED";
   }
+  liveMatchPostgame = currentModeKey === "street"
+    ? parkDuelExperience.getPostgame(won ? "win" : "loss")
+    : { reel: { clips: [], duration: 0 }, finalScore: { home: state.scores?.home || state.score || 0, away: state.scores?.away || 0 } };
+  renderHighlightReel(liveMatchPostgame);
+  const profileSummary = getProfileSummary(playerProfile);
+  const matchRecord = addMatchRecord(platformState.matchHistory, {
+    id: matchId,
+    date: new Date(),
+    venue: getVenueOption(pendingVenueId).name,
+    mode: MODE_META[currentModeKey].label,
+    score: { player: state.scores?.home ?? state.score ?? 0, opponent: state.scores?.away ?? 0 },
+    opponent: currentModeKey === "street" ? "Shade" : MODE_META[currentModeKey].away,
+    playerGrade: won ? "A" : "B",
+    statistics: liveAdvancedStats,
+    earnedXp: reward.ok ? reward.xp : 0,
+    earnedCredits: reward.ok ? reward.credits : 0,
+    majorHighlights: liveMatchPostgame.reel.clips.map((clip) => ({ type: clip.type, label: clip.type.replaceAll("-", " "), timeMs: Math.round(clip.timestamp * 1000) })),
+  });
+  let nextPlatformState = {
+    ...platformState,
+    profile: playerProfile,
+    settings: { ...platformState.settings, ...ui.settings },
+    matchHistory: matchRecord.ok ? matchRecord.history : platformState.matchHistory,
+    lastUsedLoadout: { mode: currentModeKey, ball: ui.settings.ballStyle, venue: pendingVenueId, difficulty: currentDifficulty },
+    progression: { credits: profileSummary.credits, xp: profileSummary.xp },
+  };
+  if (reward.ok) {
+    const receipt = applyRewardReceipt(nextPlatformState, { id: matchId, credits: reward.credits, xp: reward.xp });
+    if (receipt.ok) nextPlatformState = { ...receipt.state, profile: playerProfile, progression: { credits: profileSummary.credits, xp: profileSummary.xp } };
+  }
+  const saveResult = persistPlatformProgress(nextPlatformState);
+  const profilePersisted = (() => {
+    try { return Boolean(globalThis.localStorage?.getItem?.("nova-court-my-player-v2")); } catch { return false; }
+  })();
+  const saveOkay = saveResult.ok && profilePersisted;
+  $("#result-save-state").textContent = saveOkay ? "PROGRESSION SAVED / BACKUP VERIFIED" : "SAVE WARNING / PROGRESS HELD IN MEMORY";
+  $("#result-save-state").classList.toggle("is-warning", !saveOkay);
+  for (const id of ["pause-screen", "replay-screen", "photo-mode", "settings-screen"]) hideOverlay(id);
   setHidden($("#hud"), true);
   showOverlay("game-over");
+  app.dataset.state = "postgame";
   audio.playSfx(won ? "crowd" : "buzzer");
 }
 
@@ -2193,6 +2674,7 @@ function pauseGame() {
   mode?.pause();
   showOverlay("pause-screen");
   app.dataset.state = "paused";
+  renderPauseTab(activePauseTab);
 }
 
 function resumeGame() {
@@ -2211,6 +2693,10 @@ function resumeGame() {
 function tick(now) {
   const dt = clamp((now - lastFrame) / 1000, 0, 0.05);
   lastFrame = now;
+  if (app.dataset.state === "replay-director" && parkDuelExperience.replay.ownsSimulationLock) {
+    parkDuelExperience.replay.advance(dt);
+    renderReplayDirector();
+  }
   if (gameActive && mode && engine && !engine.paused) {
     const replayFrozen = engine.isReplayFrozen();
     if (!replayFrozen) {
@@ -2229,6 +2715,15 @@ function tick(now) {
     if (hudAccumulator >= 0.05) {
       hudAccumulator = 0;
       updateHUD();
+      const engineInput = engine.controls?.inputMethod;
+      if (engineInput === "gamepad" && lastInputFamily === "keyboard") {
+        const connected = inputDevices.getSnapshot().controllers.find((controller) => controller.connected);
+        if (connected) {
+          inputDevices.recordControllerActivity(connected.index, now);
+          lastInputFamily = connected.family;
+          app.dataset.inputFamily = connected.family;
+        }
+      }
     }
     if (mode.phase === MODE_PHASES.FINISHED && gameActive) endGame(mode.getState().result);
   }
@@ -2541,6 +3036,55 @@ function bindUI() {
   $("#resume-game")?.addEventListener("click", resumeGame);
   $("#restart-game")?.addEventListener("click", () => startMode(currentModeKey));
   $("#rematch")?.addEventListener("click", () => startMode(currentModeKey));
+  $("#skip-match-intro")?.addEventListener("click", () => finishMatchIntroduction("skipped"));
+  $("#begin-park-duel")?.addEventListener("click", () => finishMatchIntroduction("started"));
+  $$("[data-pause-tab]").forEach((button) => button.addEventListener("click", () => renderPauseTab(button.dataset.pauseTab)));
+  $("#open-instant-replay")?.addEventListener("click", () => openInstantReplay());
+  $("#close-replay")?.addEventListener("click", closeInstantReplay);
+  $("#replay-play")?.addEventListener("click", () => { parkDuelExperience.replay.togglePlayback(); renderReplayDirector(); });
+  $("#replay-restart")?.addEventListener("click", () => { parkDuelExperience.replay.restart(); renderReplayDirector(); });
+  $("#replay-frame-back")?.addEventListener("click", () => { parkDuelExperience.replay.stepFrame(-1); renderReplayDirector(); });
+  $("#replay-frame-forward")?.addEventListener("click", () => { parkDuelExperience.replay.stepFrame(1); renderReplayDirector(); });
+  $("#replay-speed")?.addEventListener("change", (event) => { parkDuelExperience.replay.setRate(Number(event.target.value)); renderReplayDirector(); });
+  $("#replay-camera")?.addEventListener("change", (event) => {
+    const camera = { follow: "player", cinematic: "sideline" }[event.target.value] || event.target.value;
+    parkDuelExperience.replay.selectCamera(camera);
+    if (camera !== "free") engine?.setCameraMode?.(camera === "player" ? "follow" : camera === "sideline" ? "cinematic" : camera);
+    renderReplayDirector();
+  });
+  $("#replay-zoom")?.addEventListener("input", (event) => { parkDuelExperience.replay.setZoom(Number(event.target.value) / 82); renderReplayDirector(); });
+  $("#replay-hud-toggle")?.addEventListener("click", () => {
+    const visible = !parkDuelExperience.replay.getSnapshot().hudVisible;
+    parkDuelExperience.replay.setHudVisible(visible);
+    setHidden($("#hud"), !visible || replayWasPostgame);
+    renderReplayDirector();
+  });
+  $("#open-photo-mode")?.addEventListener("click", () => {
+    if (app.dataset.state !== "replay-director" && app.dataset.state !== "postgame") return;
+    setHidden($("#photo-mode"), false);
+  });
+  $("#close-photo-mode")?.addEventListener("click", () => setHidden($("#photo-mode"), true));
+  $("#play-highlight-reel")?.addEventListener("click", () => openInstantReplay({ postgame: true }));
+  $("#skip-highlight-reel")?.addEventListener("click", () => { $("#highlight-reel-status").textContent = "REEL SKIPPED / REPLAY ANY TIME"; });
+  $("#save-highlight-reel")?.addEventListener("click", () => {
+    try {
+      const exports = JSON.parse(globalThis.localStorage?.getItem?.("nova-court-local-highlights-v1") || "[]");
+      exports.unshift(liveMatchPostgame?.export || { schema: "nova-court-highlight/v1", matchId: parkDuelExperience.matchId, clips: liveMatchPostgame?.reel?.clips || [] });
+      globalThis.localStorage?.setItem?.("nova-court-local-highlights-v1", JSON.stringify(exports.slice(0, 30)));
+      $("#highlight-reel-status").textContent = "SAVED IN THIS BROWSER";
+    } catch { $("#highlight-reel-status").textContent = "LOCAL SAVE FAILED"; }
+  });
+  $("#save-highlight")?.addEventListener("click", () => {
+    const replay = parkDuelExperience.replay.getSnapshot();
+    const marker = replay.markers[0];
+    if (!marker) { ui.toast("No highlight marker is available yet."); return; }
+    const metadata = parkDuelExperience.replay.saveHighlight(marker.id, { createdAt: new Date().toISOString(), streamSafe: true });
+    try {
+      const exports = JSON.parse(globalThis.localStorage?.getItem?.("nova-court-local-highlights-v1") || "[]");
+      globalThis.localStorage?.setItem?.("nova-court-local-highlights-v1", JSON.stringify([metadata, ...exports].slice(0, 30)));
+      ui.toast("Highlight metadata saved in this browser.");
+    } catch { ui.toast("Highlight could not be saved locally."); }
+  });
 
   $$(".mode-card").forEach((card) => card.addEventListener("click", () => {
     $$(".mode-card").forEach((item) => item.classList.remove("is-selected"));
@@ -2599,6 +3143,39 @@ function bindUI() {
     ui.applySettings({ ...ui.settings, captions: event.target.checked });
   });
   $("#mute-all")?.addEventListener("change", (event) => ui.applySettings({ ...ui.settings, muted: event.target.checked }));
+  const persistDisplaySetting = (key, value) => {
+    platformState = { ...platformState, settings: { ...platformState.settings, [key]: value } };
+    persistPlatformProgress(platformState);
+    applyResponsiveSafeArea();
+  };
+  for (const [id, key, divisor] of [["hud-scale", "hudScale", 100], ["menu-scale", "menuScale", 100], ["safe-area", "safeArea", 1]]) {
+    const control = $(`#${id}`);
+    if (!control) continue;
+    const stored = platformState.settings?.[key];
+    if (stored != null) control.value = String(key === "safeArea" ? stored : Math.round(stored * divisor));
+    if (control.nextElementSibling) control.nextElementSibling.value = control.value;
+    control.addEventListener("input", (event) => {
+      const value = Number(event.target.value) / divisor;
+      if (event.target.nextElementSibling) event.target.nextElementSibling.value = event.target.value;
+      persistDisplaySetting(key, value);
+    });
+  }
+  const vibrationControl = $("#vibration-strength");
+  if (vibrationControl) {
+    vibrationControl.value = String(Math.round(Number(platformState.settings?.vibrationStrength ?? 0.68) * 100));
+    vibrationControl.nextElementSibling.value = vibrationControl.value;
+    vibration.configure({ strength: Number(vibrationControl.value) / 100, enabled: Number(vibrationControl.value) > 0 });
+    vibrationControl.addEventListener("input", (event) => {
+      const strength = Number(event.target.value) / 100;
+      event.target.nextElementSibling.value = event.target.value;
+      vibration.configure({ strength, enabled: strength > 0 });
+      persistDisplaySetting("vibrationStrength", strength);
+    });
+  }
+  $("#stream-safe")?.addEventListener("change", (event) => {
+    parkDuelExperience.soundtrack.setStreamSafe(event.target.checked);
+    persistDisplaySetting("streamSafe", event.target.checked);
+  });
 
   window.addEventListener("nova:settings", (event) => {
     if (!engine) return;
@@ -2606,6 +3183,9 @@ function bindUI() {
     engine.setBasketballStyle(event.detail.ballStyle);
   });
   window.addEventListener("keydown", (event) => {
+    inputDevices.recordKeyboardActivity(event.code, performance.now());
+    lastInputFamily = "keyboard";
+    app.dataset.inputFamily = "keyboard";
     if (app.dataset.state === "ball-select" && event.code === "ArrowLeft") moveBallSelection(-1);
     else if (app.dataset.state === "ball-select" && event.code === "ArrowRight") moveBallSelection(1);
     else if (app.dataset.state === "ball-select" && event.code === "Escape") leaveBallSelection();
@@ -2616,8 +3196,70 @@ function bindUI() {
     else if (event.code === "Escape" && !$("#controls-screen").hidden) hideOverlay("controls-screen");
     else if (event.code === "Escape" && !$("#my-player-screen").hidden) showMainMenu();
   });
+  window.addEventListener("gamepadconnected", (event) => {
+    const controller = inputDevices.connect(event.gamepad, performance.now());
+    inputDevices.recordControllerActivity(controller.index, performance.now());
+    lastInputFamily = controller.family;
+    app.dataset.inputFamily = controller.family;
+    ui.toast(`${controller.family.toUpperCase()} CONTROLLER CONNECTED`);
+  });
+  window.addEventListener("gamepaddisconnected", (event) => {
+    const result = inputDevices.disconnect(event.gamepad.index, performance.now());
+    lastInputFamily = "keyboard";
+    app.dataset.inputFamily = "keyboard";
+    if (result.disconnected) { pauseGame(); ui.toast("CONTROLLER DISCONNECTED / KEYBOARD ACTIVE"); }
+  });
+  window.addEventListener("resize", applyResponsiveSafeArea, { passive: true });
+  window.addEventListener("blur", () => { if (gameActive && !engine?.paused) pauseGame(); });
   window.addEventListener("pointerdown", unlockAudio, { once: true });
   window.addEventListener("keydown", unlockAudio, { once: true });
+
+  if (new URLSearchParams(location.search).has("qa")) {
+    const qaPanel = document.createElement("aside");
+    qaPanel.className = "browser-qa-controls";
+    qaPanel.setAttribute("aria-label", "Browser QA controls");
+    const finishButton = document.createElement("button");
+    finishButton.type = "button";
+    finishButton.textContent = "QA SETTLE PARK DUEL";
+    finishButton.addEventListener("click", () => {
+      const result = finishParkDuelForQA(3);
+      finishButton.dataset.ok = String(result.ok);
+    });
+    const controllerButton = document.createElement("button");
+    controllerButton.type = "button";
+    controllerButton.textContent = "QA XBOX PROMPTS";
+    controllerButton.addEventListener("click", () => {
+      const controller = inputDevices.connect({ index: 0, id: "Xbox Wireless Controller", mapping: "standard" }, performance.now());
+      inputDevices.recordControllerActivity(controller.index, performance.now());
+      lastInputFamily = controller.family;
+      app.dataset.inputFamily = controller.family;
+      controllerButton.dataset.family = controller.family;
+    });
+    const recoveryButton = document.createElement("button");
+    recoveryButton.type = "button";
+    recoveryButton.textContent = "QA FOCUS RECOVERY";
+    recoveryButton.addEventListener("click", () => {
+      window.dispatchEvent(new Event("blur"));
+      recoveryButton.dataset.recovered = String(app.dataset.state === "paused");
+    });
+    const performanceButton = document.createElement("button");
+    performanceButton.type = "button";
+    performanceButton.textContent = "QA SAMPLE PERF";
+    performanceButton.addEventListener("click", () => {
+      qaPanel.dataset.calls = String(engine?.renderer?.info?.render?.calls || 0);
+      qaPanel.dataset.triangles = String(engine?.renderer?.info?.render?.triangles || 0);
+      qaPanel.dataset.textures = String(engine?.renderer?.info?.memory?.textures || 0);
+      qaPanel.dataset.geometries = String(engine?.renderer?.info?.memory?.geometries || 0);
+      qaPanel.dataset.fps = app.dataset.performanceFps || "0";
+      qaPanel.dataset.p95 = app.dataset.performanceP95 || "0";
+      qaPanel.dataset.heap = String(performance.memory?.usedJSHeapSize || 0);
+      qaPanel.dataset.pixelRatio = String(engine?.renderer?.getPixelRatio?.() || 0);
+      qaPanel.dataset.shadows = String(Boolean(engine?.renderer?.shadowMap?.enabled));
+      qaPanel.dataset.quality = String(engine?.qualityTier || engine?.options?.visualQuality || "unknown");
+    });
+    qaPanel.append(finishButton, controllerButton, recoveryButton, performanceButton);
+    document.body.append(qaPanel);
+  }
 }
 
 function fail(error) {
@@ -2629,8 +3271,10 @@ function fail(error) {
 }
 
 async function boot() {
+  loadPlatformProgress();
   bindUI();
   try {
+    applyResponsiveSafeArea();
     if (!globalThis.THREE || !globalThis.WebGLRenderingContext) throw new Error("WebGL is unavailable in this browser.");
     const bootQuery = new URLSearchParams(location.search);
     if (bootQuery.get("captureHeight") === "720") {
