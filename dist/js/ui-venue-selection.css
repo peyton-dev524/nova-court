@@ -131,3 +131,20 @@
   .venue-locker__details h3 { max-width: none; font-size: 3rem; }
   .venue-locker__details .button { width: 100%; }
 }
+
+/* 2026 venue browser pass: the architecture preview is a landscape hero,
+   not a narrow portrait crop. */
+@media (min-width: 981px) {
+  .venue-locker {
+    grid-template-columns: minmax(175px, .52fr) minmax(520px, 1.9fr) minmax(225px, .7fr);
+    gap: clamp(16px, 2.2vw, 34px);
+  }
+
+  .venue-locker__preview {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+    align-self: center;
+  }
+}

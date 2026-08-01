@@ -822,3 +822,163 @@
     transition: none;
   }
 }
+
+/* 2026 My Player pass: keep the build summary persistent while separating
+   progression from customization into two console-style destinations. */
+.profile-view-tabs {
+  display: grid;
+  margin: 0 0 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.profile-view-tab {
+  position: relative;
+  display: grid;
+  min-height: 54px;
+  padding: 8px 13px;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 1px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(141, 230, 243, .16);
+  border-radius: 8px;
+  color: rgba(235, 246, 249, .72);
+  background: rgba(6, 16, 21, .72);
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-view-tab::after {
+  position: absolute;
+  right: -28px;
+  bottom: -38px;
+  width: 110px;
+  height: 72px;
+  background: linear-gradient(135deg, transparent, rgba(56, 232, 255, .16));
+  content: "";
+  transform: rotate(-18deg);
+}
+
+.profile-view-tab span {
+  grid-row: 1 / -1;
+  color: var(--dim);
+  font-size: .48rem;
+  font-weight: 900;
+  letter-spacing: .16em;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.profile-view-tab strong {
+  z-index: 1;
+  font-size: .8rem;
+  letter-spacing: .12em;
+}
+
+.profile-view-tab small {
+  z-index: 1;
+  color: var(--muted);
+  font-size: .52rem;
+  letter-spacing: .04em;
+}
+
+.profile-view-tab:hover,
+.profile-view-tab:focus-visible {
+  border-color: rgba(166, 247, 255, .68);
+  color: var(--paper);
+  background: rgba(12, 31, 38, .9);
+}
+
+.profile-view-tab:focus-visible {
+  outline: 3px solid var(--cyan-bright);
+  outline-offset: 2px;
+}
+
+.profile-view-tab.is-selected {
+  border-color: var(--cyan-bright);
+  color: #fff;
+  background:
+    linear-gradient(110deg, rgba(56, 232, 255, .18), rgba(7, 20, 27, .96));
+  box-shadow: inset 0 0 0 1px rgba(166, 247, 255, .18), 0 8px 24px rgba(0, 0, 0, .28);
+}
+
+#my-player-screen[data-profile-view] .profile-dashboard {
+  grid-template-columns: 218px minmax(0, 1fr);
+}
+
+#my-player-screen[data-profile-view] .attribute-lab,
+#my-player-screen[data-profile-view] .style-locker {
+  grid-column: 2;
+}
+
+#my-player-screen[data-profile-view="attributes"] .style-locker,
+#my-player-screen[data-profile-view="style"] .attribute-lab {
+  display: none;
+}
+
+#my-player-screen[data-profile-view="style"] .style-locker {
+  width: 100%;
+}
+
+#my-player-screen[data-profile-view="style"] .appearance-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#my-player-screen[data-profile-view="style"] .shoe-style-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#my-player-screen[data-profile-view="style"] .cosmetic-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#my-player-screen[data-profile-view="style"] .jersey-profile-controls {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .profile-view-tabs {
+    position: sticky;
+    z-index: 9;
+    top: 62px;
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+    overflow-x: auto;
+    background: rgba(3, 7, 10, .96);
+  }
+
+  #my-player-screen[data-profile-view] .profile-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  #my-player-screen[data-profile-view] .build-card,
+  #my-player-screen[data-profile-view] .attribute-lab,
+  #my-player-screen[data-profile-view] .style-locker {
+    grid-column: 1;
+  }
+
+  #my-player-screen[data-profile-view="style"] .appearance-grid,
+  #my-player-screen[data-profile-view="style"] .cosmetic-grid,
+  #my-player-screen[data-profile-view="style"] .jersey-profile-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-view-tab small {
+    display: none;
+  }
+
+  #my-player-screen[data-profile-view="style"] .appearance-grid,
+  #my-player-screen[data-profile-view="style"] .cosmetic-grid,
+  #my-player-screen[data-profile-view="style"] .jersey-profile-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-view-tab {
+    transition: none;
+  }
+}

@@ -430,3 +430,55 @@
     display: none;
   }
 }
+
+/* 2026 presentation pass: secondary screens own their stage and the active
+   mode reads as the featured choice rather than one of seven equal tiles. */
+#game-root {
+  transition: opacity .22s ease;
+}
+
+#app:is(
+  [data-state="player-creation"],
+  [data-state="profile"],
+  [data-state="modes"],
+  [data-state="ball-select"],
+  [data-state="venue-select"]
+) #game-root {
+  visibility: hidden;
+  opacity: 0;
+}
+
+#mode-select .mode-grid {
+  grid-auto-flow: dense;
+}
+
+#mode-select .mode-card.is-selected {
+  grid-column: span 2;
+  padding-inline: clamp(20px, 2.4vw, 34px);
+}
+
+#mode-select .mode-card.is-selected > strong {
+  font-size: clamp(2.35rem, 4.2vw, 3.8rem);
+}
+
+#mode-select .mode-card.is-selected p {
+  max-width: 48ch;
+  -webkit-line-clamp: 3;
+}
+
+#mode-select .mode-card.is-selected .mode-card__cta {
+  color: var(--cyan-bright);
+  letter-spacing: .16em;
+}
+
+@media (max-width: 560px) {
+  #mode-select .mode-card.is-selected {
+    grid-column: span 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #game-root {
+    transition: none;
+  }
+}

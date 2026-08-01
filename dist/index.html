@@ -145,6 +145,14 @@
           <div class="profile-wallet" aria-label="Player balance"><span>CREDITS</span><strong id="profile-credits">600 CR</strong></div>
         </header>
         <nav id="position-tabs" class="position-tabs" aria-label="Choose a position"></nav>
+        <nav id="profile-view-tabs" class="profile-view-tabs" aria-label="My Player sections">
+          <button class="profile-view-tab is-selected" type="button" data-profile-view="attributes" aria-pressed="true">
+            <span>PERFORMANCE</span><strong>ATTRIBUTES</strong><small>Ratings, caps, and upgrades</small>
+          </button>
+          <button class="profile-view-tab" type="button" data-profile-view="style" aria-pressed="false">
+            <span>ORIGINAL IDENTITY</span><strong>STYLE LOCKER</strong><small>Appearance, gear, and titles</small>
+          </button>
+        </nav>
         <div class="profile-dashboard">
           <aside class="build-card">
             <div class="overall-orbit" aria-label="Overall rating"><span>OVR</span><strong id="profile-overall">64</strong></div>
@@ -191,7 +199,7 @@
           <span class="overline">SELECT YOUR RUN</span>
           <h2 id="mode-title">GAME MODES</h2>
         </div>
-        <span class="panel-index">01 / 07</span>
+        <span id="mode-position" class="panel-index">01 / 07</span>
       </header>
 
       <div class="mode-grid">
@@ -345,8 +353,17 @@
         </div>
         <div class="score-center">
           <span id="mode-label">STREET DUEL</span>
-          <strong id="game-clock">FIRST TO 11</strong>
-          <small id="possession-label">YOUR BALL</small>
+          <div class="score-clock-row">
+            <strong id="game-clock">FIRST TO 11</strong>
+            <span class="shot-clock-box" aria-label="Shot clock">
+              <small id="shot-clock-caption">SHOT</small>
+              <b id="shot-clock-value">24</b>
+            </span>
+          </div>
+          <div class="score-meta-row">
+            <small id="match-objective">FIRST TO 11</small>
+            <small id="possession-label">YOUR BALL</small>
+          </div>
         </div>
         <div class="score-side score-side--away">
           <strong id="away-score">0</strong>
@@ -490,6 +507,6 @@
 
   <noscript>NOVA COURT needs JavaScript enabled to run.</noscript>
   <script src="./vendor/three.min.js"></script>
-  <script type="module" src="./js/app.js?v=8.6"></script>
+  <script type="module" src="./js/app.js?v=8.7"></script>
 </body>
 </html>

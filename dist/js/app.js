@@ -162,12 +162,12 @@ compat.rel = "stylesheet";
 compat.href = "./js/compat.css?v=7.0";
 document.head.append(compat);
 for (const href of [
-  "./js/ui-menu-polish.css?v=1.1",
-  "./js/ui-hud-polish.css?v=1.2",
-  "./js/ui-profile-polish.css?v=1.1",
+  "./js/ui-menu-polish.css?v=1.2",
+  "./js/ui-hud-polish.css?v=1.3",
+  "./js/ui-profile-polish.css?v=1.2",
   "./js/ui-shooting-settings.css?v=1.0",
   "./js/ui-ball-selection.css?v=1.4",
-  "./js/ui-venue-selection.css?v=1.0",
+  "./js/ui-venue-selection.css?v=1.1",
 ]) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -917,9 +917,25 @@ function showMyPlayer() {
   setHidden($("#ball-select"), true);
   setHidden($("#venue-select"), true);
   setHidden($("#my-player-screen"), false);
+  setProfileView("attributes");
   renderPlayerProfile();
   app.dataset.state = "profile";
   $(".position-tab.is-selected")?.focus();
+}
+
+function setProfileView(view = "attributes", { focus = false } = {}) {
+  const selectedView = view === "style" ? "style" : "attributes";
+  const screen = $("#my-player-screen");
+  if (!screen) return selectedView;
+  screen.dataset.profileView = selectedView;
+  $$("[data-profile-view]", screen).forEach((button) => {
+    const selected = button.dataset.profileView === selectedView;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+    if (selected && focus) button.focus({ preventScroll: true });
+  });
+  screen.scrollTop = 0;
+  return selectedView;
 }
 
 function controlledProfileConfig() {
@@ -1244,6 +1260,9 @@ async function startMode(modeKey = selectedModeKey) {
   $("#home-label").textContent = meta.home;
   $("#away-label").textContent = meta.away;
   $("#game-clock").textContent = meta.objective;
+  $("#match-objective").textContent = meta.objective;
+  $("#shot-clock-caption").textContent = currentModeKey === "threePoint" ? "BALL" : "SHOT";
+  $("#shot-clock-value").textContent = currentModeKey === "practice" ? "∞" : "--";
   setHidden($("#three-point-progress"), currentModeKey !== "threePoint");
   setHidden($("#teammate-hints"), !isTeamModeKey(currentModeKey));
   setHidden($("#restart-game"), !allowsRestart(currentModeKey));
@@ -2128,23 +2147,30 @@ function updateHUD() {
     $("#home-score").textContent = state.makes ?? 0;
     $("#away-score").textContent = state.attempts ?? 0;
     $("#game-clock").textContent = "FREEPLAY";
+    $("#match-objective").textContent = "OPEN GYM";
+    $("#shot-clock-caption").textContent = "FREE";
+    $("#shot-clock-value").textContent = "∞";
     $("#possession-label").textContent = "STREAK " + (state.streak || 0) + " · BEST " + (state.bestStreak || 0) + " · Q: BASIC · SHIFT+Q: ELITE";
   } else if (currentModeKey === "threePoint") {
     $("#home-score").textContent = state.score ?? 0;
     $("#away-score").textContent = state.targetScore ?? 18;
     $("#game-clock").textContent = uiState.clockText || "1:00";
+    $("#match-objective").textContent = "25 BALLS";
+    $("#shot-clock-caption").textContent = "BALL";
+    $("#shot-clock-value").textContent = uiState.ballProgress || "1/5";
     $("#possession-label").textContent = uiState.complete
       ? `ALL ${state.totalBalls || 25} BALLS COMPLETE`
       : `${uiState.rackLabel || "RACK"} ${uiState.rackProgress || "1/5"} · BALL ${uiState.ballProgress || "1/5"}${uiState.isMoneyBall ? " · MONEY BALL / 2 PTS" : ""}`;
   } else {
     $("#home-score").textContent = state.scores?.home ?? 0;
     $("#away-score").textContent = state.scores?.away ?? 0;
-    $("#game-clock").textContent = currentModeKey === "team"
-      ? `${uiState.clockText || "5:00"} · ${Math.ceil(state.shotClock || 0)}`
-      : `${Math.ceil(state.shotClock || 0)} · FIRST TO ${state.targetScore}`;
-    if (isTeamModeKey(currentModeKey)) {
-      $("#game-clock").textContent = `${uiState.clockText || (currentModeKey === "fives" ? "6:00" : "5:00")} / ${Math.ceil(state.shotClock || 0)}`;
-    }
+    const meta = MODE_META[currentModeKey] || MODE_META.street;
+    $("#game-clock").textContent = isTeamModeKey(currentModeKey)
+      ? (uiState.clockText || (currentModeKey === "fives" ? "6:00" : "5:00"))
+      : meta.objective;
+    $("#match-objective").textContent = meta.objective;
+    $("#shot-clock-caption").textContent = "SHOT";
+    $("#shot-clock-value").textContent = uiState.shotClockText || Math.ceil(state.shotClock || 0);
     $("#possession-label").textContent = (uiState.statusText || `${state.possessionTeamId} ball`).toUpperCase();
   }
   const momentum = clamp(((state.scores?.home || state.score || 0) + 1) / ((state.targetScore || 15) + 1));
@@ -2335,6 +2361,12 @@ function bindUI() {
     if (!button) return;
     const result = selectPosition(playerProfile, button.dataset.position);
     if (result.ok) commitProfile(result.profile, `${POSITION_PRESETS[button.dataset.position].name} build selected.`);
+    audio.playSfx("ui");
+  });
+  $("#profile-view-tabs")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-profile-view]");
+    if (!button) return;
+    setProfileView(button.dataset.profileView);
     audio.playSfx("ui");
   });
   $("#attribute-groups")?.addEventListener("click", (event) => {
@@ -2542,13 +2574,24 @@ function bindUI() {
   $("#restart-game")?.addEventListener("click", () => startMode(currentModeKey));
   $("#rematch")?.addEventListener("click", () => startMode(currentModeKey));
 
-  $$(".mode-card").forEach((card) => card.addEventListener("click", () => {
-    $$(".mode-card").forEach((item) => item.classList.remove("is-selected"));
-    card.classList.add("is-selected");
+  const modeCards = $$(".mode-card");
+  const selectModeCard = (card) => {
+    modeCards.forEach((item) => {
+      const selected = item === card;
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
     selectedModeKey = card.dataset.mode;
+    const selectedIndex = modeCards.indexOf(card) + 1;
+    if ($("#mode-position")) {
+      $("#mode-position").textContent =
+        String(selectedIndex).padStart(2, "0") + " / " + String(modeCards.length).padStart(2, "0");
+    }
     audio.setMusicMode(selectedModeKey);
     audio.playSfx("ui");
-  }));
+  };
+  modeCards.forEach((card) => card.addEventListener("click", () => selectModeCard(card)));
+  modeCards.forEach((card) => card.setAttribute("aria-pressed", String(card.classList.contains("is-selected"))));
 
   $$("[data-action]").forEach((button) => button.addEventListener("click", () => {
     const action = button.dataset.action;

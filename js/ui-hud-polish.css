@@ -869,3 +869,91 @@
     gap-inline: 8px;
   }
 }
+
+/* 2026 scoreboard pass: match time/objective and possession clock are distinct
+   information channels instead of one ambiguous combined number. */
+#hud .score-center {
+  gap: 2px;
+}
+
+#hud .score-clock-row,
+#hud .score-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#hud .score-clock-row {
+  min-height: 26px;
+  gap: 9px;
+}
+
+#hud .score-clock-row > strong {
+  margin: 0;
+}
+
+#hud .shot-clock-box {
+  display: grid;
+  min-width: 34px;
+  padding: 3px 5px;
+  place-items: center;
+  border: 1px solid rgba(255, 122, 69, .5);
+  border-radius: 3px;
+  color: #fff5ec;
+  background: rgba(255, 100, 56, .13);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+#hud .shot-clock-box small {
+  color: #ffb28f;
+  font-size: 5px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+#hud .shot-clock-box b {
+  margin-top: 1px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+#hud .score-meta-row {
+  gap: 8px;
+}
+
+#hud .score-meta-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hud #match-objective {
+  color: var(--gold);
+}
+
+#hud .score-meta-row small + small::before {
+  margin-right: 8px;
+  color: rgba(255, 255, 255, .28);
+  content: "•";
+}
+
+@media (max-width: 760px) {
+  #hud .score-clock-row {
+    gap: 5px;
+  }
+
+  #hud .shot-clock-box {
+    min-width: 30px;
+    padding-inline: 3px;
+  }
+
+  #hud #match-objective {
+    display: none;
+  }
+
+  #hud .score-meta-row small + small::before {
+    display: none;
+  }
+}
